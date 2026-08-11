@@ -123,7 +123,7 @@
   <div class="row"><span class="keys"><kbd>Enter</kbd></span><span class="desc">заново (после проигрыша)</span></div>
   <div class="sep"></div>
   <div class="row"><span class="keys"><kbd>Тап</kbd></span><span class="desc">левая/правая половина — сторона</span></div>
-  <div class="note">Смотри на НИЖНИЙ блок у дровосека: если на нём ветка — эта сторона подсвечена красным, туда бить нельзя, бей в противоположную. Каждый удар добавляет времени, но полоска убывает всё быстрее. Руби без остановки!</div>
+  <div class="note">Ветка на блоке, который сейчас опустится к дровосеку, подсвечена КРАСНЫМ — в эту сторону бить нельзя, бей в противоположную. Каждый удар добавляет времени, но полоска убывает всё быстрее. Руби без остановки!</div>
 </aside>
 </div>
 
@@ -151,14 +151,14 @@ el.best.textContent = best;
 
 function genSegment() {
   const r = Math.random();
-  return { branch: r < 0.5 ? 'none' : (r < 0.75 ? 'left' : 'right') };
+  return { branch: r < 0.46 ? 'none' : (r < 0.73 ? 'left' : 'right') };
 }
 
 function reset() {
   trunk = [];
   for (let i = 0; i < VISIBLE; i++) trunk.push(i < 2 ? { branch: 'none' } : genSegment());
   jack = { side: 'left' };
-  score = 0; timer = 0.6;
+  score = 0; timer = 0.55;
   over = false; paused = false;
   chopAnim = 0; flying = []; shake = 0; anim = 0;
   updateHUD(); updatePauseBtn();
@@ -167,14 +167,14 @@ function reset() {
 function updateHUD() { el.score.textContent = score; }
 function updatePauseBtn() { el.pause.textContent = paused ? '▶ Продолжить' : '⏸ Пауза'; }
 
-function depletionRate() { return 0.24 + score * 0.0035; }
+function depletionRate() { return 0.26 + score * 0.0035; }
 
 function chop(side) {
   if (over || paused) return;
   jack.side = side;
   chopAnim = 1;
-  // опасна ветка на НИЖНЕМ блоке (у дровосека): рубишь со стороны ветки — она бьёт
-  if (trunk[0] && trunk[0].branch === side) { shake = 1; die(); return; }
+  // опасна ветка на блоке, который опустится к дровосеку (trunk[1]): рубишь с её стороны — смерть
+  if (trunk[1] && trunk[1].branch === side) { shake = 1; die(); return; }
   // отлетающее бревно (нижний блок улетает в сторону от дровосека)
   const dir = side === 'left' ? 1 : -1;
   flying.push({ x: TRUNK_X + TRUNK_W / 2, y: GROUND - LOG_H, vx: dir * 320, vy: -120, rot: 0, vr: dir * 8 });
@@ -223,7 +223,7 @@ function draw() {
   for (let i = 0; i < trunk.length; i++) {
     const y = GROUND - (i + 1) * LOG_H;
     if (y > H) continue;
-    drawLog(TRUNK_X, y, trunk[i].branch, i === 0);
+    drawLog(TRUNK_X, y, trunk[i].branch, i === 1);
   }
 
   // дровосек
