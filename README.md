@@ -28,7 +28,8 @@
     ├── flappy/           # 🐤 Flappy
     ├── invaders/         # 👾 Space Invaders
     ├── tetris/           # 🧱 Тетрис
-    └── breakout/         # 🕹️ Арканоид
+    ├── breakout/         # 🕹️ Арканоид
+    └── pacman/           # 🟡 Лабиринт (Пакман-лайт)
 ```
 
 Каждая папка `games/<игра>/` содержит:
@@ -49,6 +50,7 @@
 | 👾 Space Invaders | `games/invaders/` | ← → / A D · Пробел — огонь · P, Esc — пауза |
 | 🧱 Тетрис | `games/tetris/` | ← → двигать · ↑ поворот · Пробел — сброс · C — hold |
 | 🕹️ Арканоид | `games/breakout/` | мышь / ← → · Пробел — запуск и лазер · P, Esc — пауза |
+| 🟡 Лабиринт | `games/pacman/` | ← ↑ → ↓ / WASD · свайпы · P, Esc — пауза |
 
 ## Технологии
 
