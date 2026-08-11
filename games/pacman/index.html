@@ -337,8 +337,10 @@ function die() {
 function eatGhost(g) {
   eatChain++;
   score += 200 * Math.min(8, eatChain); updateHUD();
-  g.c = g.homeC; g.r = g.homeR; g.moveT = 0; g.frightened = false;
-  g.speed = 4.6 + (level - 1) * 0.32; g.moving = false;
+  g.c = g.homeC; g.r = g.homeR; g.moveT = 0; g.moving = false;
+  // пока идёт действие таблетки — возрождённый призрак остаётся напуганным (съедобным)
+  g.frightened = frightTimer > 0;
+  g.speed = g.frightened ? 3.2 : (4.6 + (level - 1) * 0.32);
 }
 
 function saveBest() { if (score > best) { best = score; localStorage.setItem('pacmanBest', String(best)); el.best.textContent = best; } }
