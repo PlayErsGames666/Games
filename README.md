@@ -26,7 +26,8 @@
     ├── pong/             # 🏓 Pong
     ├── snake/            # 🐍 Змейка
     ├── flappy/           # 🐤 Flappy
-    └── invaders/         # 👾 Space Invaders
+    ├── invaders/         # 👾 Space Invaders
+    └── tetris/           # 🧱 Тетрис
 ```
 
 Каждая папка `games/<игра>/` содержит:
@@ -45,6 +46,7 @@
 | 🐍 Змейка | `games/snake/` | стрелки / WASD · Пробел — пауза |
 | 🐤 Flappy | `games/flappy/` | Пробел / ↑ / клик · P, Esc — пауза |
 | 👾 Space Invaders | `games/invaders/` | ← → / A D · Пробел — огонь · P, Esc — пауза |
+| 🧱 Тетрис | `games/tetris/` | ← → двигать · ↑ поворот · Пробел — сброс · C — hold |
 
 ## Технологии
 
