@@ -297,7 +297,18 @@ function eatAt(c, r) {
 function frighten() {
   frightTimer = Math.max(3, 7 - (level - 1) * 0.4);
   eatChain = 0;
-  for (const g of ghosts) { g.frightened = true; g.dc = -g.dc; g.dr = -g.dr; g.speed = 3.2; }
+  for (const g of ghosts) { g.frightened = true; g.speed = 3.2; reverseGhost(g); }
+}
+
+// безопасный разворот призрака: без телепорта позиции и без захода в стену
+function reverseGhost(g) {
+  if (g.moving && g.moveT > 0 && g.moveT < 1) {
+    // сейчас между (c,r) и (c+dc,r+dr) — целевой тайл уже проверен как путь
+    g.c += g.dc; g.r += g.dr;    // переносим базу в него
+    g.moveT = 1 - g.moveT;       // прогресс инвертируем — на экране позиция не прыгает
+    g.dc = -g.dc; g.dr = -g.dr;  // разворачиваемся обратно к прежнему тайлу (тоже путь)
+  }
+  // если призрак ровно в центре тайла — направление сменит ближайший ghostDecide
 }
 
 function winLevel() {
