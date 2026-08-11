@@ -125,6 +125,16 @@
   .card:hover a.guide { opacity: 1; }
   a.guide:hover { background: rgba(12,13,24,.92); transform: scale(1.1); }
 
+  /* --- раскрытие превью по тапу на тач-экранах (без hover) --- */
+  .card.active .preview { opacity: 1; transform: translate(-50%, -50%) scale(calc(var(--k, .4) * 1.22)); }
+  .card.active .face { opacity: 0; }
+  .card.active .caption { transform: translateY(0); opacity: 1; }
+  .card.active a.guide { opacity: 1; }
+  .caption .play { pointer-events: auto; text-decoration: none; }
+  body.touch a.playlink { display: none; }                              /* на тач навигация через кнопку «Играть» */
+  body.touch .card .caption { transform: translateY(0); opacity: 1; }   /* подпись и «Играть» видны сразу */
+  body.touch .card a.guide { opacity: 1; }                              /* кнопка гайда видна сразу */
+
   footer { text-align: center; margin-top: 40px; opacity: .5; font-size: 13px; }
 </style>
 </head>
@@ -151,6 +161,11 @@ const GAMES = [
   { file: 'games/flappy/index.html',     emoji: '🐤',  name: 'Flappy',           guide: 'games/flappy/управление.txt',     accent: '#ffd166' },
 ];
 
+// на устройствах без наведения (телефоны/планшеты) включаем тап-режим
+if (window.matchMedia('(hover: none)').matches || 'ontouchstart' in window) {
+  document.body.classList.add('touch');
+}
+
 const grid = document.getElementById('grid');
 const cards = [];
 
@@ -166,19 +181,32 @@ GAMES.forEach(g => {
     </div>
     <div class="caption">
       <span class="cname">${g.name}</span>
-      <span class="play">Играть ▶</span>
+      <a class="play" href="${g.file}">Играть ▶</a>
     </div>
     <a class="playlink" href="${g.file}" aria-label="Играть в ${g.name}"></a>
     <a class="guide" href="${g.guide}" target="_blank" rel="noopener" title="Управление: ${g.name}">📖</a>
   `;
 
   const iframe = card.querySelector('.preview');
-  // ленивое превью: грузим игру только при наведении, выгружаем при уходе курсора
-  card.addEventListener('mouseenter', () => {
-    if (!iframe.getAttribute('src')) iframe.setAttribute('src', g.file);
-  });
-  card.addEventListener('mouseleave', () => {
-    iframe.removeAttribute('src'); // останавливаем игру-превью, экономим ресурсы
+  const load = () => { if (!iframe.getAttribute('src')) iframe.setAttribute('src', g.file); };
+  const unload = () => iframe.removeAttribute('src'); // останавливаем игру-превью, экономим ресурсы
+
+  // десктоп: превью по наведению курсора
+  card.addEventListener('mouseenter', load);
+  card.addEventListener('mouseleave', unload);
+
+  // тач: первый тап раскрывает превью, ссылки «Играть»/«📖» работают как обычно
+  card.addEventListener('click', (e) => {
+    if (!document.body.classList.contains('touch')) return;   // на десктопе — обычные ссылки
+    if (e.target.closest('a.play, a.guide')) return;          // тап по ссылке = переход в игру/гайд
+    e.preventDefault();
+    const active = card.classList.contains('active');
+    // закрываем остальные карточки и выгружаем их превью
+    cards.forEach(c => {
+      if (c !== card) { c.classList.remove('active'); c.querySelector('.preview').removeAttribute('src'); }
+    });
+    if (active) { card.classList.remove('active'); unload(); }
+    else { card.classList.add('active'); load(); }
   });
 
   grid.appendChild(card);

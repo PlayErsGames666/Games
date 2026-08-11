@@ -62,19 +62,23 @@
     background: var(--panel);
     padding: 10px;
     border-radius: 10px;
+    max-width: 100%;
+    overflow: auto;              /* очень широкие поля можно прокрутить на телефоне */
   }
   .cell {
-    width: 34px;
-    height: 34px;
+    width: var(--cell-size, 34px);
+    height: var(--cell-size, 34px);
     background: var(--cell);
     border-radius: 5px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 18px;
+    font-size: calc(var(--cell-size, 34px) * 0.52);
     font-weight: bold;
     cursor: pointer;
     transition: background .1s;
+    flex-shrink: 0;
+    -webkit-tap-highlight-color: transparent;
   }
   .cell:hover:not(.open) { background: #a2adc0; }
   .cell.open {
@@ -126,6 +130,8 @@
     font-family:inherit; font-size:12px; font-weight:bold; color:var(--text);
   }
   @media (max-width:760px){ .guide-panel{ margin-top:8px; max-width:100%; width:100%; } }
+  @media (max-width:600px){ :root{ --cell-size: 30px; } body{ padding:12px; } h1{ font-size:24px; } }
+  @media (max-width:400px){ :root{ --cell-size: 26px; } }
 </style>
 </head>
 <body>
@@ -208,9 +214,35 @@ function init() {
   render();
 }
 
+// тач-управление: короткий тап = открыть, долгое нажатие = флажок, свайп = прокрутка
+function attachTouch(el, r, c) {
+  let timer = null, longPressed = false, moved = false, startX = 0, startY = 0;
+  el.addEventListener('touchstart', (e) => {
+    if (over) return;
+    longPressed = false; moved = false;
+    const t = e.touches[0]; startX = t.clientX; startY = t.clientY;
+    timer = setTimeout(() => {
+      longPressed = true;
+      onFlag(r, c);
+      if (navigator.vibrate) navigator.vibrate(30);
+    }, 400);
+  }, { passive: true });
+  el.addEventListener('touchmove', (e) => {
+    const t = e.touches[0];
+    if (Math.abs(t.clientX - startX) > 10 || Math.abs(t.clientY - startY) > 10) { moved = true; clearTimeout(timer); }
+  }, { passive: true });
+  el.addEventListener('touchend', (e) => {
+    clearTimeout(timer);
+    if (moved) return;        // это была прокрутка поля
+    e.preventDefault();       // гасим синтетический click, чтобы не открыть дважды
+    if (longPressed) return;  // флажок уже поставлен долгим нажатием
+    onOpen(r, c);
+  });
+}
+
 function render() {
   boardEl.innerHTML = '';
-  boardEl.style.gridTemplateColumns = `repeat(${cols}, 34px)`;
+  boardEl.style.gridTemplateColumns = `repeat(${cols}, var(--cell-size, 34px))`;
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const cell = grid[r][c];
@@ -218,6 +250,7 @@ function render() {
       el.className = 'cell';
       el.addEventListener('click', () => onOpen(r, c));
       el.addEventListener('contextmenu', (e) => { e.preventDefault(); onFlag(r, c); });
+      attachTouch(el, r, c);
       cell.el = el;
       boardEl.appendChild(el);
     }

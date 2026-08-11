@@ -63,6 +63,8 @@
     display: block;
     box-shadow: 0 8px 24px rgba(0,0,0,.4);
     touch-action: none;
+    max-width: 100%;
+    height: auto;
   }
   .hint { margin-top: 12px; font-size: 13px; opacity: .6; text-align: center; }
   .stage { display:flex; gap:28px; align-items:flex-start; justify-content:center; flex-wrap:wrap; width:100%; }
@@ -90,6 +92,7 @@
     font-family:inherit; font-size:12px; font-weight:bold; color:var(--text);
   }
   @media (max-width:760px){ .guide-panel{ margin-top:8px; max-width:100%; width:100%; } }
+  @media (max-width:480px){ body{ padding:12px; } h1{ font-size:24px; } }
 </style>
 </head>
 <body>

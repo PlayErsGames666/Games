@@ -115,6 +115,11 @@
     font-family:inherit; font-size:12px; font-weight:bold; color:var(--text);
   }
   @media (max-width:760px){ .guide-panel{ margin-top:8px; max-width:100%; width:100%; } }
+  @media (max-width:420px){
+    body{ padding:12px; } h1{ font-size:22px; }
+    #board{ grid-template-columns: repeat(3, 26vw); }
+    .cell{ width:26vw; height:26vw; font-size:15vw; }
+  }
 </style>
 </head>
 <body>

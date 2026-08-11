@@ -115,6 +115,7 @@
     font-family:inherit; font-size:12px; font-weight:bold; color:var(--text);
   }
   @media (max-width:760px){ .guide-panel{ margin-top:8px; max-width:100%; width:100%; } }
+  @media (max-width:480px){ body{ padding:12px; } h1{ font-size:24px; } }
 </style>
 </head>
 <body>
@@ -221,7 +222,11 @@ function neighborsOf(index) {
 }
 
 function render() {
-  const tileSize = n === 3 ? 100 : n === 4 ? 80 : 66;
+  // базовый размер плитки, но не шире экрана (адаптив под мобильные)
+  const base = n === 3 ? 100 : n === 4 ? 80 : 66;
+  const avail = Math.min(window.innerWidth - 44, 440);        // доступная ширина поля
+  const fit = Math.floor((avail - (n - 1) * 8 - 20) / n);     // вычет зазоров и padding
+  const tileSize = Math.max(48, Math.min(base, fit));
   boardEl.style.gridTemplateColumns = `repeat(${n}, ${tileSize}px)`;
   boardEl.innerHTML = '';
   for (let i = 0; i < board.length; i++) {
@@ -285,6 +290,8 @@ document.addEventListener('keydown', (e) => {
 
 document.getElementById('shuffle').addEventListener('click', () => { shuffle(); render(); });
 sizeEl.addEventListener('change', init);
+// перерисовать при повороте/изменении размера экрана (адаптив плиток)
+window.addEventListener('resize', () => { if (board && board.length) render(); });
 
 init();
 </script>
