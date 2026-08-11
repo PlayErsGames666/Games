@@ -25,7 +25,8 @@
     ├── clicker/          # 🍪 Печенька-кликер
     ├── pong/             # 🏓 Pong
     ├── snake/            # 🐍 Змейка
-    └── flappy/           # 🐤 Flappy
+    ├── flappy/           # 🐤 Flappy
+    └── invaders/         # 👾 Space Invaders
 ```
 
 Каждая папка `games/<игра>/` содержит:
@@ -43,6 +44,7 @@
 | 🏓 Pong | `games/pong/` | ↑ ↓ / W S / мышь · Пробел — пауза |
 | 🐍 Змейка | `games/snake/` | стрелки / WASD · Пробел — пауза |
 | 🐤 Flappy | `games/flappy/` | Пробел / ↑ / клик · P, Esc — пауза |
+| 👾 Space Invaders | `games/invaders/` | ← → / A D · Пробел — огонь · P, Esc — пауза |
 
 ## Технологии
 
