@@ -128,7 +128,7 @@
   <div class="row"><span class="keys"><kbd>P</kbd><kbd>Esc</kbd></span><span class="desc">пауза</span></div>
   <div class="sep"></div>
   <div class="row"><span class="keys"><kbd>Палец</kbd></span><span class="desc">веди — двигать, тап — поворот, свайп вниз — сброс</span></div>
-  <div class="note">Складывай фигуры в сплошные горизонтальные линии — они исчезают и дают очки. За 4 линии сразу (тетрис) очков больше всего. Чем выше уровень — тем быстрее падение.</div>
+  <div class="note">Складывай фигуры в сплошные горизонтальные линии — они исчезают и дают очки. После очистки висящие блоки падают вниз, и если соберутся новые линии — идёт каскад с бонусом. За 4 линии сразу (тетрис) очков больше всего. Чем выше уровень — тем быстрее падение.</div>
 </aside>
 </div>
 
@@ -275,20 +275,39 @@ function lock() {
 }
 
 function clearLines() {
-  let cleared = 0;
-  for (let r = ROWS - 1; r >= 0; r--) {
-    if (board[r].every(cell => cell)) {
-      board.splice(r, 1);
-      board.unshift(Array(COLS).fill(null));
-      cleared++;
-      r++; // проверить ту же строку снова (сдвинулось вниз)
+  let total = 0, chain = 0, guard = 0;
+  while (guard++ < 40) {
+    // удаляем полностью заполненные строки
+    let cleared = 0;
+    for (let r = ROWS - 1; r >= 0; r--) {
+      if (board[r].every(cell => cell)) {
+        board.splice(r, 1);
+        board.unshift(Array(COLS).fill(null));
+        cleared++;
+        r++; // проверить ту же строку снова (сдвинулось вниз)
+      }
     }
+    if (cleared === 0) break;
+    chain++;
+    total += cleared;
+    score += LINE_SCORE[cleared] * level * chain; // бонус за каскад
+    applyGravity(); // висящие блоки оседают вниз — могут собраться новые линии
   }
-  if (cleared) {
-    lines += cleared;
-    score += LINE_SCORE[cleared] * level;
+  if (total) {
+    lines += total;
     level = 1 + Math.floor(lines / 10);
     updateHUD();
+  }
+}
+
+// гравитация: в каждом столбце блоки падают вниз, дырки под ними исчезают
+function applyGravity() {
+  for (let c = 0; c < COLS; c++) {
+    const stack = [];
+    for (let r = 0; r < ROWS; r++) if (board[r][c]) stack.push(board[r][c]);
+    for (let r = 0; r < ROWS; r++) board[r][c] = null;
+    let idx = ROWS - 1;
+    for (let i = stack.length - 1; i >= 0; i--) board[idx--][c] = stack[i];
   }
 }
 
