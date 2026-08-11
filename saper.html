@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Сапёр</title>
+<style>
+  :root {
+    --bg: #2b2d42;
+    --panel: #3a3d5c;
+    --cell: #8d99ae;
+    --cell-open: #edf2f4;
+    --accent: #ef233c;
+    --text: #edf2f4;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', Tahoma, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    user-select: none;
+  }
+  h1 { margin-bottom: 16px; letter-spacing: 2px; }
+  .controls {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  button, select {
+    background: var(--panel);
+    color: var(--text);
+    border: none;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 15px;
+    cursor: pointer;
+    transition: background .15s;
+  }
+  button:hover, select:hover { background: #4a4e73; }
+  .status {
+    display: flex;
+    gap: 24px;
+    margin-bottom: 14px;
+    font-size: 20px;
+    font-weight: bold;
+    background: var(--panel);
+    padding: 10px 20px;
+    border-radius: 10px;
+  }
+  .status span { display: inline-flex; align-items: center; gap: 6px; }
+  #board {
+    display: grid;
+    gap: 3px;
+    background: var(--panel);
+    padding: 10px;
+    border-radius: 10px;
+  }
+  .cell {
+    width: 34px;
+    height: 34px;
+    background: var(--cell);
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background .1s;
+  }
+  .cell:hover:not(.open) { background: #a2adc0; }
+  .cell.open {
+    background: var(--cell-open);
+    color: #2b2d42;
+    cursor: default;
+  }
+  .cell.mine { background: var(--accent); }
+  .cell.flag { color: var(--accent); }
+  .c1 { color: #3a86ff; }
+  .c2 { color: #2a9d8f; }
+  .c3 { color: #e63946; }
+  .c4 { color: #7209b7; }
+  .c5 { color: #d00000; }
+  .c6 { color: #0096c7; }
+  .c7 { color: #212529; }
+  .c8 { color: #6c757d; }
+  .message {
+    margin-top: 16px;
+    font-size: 22px;
+    font-weight: bold;
+    height: 28px;
+  }
+  .win { color: #06d6a0; }
+  .lose { color: var(--accent); }
+  .hint { margin-top: 10px; font-size: 13px; opacity: .6; }
+  .stage { display:flex; gap:28px; align-items:flex-start; justify-content:center; flex-wrap:wrap; width:100%; }
+  .game-col { display:flex; flex-direction:column; align-items:center; }
+  .guide-panel {
+    background: var(--panel);
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 12px;
+    padding: 16px 18px;
+    min-width: 215px;
+    max-width: 260px;
+    margin-top: 56px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.35);
+  }
+  .guide-panel h2 { font-size:14px; letter-spacing:1px; text-transform:uppercase; opacity:.85; margin-bottom:14px; display:flex; align-items:center; gap:7px; }
+  .guide-panel .row { display:flex; align-items:center; gap:10px; margin-bottom:10px; font-size:13.5px; }
+  .guide-panel .keys { display:flex; gap:4px; flex-shrink:0; }
+  .guide-panel .desc { opacity:.85; }
+  .guide-panel .sep { height:1px; background:rgba(255,255,255,.09); margin:12px 0; }
+  .guide-panel .note { font-size:12px; opacity:.6; margin-top:8px; line-height:1.55; }
+  kbd {
+    display:inline-block; min-width:22px; text-align:center;
+    background:#20223a; border:1px solid rgba(255,255,255,.15);
+    border-bottom-width:2px; border-radius:6px; padding:3px 6px;
+    font-family:inherit; font-size:12px; font-weight:bold; color:var(--text);
+  }
+  @media (max-width:760px){ .guide-panel{ margin-top:8px; max-width:100%; width:100%; } }
+</style>
+</head>
+<body>
+<div class="stage">
+<div class="game-col">
+  <h1>💣 САПЁР</h1>
+
+  <div class="controls">
+    <select id="difficulty">
+      <option value="easy">Легко (9×9, 10 мин)</option>
+      <option value="medium">Средне (16×16, 40 мин)</option>
+      <option value="hard">Сложно (16×30, 99 мин)</option>
+    </select>
+    <button id="restart">🔄 Новая игра</button>
+  </div>
+
+  <div class="status">
+    <span>💣 <span id="mineCount">0</span></span>
+    <span>⏱️ <span id="timer">0</span></span>
+  </div>
+
+  <div id="board"></div>
+
+  <div class="message" id="message"></div>
+  <div class="hint">ЛКМ — открыть · ПКМ — поставить флажок</div>
+</div>
+<aside class="guide-panel">
+  <h2>🎛 Справочник</h2>
+  <div class="row"><span class="keys"><kbd>ЛКМ</kbd></span><span class="desc">открыть клетку</span></div>
+  <div class="row"><span class="keys"><kbd>ПКМ</kbd></span><span class="desc">флажок 🚩</span></div>
+  <div class="sep"></div>
+  <div class="row"><span class="desc">Цифра = сколько мин в 8 соседних клетках.</span></div>
+  <div class="note">Управление только мышью — горячих клавиш нет. Первый клик всегда безопасен.</div>
+</aside>
+</div>
+
+<script>
+const LEVELS = {
+  easy:   { rows: 9,  cols: 9,  mines: 10 },
+  medium: { rows: 16, cols: 16, mines: 40 },
+  hard:   { rows: 16, cols: 30, mines: 99 },
+};
+
+let rows, cols, mines;
+let grid;          // массив клеток
+let started;       // началась ли игра (мины ставятся после первого клика)
+let over;          // игра закончена
+let flags;         // количество флажков
+let opened;        // количество открытых клеток
+let timer, timerId;
+
+const boardEl = document.getElementById('board');
+const mineCountEl = document.getElementById('mineCount');
+const timerEl = document.getElementById('timer');
+const messageEl = document.getElementById('message');
+
+function init() {
+  const level = LEVELS[document.getElementById('difficulty').value];
+  rows = level.rows; cols = level.cols; mines = level.mines;
+
+  started = false;
+  over = false;
+  flags = 0;
+  opened = 0;
+  timer = 0;
+  clearInterval(timerId);
+  timerEl.textContent = '0';
+  messageEl.textContent = '';
+  messageEl.className = 'message';
+  mineCountEl.textContent = mines;
+
+  grid = [];
+  for (let r = 0; r < rows; r++) {
+    grid[r] = [];
+    for (let c = 0; c < cols; c++) {
+      grid[r][c] = { mine: false, open: false, flag: false, count: 0, el: null };
+    }
+  }
+
+  render();
+}
+
+function render() {
+  boardEl.innerHTML = '';
+  boardEl.style.gridTemplateColumns = `repeat(${cols}, 34px)`;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const cell = grid[r][c];
+      const el = document.createElement('div');
+      el.className = 'cell';
+      el.addEventListener('click', () => onOpen(r, c));
+      el.addEventListener('contextmenu', (e) => { e.preventDefault(); onFlag(r, c); });
+      cell.el = el;
+      boardEl.appendChild(el);
+    }
+  }
+}
+
+function placeMines(safeR, safeC) {
+  let placed = 0;
+  while (placed < mines) {
+    const r = Math.floor(Math.random() * rows);
+    const c = Math.floor(Math.random() * cols);
+    // не ставим мину на первую открытую клетку и её соседей
+    if (grid[r][c].mine) continue;
+    if (Math.abs(r - safeR) <= 1 && Math.abs(c - safeC) <= 1) continue;
+    grid[r][c].mine = true;
+    placed++;
+  }
+  // считаем соседей
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (grid[r][c].mine) continue;
+      grid[r][c].count = neighbors(r, c).filter(([nr, nc]) => grid[nr][nc].mine).length;
+    }
+  }
+}
+
+function neighbors(r, c) {
+  const list = [];
+  for (let dr = -1; dr <= 1; dr++) {
+    for (let dc = -1; dc <= 1; dc++) {
+      if (dr === 0 && dc === 0) continue;
+      const nr = r + dr, nc = c + dc;
+      if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) list.push([nr, nc]);
+    }
+  }
+  return list;
+}
+
+function onOpen(r, c) {
+  if (over) return;
+  const cell = grid[r][c];
+  if (cell.open || cell.flag) return;
+
+  if (!started) {
+    started = true;
+    placeMines(r, c);
+    timerId = setInterval(() => { timer++; timerEl.textContent = timer; }, 1000);
+  }
+
+  if (cell.mine) {
+    revealAll();
+    endGame(false);
+    return;
+  }
+
+  flood(r, c);
+  checkWin();
+}
+
+function flood(r, c) {
+  const cell = grid[r][c];
+  if (cell.open || cell.flag) return;
+  cell.open = true;
+  opened++;
+  cell.el.classList.add('open');
+  if (cell.count > 0) {
+    cell.el.textContent = cell.count;
+    cell.el.classList.add('c' + cell.count);
+  } else {
+    // пустая клетка — открываем всех соседей
+    neighbors(r, c).forEach(([nr, nc]) => flood(nr, nc));
+  }
+}
+
+function onFlag(r, c) {
+  if (over || !started) return;
+  const cell = grid[r][c];
+  if (cell.open) return;
+  cell.flag = !cell.flag;
+  cell.el.classList.toggle('flag', cell.flag);
+  cell.el.textContent = cell.flag ? '🚩' : '';
+  flags += cell.flag ? 1 : -1;
+  mineCountEl.textContent = mines - flags;
+}
+
+function revealAll() {
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const cell = grid[r][c];
+      if (cell.mine) {
+        cell.el.classList.add('open', 'mine');
+        cell.el.textContent = '💣';
+      }
+    }
+  }
+}
+
+function checkWin() {
+  if (opened === rows * cols - mines) {
+    endGame(true);
+  }
+}
+
+function endGame(won) {
+  over = true;
+  clearInterval(timerId);
+  if (won) {
+    messageEl.textContent = '🎉 Победа! Время: ' + timer + ' сек';
+    messageEl.className = 'message win';
+  } else {
+    messageEl.textContent = '💥 Взрыв! Игра окончена';
+    messageEl.className = 'message lose';
+  }
+}
+
+document.getElementById('restart').addEventListener('click', init);
+document.getElementById('difficulty').addEventListener('change', init);
+
+init();
+</script>
+</body>
+</html>

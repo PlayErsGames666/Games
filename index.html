@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Игры — меню</title>
+<style>
+  :root {
+    --bg: #2b2d42;
+    --panel: #3a3d5c;
+    --text: #edf2f4;
+    /* размер «виртуального экрана» игры внутри превью (портрет) */
+    --vw: 520;
+    --vh: 680;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', Tahoma, sans-serif;
+    background: radial-gradient(1200px 600px at 50% -10%, #34375a, var(--bg));
+    color: var(--text);
+    min-height: 100vh;
+    padding: 40px 20px 60px;
+  }
+  header { text-align: center; margin-bottom: 36px; }
+  header h1 { font-size: 40px; letter-spacing: 3px; margin-bottom: 8px; }
+  header p { opacity: .65; font-size: 15px; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 22px;
+    max-width: 1080px;
+    margin: 0 auto;
+  }
+
+  .card {
+    position: relative;
+    aspect-ratio: 520 / 680;         /* портрет — совпадает с виртуальным экраном игры */
+    border-radius: 18px;
+    overflow: hidden;
+    background: linear-gradient(150deg, var(--panel), #24263c);
+    box-shadow: 0 10px 26px rgba(0,0,0,.4);
+    cursor: pointer;
+    transition: transform .25s ease, box-shadow .25s ease;
+    border: 1px solid rgba(255,255,255,.06);
+  }
+  .card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 18px 40px rgba(0,0,0,.55), 0 0 0 2px var(--accent);
+  }
+
+  /* живое превью игры (iframe): масштабируем целый «экран» под карточку (cover) */
+  .preview {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: calc(var(--vw) * 1px);
+    height: calc(var(--vh) * 1px);
+    border: 0;
+    pointer-events: none;                       /* клики проходят на карточку */
+    opacity: 0;
+    filter: blur(2.5px) saturate(1.12) brightness(.92);
+    transform: translate(-50%, -50%) scale(var(--k, .4));
+    transform-origin: center;
+    transition: opacity .45s ease, transform 6s ease-out;
+    z-index: 1;
+  }
+  .card:hover .preview {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(calc(var(--k, .4) * 1.22));  /* медленно приближается */
+  }
+
+  /* лицевая сторона — большая эмодзи + название (видна без наведения) */
+  .face {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    z-index: 2;
+    transition: opacity .4s ease;
+    background: radial-gradient(120% 100% at 50% 0%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 62%);
+  }
+  .card:hover .face { opacity: 0; }
+  .face .emoji { font-size: 68px; line-height: 1; filter: drop-shadow(0 4px 8px rgba(0,0,0,.4)); }
+  .face .name { font-size: 20px; font-weight: bold; letter-spacing: .5px; text-align: center; padding: 0 10px; }
+
+  /* нижняя подпись, появляется при наведении */
+  .caption {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    z-index: 2;
+    padding: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: linear-gradient(to top, rgba(12,13,24,.95), rgba(12,13,24,.55) 60%, transparent);
+    transform: translateY(100%);
+    opacity: 0;
+    transition: transform .35s ease, opacity .35s ease;
+    pointer-events: none;
+  }
+  .card:hover .caption { transform: translateY(0); opacity: 1; }
+  .caption .cname { font-weight: bold; font-size: 15px; }
+  .caption .play { font-size: 13px; color: var(--accent); font-weight: bold; white-space: nowrap; }
+
+  /* прозрачная ссылка «играть» поверх всей карточки */
+  a.playlink { position: absolute; inset: 0; z-index: 3; text-decoration: none; }
+
+  /* кнопка гайда в углу — выше playlink */
+  a.guide {
+    position: absolute;
+    top: 10px; right: 10px;
+    z-index: 4;
+    width: 34px; height: 34px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 17px; text-decoration: none;
+    background: rgba(12,13,24,.6);
+    border-radius: 9px;
+    opacity: 0;
+    transition: opacity .3s ease, background .15s ease, transform .15s ease;
+  }
+  .card:hover a.guide { opacity: 1; }
+  a.guide:hover { background: rgba(12,13,24,.92); transform: scale(1.1); }
+
+  footer { text-align: center; margin-top: 40px; opacity: .5; font-size: 13px; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>🎮 ИГРОТЕКА</h1>
+    <p>Наведи на игру — увидишь её вживую · кликни, чтобы играть</p>
+  </header>
+
+  <div class="grid" id="grid"></div>
+
+  <footer>Все игры работают офлайн, прямо в браузере</footer>
+
+<script>
+const VW = 520, VH = 680; // виртуальный экран игры внутри превью
+
+const GAMES = [
+  { file: 'saper.html',      emoji: '💣',  name: 'Сапёр',            guide: 'saper-управление.txt',      accent: '#ef233c' },
+  { file: 'tictactoe.html',  emoji: '⭕',  name: 'Крестики-нолики',  guide: 'tictactoe-управление.txt',  accent: '#3a86ff' },
+  { file: 'pyatnashki.html', emoji: '🔢',  name: 'Пятнашки',         guide: 'pyatnashki-управление.txt', accent: '#06d6a0' },
+  { file: 'clicker.html',    emoji: '🍪',  name: 'Печенька-кликер',  guide: 'clicker-управление.txt',    accent: '#ffd166' },
+  { file: 'pong.html',       emoji: '🏓',  name: 'Pong',             guide: 'pong-управление.txt',       accent: '#06d6a0' },
+  { file: 'snake.html',      emoji: '🐍',  name: 'Змейка',           guide: 'snake-управление.txt',      accent: '#57cc7a' },
+  { file: 'flappy.html',     emoji: '🐤',  name: 'Flappy',           guide: 'flappy-управление.txt',     accent: '#ffd166' },
+];
+
+const grid = document.getElementById('grid');
+const cards = [];
+
+GAMES.forEach(g => {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.style.setProperty('--accent', g.accent);
+  card.innerHTML = `
+    <iframe class="preview" title="Превью: ${g.name}" scrolling="no" tabindex="-1"></iframe>
+    <div class="face">
+      <div class="emoji">${g.emoji}</div>
+      <div class="name">${g.name}</div>
+    </div>
+    <div class="caption">
+      <span class="cname">${g.name}</span>
+      <span class="play">Играть ▶</span>
+    </div>
+    <a class="playlink" href="${g.file}" aria-label="Играть в ${g.name}"></a>
+    <a class="guide" href="${g.guide}" target="_blank" rel="noopener" title="Управление: ${g.name}">📖</a>
+  `;
+
+  const iframe = card.querySelector('.preview');
+  // ленивое превью: грузим игру только при наведении, выгружаем при уходе курсора
+  card.addEventListener('mouseenter', () => {
+    if (!iframe.getAttribute('src')) iframe.setAttribute('src', g.file);
+  });
+  card.addEventListener('mouseleave', () => {
+    iframe.removeAttribute('src'); // останавливаем игру-превью, экономим ресурсы
+  });
+
+  grid.appendChild(card);
+  cards.push(card);
+});
+
+// подбираем масштаб превью так, чтобы виртуальный экран игры заполнял карточку (cover)
+function fitPreviews() {
+  for (const card of cards) {
+    const w = card.clientWidth, h = card.clientHeight;
+    if (!w || !h) continue;
+    const k = Math.max(w / VW, h / VH); // cover: заполняем карточку без пустот
+    card.style.setProperty('--k', k.toFixed(4));
+  }
+}
+
+window.addEventListener('load', fitPreviews);
+window.addEventListener('resize', fitPreviews);
+fitPreviews();
+</script>
+</body>
+</html>

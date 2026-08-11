@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Пятнашки</title>
+<style>
+  :root {
+    --bg: #2b2d42;
+    --panel: #3a3d5c;
+    --tile: #8d99ae;
+    --tile-hover: #a2adc0;
+    --text: #edf2f4;
+    --accent: #ef233c;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', Tahoma, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    user-select: none;
+  }
+  h1 { margin-bottom: 16px; letter-spacing: 2px; }
+  .controls {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  button, select {
+    background: var(--panel);
+    color: var(--text);
+    border: none;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 15px;
+    cursor: pointer;
+    transition: background .15s;
+  }
+  button:hover, select:hover { background: #4a4e73; }
+  .status {
+    display: flex;
+    gap: 24px;
+    margin-bottom: 14px;
+    font-size: 20px;
+    font-weight: bold;
+    background: var(--panel);
+    padding: 10px 20px;
+    border-radius: 10px;
+  }
+  .status span { display: inline-flex; align-items: center; gap: 6px; }
+  #board {
+    display: grid;
+    gap: 8px;
+    background: var(--panel);
+    padding: 10px;
+    border-radius: 12px;
+  }
+  .tile {
+    background: var(--tile);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    font-weight: bold;
+    color: #2b2d42;
+    cursor: pointer;
+    transition: background .1s, transform .05s;
+  }
+  .tile:hover { background: var(--tile-hover); }
+  .tile:active { transform: scale(0.94); }
+  .tile.empty {
+    background: transparent;
+    cursor: default;
+  }
+  .tile.correct { color: #06d6a0; }
+  .message {
+    margin-top: 16px;
+    font-size: 22px;
+    font-weight: bold;
+    height: 28px;
+  }
+  .win { color: #06d6a0; }
+  .hint { margin-top: 10px; font-size: 13px; opacity: .6; text-align:center; }
+  .stage { display:flex; gap:28px; align-items:flex-start; justify-content:center; flex-wrap:wrap; width:100%; }
+  .game-col { display:flex; flex-direction:column; align-items:center; }
+  .guide-panel {
+    background: var(--panel);
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 12px;
+    padding: 16px 18px;
+    min-width: 215px;
+    max-width: 260px;
+    margin-top: 56px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.35);
+  }
+  .guide-panel h2 { font-size:14px; letter-spacing:1px; text-transform:uppercase; opacity:.85; margin-bottom:14px; display:flex; align-items:center; gap:7px; }
+  .guide-panel .row { display:flex; align-items:center; gap:10px; margin-bottom:10px; font-size:13.5px; }
+  .guide-panel .keys { display:flex; gap:4px; flex-shrink:0; }
+  .guide-panel .desc { opacity:.85; }
+  .guide-panel .sep { height:1px; background:rgba(255,255,255,.09); margin:12px 0; }
+  .guide-panel .note { font-size:12px; opacity:.6; margin-top:8px; line-height:1.55; }
+  kbd {
+    display:inline-block; min-width:22px; text-align:center;
+    background:#20223a; border:1px solid rgba(255,255,255,.15);
+    border-bottom-width:2px; border-radius:6px; padding:3px 6px;
+    font-family:inherit; font-size:12px; font-weight:bold; color:var(--text);
+  }
+  @media (max-width:760px){ .guide-panel{ margin-top:8px; max-width:100%; width:100%; } }
+</style>
+</head>
+<body>
+<div class="stage">
+<div class="game-col">
+  <h1>🔢 ПЯТНАШКИ</h1>
+
+  <div class="controls">
+    <select id="size">
+      <option value="3">3 × 3</option>
+      <option value="4" selected>4 × 4 (классика)</option>
+      <option value="5">5 × 5</option>
+    </select>
+    <button id="shuffle">🔀 Перемешать</button>
+  </div>
+
+  <div class="status">
+    <span>🎯 <span id="moves">0</span></span>
+    <span>⏱️ <span id="timer">0</span></span>
+  </div>
+
+  <div id="board"></div>
+
+  <div class="message" id="message"></div>
+  <div class="hint">Кликай по фишке рядом с пустой клеткой · или используй стрелки ← ↑ → ↓</div>
+</div>
+<aside class="guide-panel">
+  <h2>🎛 Справочник</h2>
+  <div class="row"><span class="keys"><kbd>↑</kbd></span><span class="desc">фишку снизу — вверх</span></div>
+  <div class="row"><span class="keys"><kbd>↓</kbd></span><span class="desc">фишку сверху — вниз</span></div>
+  <div class="row"><span class="keys"><kbd>←</kbd></span><span class="desc">фишку справа — влево</span></div>
+  <div class="row"><span class="keys"><kbd>→</kbd></span><span class="desc">фишку слева — вправо</span></div>
+  <div class="row"><span class="keys"><kbd>ЛКМ</kbd></span><span class="desc">сдвинуть фишку у пустой клетки</span></div>
+  <div class="sep"></div>
+  <div class="note">Расставь числа по порядку, пустая клетка — в углу.</div>
+</aside>
+</div>
+
+<script>
+let n;           // размер поля (n x n)
+let board;       // массив длины n*n, 0 = пустая клетка
+let moves;
+let started;
+let timer, timerId;
+let solved;
+
+const boardEl = document.getElementById('board');
+const movesEl = document.getElementById('moves');
+const timerEl = document.getElementById('timer');
+const messageEl = document.getElementById('message');
+const sizeEl = document.getElementById('size');
+
+function init() {
+  n = parseInt(sizeEl.value, 10);
+  moves = 0;
+  started = false;
+  solved = false;
+  timer = 0;
+  clearInterval(timerId);
+  timerEl.textContent = '0';
+  movesEl.textContent = '0';
+  messageEl.textContent = '';
+  messageEl.className = 'message';
+
+  // собранное состояние: 1,2,...,n*n-1,0
+  board = [];
+  for (let i = 1; i < n * n; i++) board.push(i);
+  board.push(0);
+
+  shuffle();
+  render();
+}
+
+function shuffle() {
+  // случайные допустимые ходы гарантируют решаемость
+  const count = n * n * 40;
+  for (let i = 0; i < count; i++) {
+    const empty = board.indexOf(0);
+    const nb = neighborsOf(empty);
+    const pick = nb[Math.floor(Math.random() * nb.length)];
+    [board[empty], board[pick]] = [board[pick], board[empty]];
+  }
+  // подстраховка: вдруг случайно собралось
+  if (isSolved()) shuffle();
+  moves = 0;
+  started = false;
+  solved = false;
+  clearInterval(timerId);
+  timer = 0;
+  timerEl.textContent = '0';
+  movesEl.textContent = '0';
+  messageEl.textContent = '';
+  messageEl.className = 'message';
+}
+
+function neighborsOf(index) {
+  const r = Math.floor(index / n), c = index % n;
+  const res = [];
+  if (r > 0) res.push(index - n);
+  if (r < n - 1) res.push(index + n);
+  if (c > 0) res.push(index - 1);
+  if (c < n - 1) res.push(index + 1);
+  return res;
+}
+
+function render() {
+  const tileSize = n === 3 ? 100 : n === 4 ? 80 : 66;
+  boardEl.style.gridTemplateColumns = `repeat(${n}, ${tileSize}px)`;
+  boardEl.innerHTML = '';
+  for (let i = 0; i < board.length; i++) {
+    const el = document.createElement('div');
+    const val = board[i];
+    el.style.height = tileSize + 'px';
+    if (val === 0) {
+      el.className = 'tile empty';
+    } else {
+      el.className = 'tile';
+      el.textContent = val;
+      // подсветка фишки на своём месте
+      if (val === i + 1) el.classList.add('correct');
+      el.addEventListener('click', () => tryMove(i));
+    }
+    boardEl.appendChild(el);
+  }
+}
+
+function tryMove(index) {
+  if (solved) return;
+  const empty = board.indexOf(0);
+  if (!neighborsOf(index).includes(empty)) return;
+
+  if (!started) {
+    started = true;
+    timerId = setInterval(() => { timer++; timerEl.textContent = timer; }, 1000);
+  }
+
+  [board[empty], board[index]] = [board[index], board[empty]];
+  moves++;
+  movesEl.textContent = moves;
+  render();
+
+  if (isSolved()) {
+    solved = true;
+    clearInterval(timerId);
+    messageEl.textContent = `🎉 Собрано за ${moves} ходов и ${timer} сек!`;
+    messageEl.className = 'message win';
+  }
+}
+
+function isSolved() {
+  for (let i = 0; i < n * n - 1; i++) {
+    if (board[i] !== i + 1) return false;
+  }
+  return board[n * n - 1] === 0;
+}
+
+// управление стрелками: двигаем фишку в сторону пустой клетки
+document.addEventListener('keydown', (e) => {
+  const empty = board.indexOf(0);
+  const r = Math.floor(empty / n), c = empty % n;
+  let target = -1;
+  if (e.key === 'ArrowUp'    && r < n - 1) target = empty + n; // фишка снизу едет вверх
+  if (e.key === 'ArrowDown'  && r > 0)     target = empty - n;
+  if (e.key === 'ArrowLeft'  && c < n - 1) target = empty + 1;
+  if (e.key === 'ArrowRight' && c > 0)     target = empty - 1;
+  if (target !== -1) { e.preventDefault(); tryMove(target); }
+});
+
+document.getElementById('shuffle').addEventListener('click', () => { shuffle(); render(); });
+sizeEl.addEventListener('change', init);
+
+init();
+</script>
+</body>
+</html>
