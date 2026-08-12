@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Дурак</title>
+<style>
+  :root { --bg:#2b2d42; --panel:#3a3d5c; --panel2:#4a4e73; --text:#edf2f4; --accent:#06d6a0; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:'Segoe UI',Tahoma,sans-serif; background:var(--bg); color:var(--text); min-height:100vh;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px; user-select:none; }
+  h1 { margin-bottom:14px; letter-spacing:2px; }
+  .controls { display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap; justify-content:center; align-items:center; }
+  button, select { background:var(--panel); color:var(--text); border:none; padding:8px 14px; border-radius:8px; font-size:15px; cursor:pointer; transition:background .15s; }
+  button:hover:not(:disabled) { background:var(--panel2); }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  button.primary { background:var(--accent); color:#0d1a14; font-weight:bold; }
+  label.opt { display:inline-flex; align-items:center; gap:6px; font-size:14px; background:var(--panel); padding:6px 10px; border-radius:8px; cursor:pointer; }
+  .msg { text-align:center; font-size:15px; font-weight:bold; min-height:22px; margin:8px 0; }
+
+  .board { width:520px; max-width:100%; background:radial-gradient(120% 90% at 50% 0%, #1f6b46, #14472f);
+    border-radius:14px; padding:14px; box-shadow:0 8px 24px rgba(0,0,0,.4), inset 0 0 0 3px rgba(255,255,255,.05); }
+  .row { display:flex; align-items:center; justify-content:center; gap:6px; min-height:84px; flex-wrap:wrap; }
+  .row.small { min-height:44px; }
+  .deckinfo { display:flex; align-items:center; justify-content:space-between; margin:6px 2px; font-size:14px; font-weight:bold; }
+  .table { min-height:96px; display:flex; gap:14px; flex-wrap:wrap; justify-content:center; align-items:center; padding:8px 0; }
+  .pair { position:relative; width:56px; height:80px; }
+  .pair .card { position:absolute; }
+  .pair .d { top:16px; left:12px; }
+
+  .card { width:52px; height:76px; border-radius:7px; background:#f7f8fb; color:#1a1c2e;
+    display:flex; flex-direction:column; justify-content:space-between; padding:4px 6px; box-shadow:0 3px 8px rgba(0,0,0,.35); }
+  .card.red { color:#d21f3c; }
+  .card .r { font-size:15px; font-weight:bold; line-height:1; }
+  .card .s { font-size:22px; text-align:center; }
+  .card.back { background:repeating-linear-gradient(45deg,#3f43a0,#3f43a0 6px,#2c2f76 6px,#2c2f76 12px); }
+  .card.mini { width:34px; height:50px; padding:3px 4px; }
+  .card.mini .r { font-size:11px; } .card.mini .s { font-size:14px; }
+  .hand .card { cursor:pointer; transition:transform .1s; }
+  .hand.active .card:hover { transform:translateY(-8px); }
+  .hand .card.dim { opacity:.5; cursor:not-allowed; }
+
+  .hint { margin-top:12px; font-size:13px; opacity:.6; text-align:center; }
+  .stage { display:flex; gap:28px; align-items:flex-start; justify-content:center; flex-wrap:wrap; width:100%; }
+  .game-col { display:flex; flex-direction:column; align-items:center; }
+  .guide-panel { background:var(--panel); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:16px 18px; min-width:215px; max-width:260px; margin-top:56px; box-shadow:0 8px 24px rgba(0,0,0,.35); }
+  .guide-panel h2 { font-size:14px; letter-spacing:1px; text-transform:uppercase; opacity:.85; margin-bottom:14px; }
+  .guide-panel .row2 { margin-bottom:9px; font-size:13px; }
+  .guide-panel .sep { height:1px; background:rgba(255,255,255,.09); margin:12px 0; }
+  .guide-panel .note { font-size:12px; opacity:.6; margin-top:8px; line-height:1.55; }
+  kbd { display:inline-block; background:#20223a; border:1px solid rgba(255,255,255,.15); border-bottom-width:2px; border-radius:6px; padding:2px 6px; font-family:inherit; font-size:12px; font-weight:bold; }
+  @media (max-width:760px){ .guide-panel{ margin-top:8px; max-width:100%; width:100%; } }
+  @media (max-width:480px){ body{ padding:12px; } h1{ font-size:22px; } }
+</style>
+</head>
+<body>
+<div class="stage">
+<div class="game-col">
+  <h1>🃏 ДУРАК</h1>
+
+  <div class="controls">
+    <a href="../../index.html" style="background:var(--panel);color:var(--text);padding:8px 14px;border-radius:8px;font-size:15px;text-decoration:none;display:inline-flex;align-items:center;">← Меню</a>
+    <label class="opt"><input type="checkbox" id="optPod" checked> Подкидной</label>
+    <label class="opt"><input type="radio" name="tr" id="trNone" value="none" checked> Без перевода</label>
+    <label class="opt"><input type="radio" name="tr" id="trS" value="single"> Переводной</label>
+    <label class="opt"><input type="radio" name="tr" id="trD" value="double"> Переводной ×2</label>
+    <button id="newGame" class="primary">🔄 Новая игра</button>
+  </div>
+
+  <div class="msg" id="msg">Нажми «Новая игра»</div>
+
+  <div class="board">
+    <div class="row small hand" id="compHand"></div>
+    <div class="deckinfo">
+      <span>🂠 Колода: <span id="deckCount">0</span></span>
+      <span>Козырь: <span id="trumpLbl">—</span></span>
+      <span>🗑️ Бито: <span id="discardCount">0</span></span>
+    </div>
+    <div class="table" id="table"></div>
+    <div class="row hand active" id="playerHand"></div>
+  </div>
+
+  <div class="controls" style="margin-top:12px;">
+    <button id="bitoBtn" hidden>Бито ✓</button>
+    <button id="takeBtn" hidden>Взять ↓</button>
+    <button id="passBtn" hidden>Пас</button>
+  </div>
+
+  <div class="hint">Кликни карту, чтобы сходить/отбиться · перевод — сыграй карту того же ранга</div>
+</div>
+<aside class="guide-panel">
+  <h2>🎛 Справочник</h2>
+  <div class="row2"><b>Атака:</b> кликни карту, чтобы подкинуть (тот же ранг, что на столе).</div>
+  <div class="row2"><b>Защита:</b> кликни карту, которая бьёт (та же масть старше или козырь).</div>
+  <div class="row2"><b>Бито</b> — отбился, карты в отбой.</div>
+  <div class="row2"><b>Взять</b> — не бьёшь, забираешь карты со стола.</div>
+  <div class="row2"><b>Перевод</b> — сыграй карту того же ранга (если режим включён).</div>
+  <div class="sep"></div>
+  <div class="note">Козырь бьёт любую масть. Бей старшей той же масти или козырем. После раздачи добираете до 6 (первым — атакующий). Кто последним остался с картами — ДУРАК. «Переводной» позволяет перевести атаку тем же рангом сопернику; «×2» — можно перевести дважды за кон. Подкидной и перевод можно совмещать.</div>
+</aside>
+</div>
+
+<script>
+const SUITS = ['♠', '♥', '♦', '♣'];
+const RANKS = [6, 7, 8, 9, 10, 11, 12, 13, 14];
+const RED = { '♥': 1, '♦': 1 };
+function rlabel(v) { return ({ 11: 'J', 12: 'Q', 13: 'K', 14: 'A' })[v] || String(v); }
+
+const el = {
+  msg: document.getElementById('msg'), compHand: document.getElementById('compHand'),
+  playerHand: document.getElementById('playerHand'), table: document.getElementById('table'),
+  deckCount: document.getElementById('deckCount'), trumpLbl: document.getElementById('trumpLbl'),
+  discardCount: document.getElementById('discardCount'),
+  bitoBtn: document.getElementById('bitoBtn'), takeBtn: document.getElementById('takeBtn'), passBtn: document.getElementById('passBtn'),
+};
+
+// P=0 игрок, C=1 компьютер
+let deck, trump, trumpCard, hands, table, discard, attacker, defender, phase, transferCount, boutMax, over, result, S, thinking;
+
+function newDeck() { const d = []; for (const s of SUITS) for (const r of RANKS) d.push({ r, s }); return d; }
+function shuffle(d) { for (let i = d.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [d[i], d[j]] = [d[j], d[i]]; } return d; }
+function beats(att, def, tr) { return (def.s === att.s && def.r > att.r) || (def.s === tr && att.s !== tr); }
+function cardRank(c, tr) { return (c.s === tr ? 100 : 0) + c.r; } // для сортировки/выбора: козыри старше
+
+function readSettings() {
+  const tr = document.querySelector('input[name="tr"]:checked');
+  return { podkidnoy: document.getElementById('optPod').checked, transfer: tr ? tr.value : 'none' };
+}
+
+function dealGame() {
+  deck = shuffle(newDeck());
+  hands = [[], []];
+  discard = []; table = [];
+  for (let i = 0; i < 6; i++) { hands[0].push(deck.pop()); hands[1].push(deck.pop()); }
+  trumpCard = deck[0];               // нижняя карта — козырь, берётся последней
+  trump = trumpCard.s;
+  // первый ход — у кого младший козырь
+  let best = null, who = 0;
+  for (let p = 0; p < 2; p++) for (const c of hands[p]) if (c.s === trump && (best === null || c.r < best)) { best = c.r; who = p; }
+  attacker = who; defender = 1 - who;
+  phase = 'ATTACK'; transferCount = 0; boutMax = 0; over = false; result = '';
+}
+function startGame() { S = readSettings(); dealGame(); render(); scheduleAI(); }
+
+function totalCards() {
+  let t = hands[0].length + hands[1].length + deck.length + discard.length;
+  for (const e of table) t += 1 + (e.d ? 1 : 0);
+  return t;
+}
+
+// --- состояние стола ---
+function uncovered() { return table.map((e, i) => ({ e, i })).filter(x => x.e.d === null); }
+function allUncovered() { return table.length > 0 && table.every(e => e.d === null); }
+function tableRanks() { const s = new Set(); for (const e of table) { s.add(e.a.r); if (e.d) s.add(e.d.r); } return s; }
+function transferRank() { if (!allUncovered()) return null; const r = table[0].a.r; return table.every(e => e.a.r === r) ? r : null; }
+function transferLimit() { return S.transfer === 'double' ? 2 : S.transfer === 'single' ? 1 : 0; }
+
+// --- действия ---
+function canAttackCard(idx, card) {
+  if (phase !== 'ATTACK' || attacker !== idx) return false;
+  if (table.length === 0) return true;                 // первая карта — любая
+  if (!S.podkidnoy) return false;                       // подкидывать нельзя
+  if (table.length >= boutMax) return false;
+  if (!table.every(e => e.d)) return false;             // подкидывать можно, когда всё отбито
+  return tableRanks().has(card.r);
+}
+function doAttack(idx, card) {
+  if (table.length === 0) boutMax = Math.min(6, hands[defender].length);
+  removeCard(hands[idx], card);
+  table.push({ a: card, d: null });
+  phase = 'DEFEND';
+}
+
+function canTransfer(idx, card) {
+  if (phase !== 'DEFEND' || defender !== idx) return false;
+  if (transferLimit() === 0 || transferCount >= transferLimit()) return false;
+  const tr = transferRank();
+  if (tr === null || card.r !== tr) return false;
+  // у нового защитника (текущего атакующего) должно хватить карт
+  return hands[attacker].length >= table.length + 1;
+}
+function doTransfer(idx, card) {
+  removeCard(hands[idx], card);
+  table.push({ a: card, d: null });
+  [attacker, defender] = [defender, attacker];
+  transferCount++;
+  boutMax = Math.min(6, table.length + hands[defender].length);
+  phase = 'DEFEND';
+}
+
+function coverTarget(card) { // индекс непокрытой атаки, которую бьёт card
+  for (const { e, i } of uncovered()) if (beats(e.a, card, trump)) return i;
+  return -1;
+}
+function doDefend(idx, card, ti) {
+  removeCard(hands[idx], card);
+  table[ti].d = card;
+  if (uncovered().length === 0) phase = 'ATTACK';       // всё отбито — ход к атакующему
+}
+
+function doBito() { // атакующий закончил, всё отбито
+  for (const e of table) { discard.push(e.a); if (e.d) discard.push(e.d); }
+  table = [];
+  drawUp([attacker, defender]);
+  [attacker, defender] = [defender, attacker];
+  phase = 'ATTACK'; transferCount = 0; boutMax = 0;
+  checkOver();
+}
+function doTake() {
+  for (const e of table) { hands[defender].push(e.a); if (e.d) hands[defender].push(e.d); }
+  table = [];
+  drawUp([attacker, defender]);        // роли не меняются: взявший защищается снова
+  phase = 'ATTACK'; transferCount = 0; boutMax = 0;
+  checkOver();
+}
+
+function drawUp(order) { for (const p of order) while (hands[p].length < 6 && deck.length) hands[p].push(deck.pop()); }
+function removeCard(hand, card) { const i = hand.findIndex(c => c.r === card.r && c.s === card.s); if (i >= 0) hand.splice(i, 1); }
+
+function checkOver() {
+  if (deck.length === 0) {
+    const a = hands[0].length === 0, b = hands[1].length === 0;
+    if (a && b) { over = true; result = '🤝 Ничья'; }
+    else if (a) { over = true; result = '🎉 Ты выиграл! Компьютер — дурак'; }
+    else if (b) { over = true; result = '😕 Ты проиграл — ты дурак'; }
+  }
+}
+
+// --- ИИ (жадный) ---
+function lowestBy(cards, keyFn) { let best = null; for (const c of cards) if (best === null || keyFn(c) < keyFn(best)) best = c; return best; }
+function aiActFor(idx) {
+  if (over) return;
+  if (phase === 'ATTACK' && attacker === idx) {
+    if (hands[idx].length === 0) { checkOver(); return; }   // нечем атаковать
+    if (table.length === 0) { doAttack(idx, lowestBy(hands[idx], c => cardRank(c, trump))); return; }
+    // подкидывание или Бито
+    const ranks = tableRanks();
+    const cand = hands[idx].filter(c => ranks.has(c.r) && c.s !== trump);
+    if (S.podkidnoy && cand.length && table.length < boutMax && table.every(e => e.d)) doAttack(idx, lowestBy(cand, c => c.r));
+    else doBito();
+  } else if (phase === 'DEFEND' && defender === idx) {
+    // перевод?
+    if (transferLimit() > 0 && transferCount < transferLimit() && allUncovered()) {
+      const tr = transferRank();
+      const trc = hands[idx].filter(c => c.r === tr && c.s !== trump);
+      if (tr !== null && trc.length && hands[attacker].length >= table.length + 1 && hands[idx].length > 3) { doTransfer(idx, trc[0]); return; }
+    }
+    // если хоть одну непокрытую нечем бить — берём; иначе бьём первую минимальной картой
+    const unc = uncovered();
+    for (const u of unc) {
+      if (!hands[idx].some(c => beats(u.e.a, c, trump))) { doTake(); return; }
+    }
+    const first = unc[0];
+    const beatCards = hands[idx].filter(c => beats(first.e.a, c, trump));
+    doDefend(idx, lowestBy(beatCards, c => cardRank(c, trump)), first.i);
+  }
+}
+
+// --- ход игрока ---
+function playerCard(card) {
+  if (over || thinking) return;
+  if (phase === 'ATTACK' && attacker === 0) {
+    if (canAttackCard(0, card)) { doAttack(0, card); render(); scheduleAI(); }
+    else flash('Так походить нельзя');
+  } else if (phase === 'DEFEND' && defender === 0) {
+    if (canTransfer(0, card)) { doTransfer(0, card); render(); scheduleAI(); return; }
+    const ti = coverTarget(card);
+    if (ti >= 0) { doDefend(0, card, ti); render(); scheduleAI(); }
+    else flash('Эта карта не бьёт');
+  }
+}
+function playerBito() { if (phase === 'ATTACK' && attacker === 0 && table.length && table.every(e => e.d)) { doBito(); render(); scheduleAI(); } }
+function playerTake() { if (phase === 'DEFEND' && defender === 0) { doTake(); render(); scheduleAI(); } }
+function playerPass() { if (phase === 'ATTACK' && attacker === 0 && table.length && table.every(e => e.d)) { doBito(); render(); scheduleAI(); } }
+
+// компьютер ходит, пока его очередь
+function scheduleAI() {
+  render();
+  if (over) return;
+  const actor = phase === 'ATTACK' ? attacker : defender;
+  if (actor === 1) {
+    thinking = true;
+    setTimeout(() => { aiActFor(1); thinking = false; scheduleAI(); }, 650);
+  } else {
+    thinking = false; render();
+  }
+}
+function flash(t) { el.msg.textContent = t; setTimeout(render, 900); }
+
+// --- отрисовка ---
+function cardEl(c, opts) {
+  opts = opts || {};
+  const d = document.createElement('div');
+  if (opts.back) { d.className = 'card back' + (opts.mini ? ' mini' : ''); return d; }
+  d.className = 'card' + (RED[c.s] ? ' red' : '') + (opts.mini ? ' mini' : '') + (opts.dim ? ' dim' : '');
+  const r = document.createElement('div'); r.className = 'r'; r.textContent = rlabel(c.r) + c.s;
+  const s = document.createElement('div'); s.className = 's'; s.textContent = c.s;
+  d.appendChild(r); d.appendChild(s);
+  if (opts.onclick) d.addEventListener('click', opts.onclick);
+  return d;
+}
+function sortHand(h) { return h.slice().sort((a, b) => cardRank(a, trump) - cardRank(b, trump)); }
+
+function render() {
+  if (!hands) return;
+  el.deckCount.textContent = deck.length;
+  el.trumpLbl.textContent = trumpCard ? (rlabel(trumpCard.r) + trumpCard.s) : '—';
+  el.discardCount.textContent = discard.length;
+
+  el.compHand.innerHTML = '';
+  for (let i = 0; i < hands[1].length; i++) el.compHand.appendChild(cardEl(null, { back: true, mini: true }));
+
+  el.table.innerHTML = '';
+  for (const e of table) {
+    const p = document.createElement('div'); p.className = 'pair';
+    p.appendChild(cardEl(e.a, {}));
+    if (e.d) { const dc = cardEl(e.d, {}); dc.classList.add('d'); p.appendChild(dc); }
+    el.table.appendChild(p);
+  }
+
+  const myTurn = !over && !thinking && ((phase === 'ATTACK' && attacker === 0) || (phase === 'DEFEND' && defender === 0));
+  el.playerHand.classList.toggle('active', myTurn);
+  el.playerHand.innerHTML = '';
+  for (const c of sortHand(hands[0])) {
+    let ok = false;
+    if (phase === 'ATTACK' && attacker === 0) ok = canAttackCard(0, c);
+    else if (phase === 'DEFEND' && defender === 0) ok = canTransfer(0, c) || coverTarget(c) >= 0;
+    el.playerHand.appendChild(cardEl(c, { dim: myTurn && !ok, onclick: () => playerCard(c) }));
+  }
+
+  // кнопки
+  const atkDone = phase === 'ATTACK' && attacker === 0 && table.length && table.every(e => e.d);
+  el.bitoBtn.hidden = !atkDone;
+  el.passBtn.hidden = true;
+  el.takeBtn.hidden = !(phase === 'DEFEND' && defender === 0);
+
+  // сообщение
+  if (over) el.msg.textContent = result;
+  else if (thinking) el.msg.textContent = '🤖 Компьютер думает…';
+  else if (phase === 'ATTACK' && attacker === 0) el.msg.textContent = table.length ? 'Подкинь карту или «Бито»' : 'Твой ход — атакуй';
+  else if (phase === 'DEFEND' && defender === 0) el.msg.textContent = 'Отбивайся или «Взять»';
+  else el.msg.textContent = (phase === 'ATTACK') ? '🤖 Компьютер атакует' : '🤖 Компьютер отбивается';
+}
+
+el.bitoBtn.addEventListener('click', playerBito);
+el.takeBtn.addEventListener('click', playerTake);
+document.getElementById('newGame').addEventListener('click', startGame);
+
+el.msg.textContent = 'Настрой режим и жми «Новая игра»';
+</script>
+</body>
+</html>
