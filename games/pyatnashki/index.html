@@ -274,9 +274,6 @@ function tryMove(index) {
   if (isSolved()) {
     solved = true;
     clearInterval(timerId);
-    // лучший результат в ходах (меньше — лучше) для общей таблицы рекордов
-    const prevM = parseFloat(localStorage.getItem('pyatnashkiBest'));
-    if (isNaN(prevM) || prevM <= 0 || moves < prevM) localStorage.setItem('pyatnashkiBest', moves);
     messageEl.textContent = `🎉 Собрано за ${moves} ходов и ${timer} сек!`;
     messageEl.className = 'message win';
   }

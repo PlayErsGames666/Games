@@ -222,8 +222,6 @@ function play(i) {
     over = true;
     line.forEach(idx => cells[idx].classList.add('win'));
     statusEl.textContent = (current === 'X' ? '❌' : '⭕') + ' победил!';
-    // счётчик побед игрока (❌) — для общей таблицы рекордов
-    if (current === 'X') localStorage.setItem('tictactoeBest', (parseInt(localStorage.getItem('tictactoeBest')) || 0) + 1);
     score[current]++;
     updateScore();
     return;

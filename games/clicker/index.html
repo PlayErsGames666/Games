@@ -228,10 +228,6 @@ function load() {
 
 function save() {
   localStorage.setItem(SAVE_KEY, JSON.stringify(state));
-  // максимум напечённого — для общей таблицы рекордов
-  const prev = parseFloat(localStorage.getItem('clickerBest'));
-  const cur = Math.floor(state.cookies);
-  if (isNaN(prev) || cur > prev) localStorage.setItem('clickerBest', cur);
 }
 
 // цена растёт на 15% за каждую купленную штуку (как в оригинале)

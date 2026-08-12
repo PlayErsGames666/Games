@@ -282,8 +282,6 @@ function afterGoal(dir) {
   if (scoreP >= WIN_SCORE || scoreAI >= WIN_SCORE) {
     running = false;
     gameOver = true;
-    // счётчик побед игрока — для общей таблицы рекордов
-    if (scoreP >= WIN_SCORE) localStorage.setItem('pongBest', (parseInt(localStorage.getItem('pongBest')) || 0) + 1);
     winner = scoreP >= WIN_SCORE ? 'Ты победил! 🎉' : 'Победил компьютер 🤖';
   } else {
     resetBall(dir);

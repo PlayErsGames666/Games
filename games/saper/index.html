@@ -380,9 +380,6 @@ function endGame(won) {
   over = true;
   clearInterval(timerId);
   if (won) {
-    // лучшее время (меньше — лучше) для общей таблицы рекордов
-    const prev = parseFloat(localStorage.getItem('saperBest'));
-    if (isNaN(prev) || prev <= 0 || timer < prev) localStorage.setItem('saperBest', timer);
     messageEl.textContent = '🎉 Победа! Время: ' + timer + ' сек';
     messageEl.className = 'message win';
   } else {
