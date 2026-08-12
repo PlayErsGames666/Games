@@ -106,6 +106,7 @@
     <span>💎 <span id="iOre">0</span></span>
     <span>🍖 <span id="iMeat">0</span></span>
     <span>🍓 <span id="iBerry">0</span></span>
+    <span>🟢 <span id="iSlime">0</span></span>
     <span>🕯️ <span id="iTorch">0</span>с</span>
   </div>
   <div class="msg" id="msg">Собирай ресурсы, к ночи разведи костёр — ночью выходят мобы!</div>
@@ -150,6 +151,7 @@ const CYCLE = 80;
 const FIRE_R = 3, TORCH_TIME = 25, FIRE_FUEL = 45, HUNGER_RATE = 0.5;
 const WALL_HP = 5, CROP_STAGE_TIME = 16, CROP_MAX = 3;   // 3 стадии роста ~48с
 const MOB_CAP = 6, MOB_HP = 3, MOB_DMG = 8, MOB_SPEED = 4;
+const SLIME_CAP = 5, SLIME_HP = 2, SLIME_DMG = 4, SLIME_SPEED = 3, SLIME_REST = 0.75;
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -161,12 +163,12 @@ const el = {
   day: document.getElementById('day'), best: document.getElementById('best'), tod: document.getElementById('tod'),
   fHp: document.getElementById('fHp'), fFood: document.getElementById('fFood'), fWarm: document.getElementById('fWarm'),
   iWood: document.getElementById('iWood'), iStone: document.getElementById('iStone'), iOre: document.getElementById('iOre'),
-  iMeat: document.getElementById('iMeat'), iBerry: document.getElementById('iBerry'), iTorch: document.getElementById('iTorch'),
+  iMeat: document.getElementById('iMeat'), iBerry: document.getElementById('iBerry'), iSlime: document.getElementById('iSlime'), iTorch: document.getElementById('iTorch'),
   msg: document.getElementById('msg'), hotbar: document.getElementById('hotbar'),
 };
 
 let tiles, res, players, mobs, crops, inv, health, hunger, warmth, fires, clock, over, best, anim, msgTimer, lastFrame;
-let paused, particles, hitFx, lastHarvest, selSlot = 0, mobSpawnAcc = 0;
+let paused, particles, hitFx, lastHarvest, selSlot = 0, mobSpawnAcc = 0, slimeSpawnAcc = 0;
 let deathT = 0, deathShown = false, deathCause = '', deathDay = 0;
 let role = 'solo', peer = null, conn = null, connected = false, me = 0, netAcc = 0;
 let remoteHeld = { up: false, down: false, left: false, right: false, gather: false };
@@ -195,7 +197,7 @@ const inb = (x, y) => x >= 0 && x < MAPW && y >= 0 && y < MAPH;
 const ckey = (x, y) => x + ',' + y;
 
 function makePlayer(tx, ty) { return { tx, ty, px: (tx + 0.5) * T, py: (ty + 0.5) * T, dir: { x: 0, y: 1 }, moving: false, ox: 0, oy: 0, fx: 0, fy: 0, mt: 0, chop: 0, gcd: 0, torch: 0, npx: null, npy: null }; }
-function makeMob(tx, ty) { return { tx, ty, px: (tx + 0.5) * T, py: (ty + 0.5) * T, moving: false, ox: 0, oy: 0, fx: 0, fy: 0, mt: 0, hp: MOB_HP, cd: 0, npx: null, npy: null }; }
+function makeMob(tx, ty, type) { type = type || 'zombie'; return { type, tx, ty, px: (tx + 0.5) * T, py: (ty + 0.5) * T, moving: false, ox: 0, oy: 0, fx: 0, fy: 0, mt: 0, hp: type === 'slime' ? SLIME_HP : MOB_HP, cd: 0, hopCd: rnd(2) * 0.3, npx: null, npy: null }; }
 
 function genMap() {
   tiles = []; res = [];
@@ -219,10 +221,10 @@ function startWorld(n) {
   players = [];
   for (let i = 0; i < n; i++) { const s = spots[i]; players.push(makePlayer(s[0], s[1])); }
   mobs = []; crops = {};
-  inv = { wood: 0, stone: 0, berries: 0, ore: 0, meat: 0 };
+  inv = { wood: 0, stone: 0, berries: 0, ore: 0, meat: 0, slime: 0 };
   health = 100; hunger = 100; warmth = 100;
   fires = []; clock = 0; over = false; anim = 0; msgTimer = 0;
-  paused = false; particles = []; hitFx = {}; lastHarvest = null; mobSpawnAcc = 0;
+  paused = false; particles = []; hitFx = {}; lastHarvest = null; mobSpawnAcc = 0; slimeSpawnAcc = 0;
   deathT = 0; deathShown = false; deathCause = ''; deathDay = 0;
 }
 function spawnDeathBurst() {
@@ -246,7 +248,7 @@ function message(t) { el.msg.textContent = t; msgTimer = 3; }
 function setTile(x, y, t) { if (!inb(x, y)) return; tiles[y][x] = t; if (role === 'host' && connected) netSend({ t: 'tile', x, y, tt: t }); }
 
 // --- сбор / бой / ломание перед собой ---
-const PCOL = { [TREE]: ['#8a5a2b', '#6b4a24', '#a9793f'], [ROCK]: ['#8d99ae', '#b0b9c9', '#6c7789'], [BUSH]: ['#ef233c', '#2fbf71', '#ff6b6b'], mob: ['#b388ff', '#7b2ff7', '#ef476f'], crop: ['#2fbf71', '#ef233c'] };
+const PCOL = { [TREE]: ['#8a5a2b', '#6b4a24', '#a9793f'], [ROCK]: ['#8d99ae', '#b0b9c9', '#6c7789'], [BUSH]: ['#ef233c', '#2fbf71', '#ff6b6b'], mob: ['#b388ff', '#7b2ff7', '#ef476f'], slime: ['#7ee787', '#39d353', '#2ea043'], crop: ['#2fbf71', '#ef233c'] };
 function spawnHit(cx, cy, cols, fromTx, fromTy) {
   const base = Math.atan2((cy / T - fromTy) || 0.01, (cx / T - fromTx) || 0.01);
   for (let i = 0; i < 9; i++) { const ang = base + (Math.random() - 0.5) * 2.4, sp = 45 + Math.random() * 95; particles.push({ x: cx, y: cy, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp - 35, life: 0.4 + Math.random() * 0.3, max: 0.7, size: 2 + Math.random() * 3, color: cols[rnd(cols.length)], g: 270 }); }
@@ -257,7 +259,7 @@ function actionFront(by) {
   by.chop = 0.18;
   // моб на этой клетке?
   const m = mobs.find(mo => mo.tx === tx && mo.ty === ty);
-  if (m) { m.hp -= 2; spawnHit((tx + 0.5) * T, (ty + 0.5) * T, PCOL.mob, by.tx, by.ty); if (m.hp <= 0) { mobs = mobs.filter(x => x !== m); inv.meat++; message('👾 Моб повержен (+🍖)'); } return true; }
+  if (m) { const slime = m.type === 'slime'; m.hp -= 2; spawnHit((tx + 0.5) * T, (ty + 0.5) * T, slime ? PCOL.slime : PCOL.mob, by.tx, by.ty); if (m.hp <= 0) { mobs = mobs.filter(x => x !== m); if (slime) { inv.slime += 1 + rnd(2); message('🟢 Слайм повержен (+слизь)'); } else { inv.meat++; message('👾 Моб повержен (+🍖)'); } } return true; }
   if (!inb(tx, ty)) return false;
   const t = tiles[ty][tx];
   if (t === TREE || t === ROCK || t === BUSH) {
@@ -342,6 +344,7 @@ function stepEntity(p, h, order, dt) {
 
 function nearestPlayer(mx, my) { let best = null, bd = 1e9; for (const p of players) { const d = Math.abs(p.tx - mx) + Math.abs(p.ty - my); if (d < bd) { bd = d; best = p; } } return best; }
 function stepMob(m, dt) {
+  if (m.type === 'slime') { stepSlime(m, dt); return; }
   if (!m.moving) {
     const tgt = nearestPlayer(m.tx, m.ty);
     if (tgt) {
@@ -354,11 +357,39 @@ function stepMob(m, dt) {
   m.cd -= dt;
   const p = nearestPlayer(m.tx, m.ty);
   if (p && Math.abs(p.tx - m.tx) <= 1 && Math.abs(p.ty - m.ty) <= 1 && m.cd <= 0) { health = Math.max(0, health - MOB_DMG); m.cd = 1; }
-  if (!isNight()) m.hp -= dt * 3; // днём сгорают
+  if (!isNight()) m.hp -= dt * 3; // зомби днём сгорают
+}
+// слайм: прыгает по одной клетке, отдыхает между прыжками, днём НЕ горит
+function stepSlime(m, dt) {
+  m.cd -= dt;
+  if (!m.moving) {
+    m.hopCd -= dt;
+    if (m.hopCd <= 0) {
+      const tgt = nearestPlayer(m.tx, m.ty);
+      let dir = null;
+      if (tgt && (Math.abs(tgt.tx - m.tx) + Math.abs(tgt.ty - m.ty)) <= 8) {
+        const dx = Math.sign(tgt.tx - m.tx), dy = Math.sign(tgt.ty - m.ty);
+        const tries = Math.abs(tgt.tx - m.tx) > Math.abs(tgt.ty - m.ty) ? [[dx, 0], [0, dy]] : [[0, dy], [dx, 0]];
+        for (const [ax, ay] of tries) { if ((ax || ay) && passable(m.tx + ax, m.ty + ay)) { dir = [ax, ay]; break; } }
+      } else {
+        const opts = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([ax, ay]) => passable(m.tx + ax, m.ty + ay));
+        if (opts.length) dir = opts[rnd(opts.length)];
+      }
+      if (dir) startMove(m, m.tx + dir[0], m.ty + dir[1]);
+      m.hopCd = SLIME_REST;
+    }
+  }
+  moveEntity(m, dt, SLIME_SPEED);
+  const p = nearestPlayer(m.tx, m.ty);
+  if (p && Math.abs(p.tx - m.tx) <= 1 && Math.abs(p.ty - m.ty) <= 1 && m.cd <= 0) { health = Math.max(0, health - SLIME_DMG); m.cd = 1; }
 }
 function spawnMob() {
   const p = players[rnd(players.length)];
   for (let a = 0; a < 20; a++) { const ang = Math.random() * 7, dist = 7 + rnd(5); const mx = p.tx + Math.round(Math.cos(ang) * dist), my = p.ty + Math.round(Math.sin(ang) * dist); if (passable(mx, my)) { mobs.push(makeMob(mx, my)); return; } }
+}
+function spawnSlime() {
+  const p = players[rnd(players.length)];
+  for (let a = 0; a < 20; a++) { const ang = Math.random() * 7, dist = 6 + rnd(6); const mx = p.tx + Math.round(Math.cos(ang) * dist), my = p.ty + Math.round(Math.sin(ang) * dist); if (passable(mx, my)) { mobs.push(makeMob(mx, my, 'slime')); return; } }
 }
 
 // --- обновление ---
@@ -381,7 +412,9 @@ function update(dt) {
   if (role === 'host' && players[1]) stepEntity(players[1], remoteHeld, null, dt);
 
   // мобы
-  if (isNight()) { mobSpawnAcc += dt; if (mobSpawnAcc > 3 && mobs.length < MOB_CAP) { mobSpawnAcc = 0; spawnMob(); } }
+  const zc = mobs.filter(m => m.type !== 'slime').length, sc = mobs.length - zc;
+  if (isNight()) { mobSpawnAcc += dt; if (mobSpawnAcc > 3 && zc < MOB_CAP) { mobSpawnAcc = 0; spawnMob(); } }
+  slimeSpawnAcc += dt; if (slimeSpawnAcc > 5 && sc < SLIME_CAP) { slimeSpawnAcc = 0; spawnSlime(); } // слаймы и днём
   for (const m of mobs) stepMob(m, dt);
   mobs = mobs.filter(m => m.hp > 0);
 
@@ -437,18 +470,18 @@ function joinRoom() {
 function broadcastState() {
   netSend({ t: 'state', clock, health, hunger, warmth, over, dc: over ? deathCause : '', inv, fires,
     p: players.map(p => ({ tx: p.tx, ty: p.ty, px: p.px, py: p.py, dir: p.dir, chop: p.chop, torch: p.torch, moving: p.moving })),
-    m: mobs.map(m => ({ tx: m.tx, ty: m.ty, px: m.px, py: m.py, hp: m.hp })),
+    m: mobs.map(m => ({ tx: m.tx, ty: m.ty, px: m.px, py: m.py, hp: m.hp, ty2: m.type })),
     cr: Object.keys(crops).map(k => ({ k, s: crops[k].stage })) });
 }
 function onData(msg) {
-  if (msg.t === 'map') { tiles = msg.tiles; res = msg.res; if (!players || players.length < 2) { const cx = MAPW >> 1, cy = MAPH >> 1; players = [makePlayer(cx, cy), makePlayer(cx + 1, cy)]; } mobs = mobs || []; crops = crops || {}; inv = inv || { wood: 0, stone: 0, berries: 0, ore: 0, meat: 0 }; fires = fires || []; particles = particles || []; hitFx = hitFx || {}; over = false; }
+  if (msg.t === 'map') { tiles = msg.tiles; res = msg.res; if (!players || players.length < 2) { const cx = MAPW >> 1, cy = MAPH >> 1; players = [makePlayer(cx, cy), makePlayer(cx + 1, cy)]; } mobs = mobs || []; crops = crops || {}; inv = inv || { wood: 0, stone: 0, berries: 0, ore: 0, meat: 0, slime: 0 }; fires = fires || []; particles = particles || []; hitFx = hitFx || {}; over = false; }
   else if (msg.t === 'state') {
     clock = msg.clock; health = msg.health; hunger = msg.hunger; warmth = msg.warmth; over = msg.over; inv = msg.inv; fires = msg.fires;
     if (msg.over) { deathCause = msg.dc || 'Колония погибла'; deathDay = Math.floor(msg.clock / CYCLE) + 1; }
     if (!players) players = [];
     for (let i = 0; i < msg.p.length; i++) { let p = players[i] || (players[i] = makePlayer(msg.p[i].tx, msg.p[i].ty)); const s = msg.p[i]; p.tx = s.tx; p.ty = s.ty; p.dir = s.dir; p.chop = s.chop; p.torch = s.torch; p.moving = s.moving; p.npx = s.px; p.npy = s.py; if (p.px == null) { p.px = s.px; p.py = s.py; } }
     players.length = msg.p.length;
-    mobs = (msg.m || []).map(s => { const m = makeMob(s.tx, s.ty); m.hp = s.hp; m.npx = s.px; m.npy = s.py; m.px = s.px; m.py = s.py; return m; });
+    mobs = (msg.m || []).map(s => { const m = makeMob(s.tx, s.ty, s.ty2); m.hp = s.hp; m.npx = s.px; m.npy = s.py; m.px = s.px; m.py = s.py; return m; });
     crops = {}; for (const c of (msg.cr || [])) crops[c.k] = { stage: c.s, timer: 0 };
   }
   else if (msg.t === 'tile') { if (inb(msg.x, msg.y)) tiles[msg.y][msg.x] = msg.tt; }
@@ -487,7 +520,22 @@ function render() {
   for (const f of fires) { const sx = (f.tx + 0.5) * T - camX, sy = (f.ty + 0.5) * T - camY; ctx.fillStyle = '#5a4636'; ctx.fillRect(sx - 8, sy + 6, 16, 4); const fl = 8 + Math.sin(anim * 12 + f.tx) * 2; ctx.fillStyle = '#ff9f1c'; ctx.beginPath(); ctx.moveTo(sx - 6, sy + 6); ctx.lineTo(sx + 6, sy + 6); ctx.lineTo(sx, sy + 6 - fl); ctx.closePath(); ctx.fill(); ctx.fillStyle = '#ffd166'; ctx.beginPath(); ctx.moveTo(sx - 3, sy + 6); ctx.lineTo(sx + 3, sy + 6); ctx.lineTo(sx, sy + 6 - fl * 0.6); ctx.closePath(); ctx.fill(); }
 
   // мобы
-  for (const m of mobs) { const mx = m.px - camX, my = m.py - camY; ctx.fillStyle = '#0d0e1a'; ctx.beginPath(); ctx.ellipse(mx, my + 9, 7, 3, 0, 0, 7); ctx.fill(); ctx.fillStyle = '#7b2ff7'; ctx.beginPath(); ctx.arc(mx, my, 8, 0, 7); ctx.fill(); ctx.fillStyle = '#ef476f'; ctx.fillRect(mx - 4, my - 3, 2.5, 3); ctx.fillRect(mx + 1.5, my - 3, 2.5, 3); }
+  for (const m of mobs) {
+    const mx = m.px - camX, my = m.py - camY;
+    if (m.type === 'slime') {
+      const hop = m.moving ? Math.sin(m.mt * Math.PI) : 0;      // 0..1 дуга прыжка
+      const lift = hop * 7, sq = hop * 2;                        // подъём + сплющивание при взлёте
+      ctx.fillStyle = 'rgba(13,14,26,' + (0.5 - hop * 0.35) + ')'; ctx.beginPath(); ctx.ellipse(mx, my + 9, 7 - hop * 2, 3 - hop, 0, 0, 7); ctx.fill();
+      const cy2 = my - lift;
+      ctx.fillStyle = '#39d353'; ctx.beginPath(); ctx.ellipse(mx, cy2 + sq, 8 - sq, 7 + sq, 0, 0, 7); ctx.fill();
+      ctx.fillStyle = 'rgba(126,231,135,.5)'; ctx.beginPath(); ctx.ellipse(mx - 2, cy2 - 3, 2.5, 1.6, 0, 0, 7); ctx.fill(); // блик
+      ctx.fillStyle = '#0d3b17'; ctx.beginPath(); ctx.arc(mx - 3, cy2, 1.4, 0, 7); ctx.arc(mx + 3, cy2, 1.4, 0, 7); ctx.fill();
+    } else {
+      ctx.fillStyle = '#0d0e1a'; ctx.beginPath(); ctx.ellipse(mx, my + 9, 7, 3, 0, 0, 7); ctx.fill();
+      ctx.fillStyle = '#7b2ff7'; ctx.beginPath(); ctx.arc(mx, my, 8, 0, 7); ctx.fill();
+      ctx.fillStyle = '#ef476f'; ctx.fillRect(mx - 4, my - 3, 2.5, 3); ctx.fillRect(mx + 1.5, my - 3, 2.5, 3);
+    }
+  }
 
   // игроки (после смерти не рисуем — их «разбросало» частицами)
   if (!over) for (let i = 0; i < players.length; i++) { const p = players[i]; let lx = 0, ly = 0, reach = 0; if (p.chop > 0) { const l = Math.sin((1 - p.chop / 0.18) * Math.PI); lx = p.dir.x * l * 5; ly = p.dir.y * l * 5; reach = 8 + l * 9; } const px = p.px - camX + lx, py = p.py - camY + ly; ctx.fillStyle = '#0d0e1a'; ctx.beginPath(); ctx.ellipse(p.px - camX, p.py - camY + 10, 8, 3, 0, 0, 7); ctx.fill(); if (reach > 0) { ctx.strokeStyle = '#c9a227'; ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + p.dir.x * reach, py + p.dir.y * reach); ctx.stroke(); } ctx.fillStyle = (i === me) ? '#ffd166' : '#4cc9f0'; ctx.beginPath(); ctx.arc(px, py, 9, 0, 7); ctx.fill(); ctx.fillStyle = '#0d0e1a'; ctx.beginPath(); ctx.arc(px + p.dir.x * 3, py + p.dir.y * 3 - 1, 2.4, 0, 7); ctx.fill(); if (p.torch > 0) { ctx.fillStyle = '#ff9f1c'; ctx.beginPath(); ctx.arc(px + p.dir.x * 12, py + p.dir.y * 12, 3, 0, 7); ctx.fill(); } }
@@ -522,7 +570,7 @@ function render() {
 
   el.day.textContent = dayNum(); el.tod.textContent = isNight() ? '🌙 Ночь' : (dk > 0 ? '🌆 Сумерки' : '☀️ День');
   el.fHp.style.width = health + '%'; el.fFood.style.width = hunger + '%'; el.fWarm.style.width = warmth + '%';
-  el.iWood.textContent = inv.wood; el.iStone.textContent = inv.stone; el.iOre.textContent = inv.ore; el.iMeat.textContent = inv.meat; el.iBerry.textContent = inv.berries; el.iTorch.textContent = Math.ceil((players[me] || players[0]).torch);
+  el.iWood.textContent = inv.wood; el.iStone.textContent = inv.stone; el.iOre.textContent = inv.ore; el.iMeat.textContent = inv.meat; el.iBerry.textContent = inv.berries; el.iSlime.textContent = inv.slime || 0; el.iTorch.textContent = Math.ceil((players[me] || players[0]).torch);
   updateHotbar();
   if (invOpen) updateInv();
 }
@@ -574,7 +622,7 @@ function buildInv() {
   }
 }
 function updateInv() {
-  const rs = document.getElementById('invres'); if (rs) rs.textContent = '🪵' + inv.wood + '   🪨' + inv.stone + '   💎' + inv.ore + '   🍖' + inv.meat + '   🍓' + inv.berries;
+  const rs = document.getElementById('invres'); if (rs) rs.textContent = '🪵' + inv.wood + '   🪨' + inv.stone + '   💎' + inv.ore + '   🍖' + inv.meat + '   🍓' + inv.berries + '   🟢' + (inv.slime || 0);
   for (const id of ASSIGNABLE) { const c = invCards[id]; if (!c) continue; c.classList.toggle('dim', !itemUsable(id)); c.classList.toggle('sel', selItem === id); }
   const hint = document.getElementById('invhint');
   if (hint) hint.textContent = selItem
