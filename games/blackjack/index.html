@@ -237,7 +237,14 @@ function deal() {
   dealer = [draw(), draw()];
   state = 'PLAYER';
   const pbj = isBlackjack(player), dbj = isBlackjack(dealer);
-  if (pbj || dbj) { endRound(pbj && dbj ? 'push' : pbj ? 'blackjack' : 'lose'); return; }
+  if (pbj || dbj) {
+    // натуральный блекджек — раунд решается сразу (дилер вскрывается)
+    const note = (pbj && dbj) ? '🤝 Ничья — блекджек у обоих'
+               : pbj ? '🎉 Блекджек! (3:2)'
+               : '😕 У дилера блекджек';
+    endRound(pbj && dbj ? 'push' : pbj ? 'blackjack' : 'lose', note);
+    return;
+  }
   message = 'Твой ход: Взять или Хватит?';
   render();
 }
@@ -274,12 +281,13 @@ function dealerPlayAndCompare() {
   endRound(res);
 }
 
-function endRound(result) {
+function endRound(result, note) {
   let gain = 0, title = '';
   if (result === 'blackjack') { gain = Math.floor(currentBet * 2.5); title = '🎉 Блекджек!'; }
   else if (result === 'win') { gain = currentBet * 2; title = '🎉 Ты выиграл!'; }
   else if (result === 'push') { gain = currentBet; title = '🤝 Ничья'; }
   else { gain = 0; title = '😕 Дилер выиграл'; }
+  if (note) title = note;
   balance += gain;
   const net = gain - currentBet;
   record = Math.max(record, balance);
