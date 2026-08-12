@@ -269,15 +269,30 @@ function draw() {
   ctx.beginPath(); for (let x = 0; x <= W; x += STEP) { const y = caveAt(scroll + x).top; x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); } ctx.stroke();
   ctx.beginPath(); for (let x = 0; x <= W; x += STEP) { const y = caveAt(scroll + x).bot; x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); } ctx.stroke();
 
-  // шипы
-  ctx.fillStyle = '#6a5f8f';
+  // шипы — «вшиты» в стену: тот же камень, база уходит ВНУТРЬ стены, обведены только рёбра
+  const INSET = 7;
+  ctx.lineJoin = 'round';
   for (const p of pillars) {
     const sx = p.worldX - scroll;
     if (sx < -40 || sx > W + 40) continue;
+    const dir = p.side === 'top' ? 1 : -1;   // куда торчит: вниз(+) / вверх(-)
+    const by = p.baseY - dir * INSET;        // база чуть внутри стены — шва не видно
+    const tipY = p.baseY + dir * p.len;
+    // тело шипа (чуть светлее стены — как выступ камня)
+    ctx.fillStyle = '#4a4568';
     ctx.beginPath();
-    if (p.side === 'top') { ctx.moveTo(sx - p.w / 2, p.baseY); ctx.lineTo(sx + p.w / 2, p.baseY); ctx.lineTo(sx, p.baseY + p.len); }
-    else { ctx.moveTo(sx - p.w / 2, p.baseY); ctx.lineTo(sx + p.w / 2, p.baseY); ctx.lineTo(sx, p.baseY - p.len); }
+    ctx.moveTo(sx - p.w / 2, by); ctx.lineTo(sx, tipY); ctx.lineTo(sx + p.w / 2, by);
     ctx.closePath(); ctx.fill();
+    // теневая грань для объёма
+    ctx.fillStyle = 'rgba(0,0,0,.20)';
+    ctx.beginPath();
+    ctx.moveTo(sx, by); ctx.lineTo(sx, tipY); ctx.lineTo(sx + p.w / 2, by);
+    ctx.closePath(); ctx.fill();
+    // рёбра (боковые), базовую линию не рисуем — она внутри стены
+    ctx.strokeStyle = '#6a6392'; ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(sx - p.w / 2, by); ctx.lineTo(sx, tipY); ctx.lineTo(sx + p.w / 2, by);
+    ctx.stroke();
   }
 
   // ракета
