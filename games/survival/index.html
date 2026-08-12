@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Выживание</title>
+<style>
+  :root { --bg:#2b2d42; --panel:#3a3d5c; --panel2:#4a4e73; --text:#edf2f4; --accent:#06d6a0; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:'Segoe UI',Tahoma,sans-serif; background:var(--bg); color:var(--text); min-height:100vh;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px; user-select:none; }
+  h1 { margin-bottom:12px; letter-spacing:2px; }
+  .controls { display:flex; gap:10px; margin-bottom:12px; flex-wrap:wrap; justify-content:center; }
+  button, a.btn { background:var(--panel); color:var(--text); border:none; padding:8px 14px; border-radius:8px; font-size:15px; cursor:pointer; transition:background .15s; text-decoration:none; display:inline-flex; align-items:center; }
+  button:hover:not(:disabled) { background:var(--panel2); }
+  button:disabled { opacity:.45; cursor:not-allowed; }
+
+  .status { display:flex; gap:18px; margin-bottom:10px; font-size:16px; font-weight:bold; background:var(--panel); padding:8px 16px; border-radius:10px; flex-wrap:wrap; justify-content:center; }
+  .bars { display:flex; gap:10px; margin-bottom:10px; width:476px; max-width:100%; }
+  .bars .b { flex:1; }
+  .bars .b .lab { font-size:12px; opacity:.85; margin-bottom:3px; }
+  .bars .b .bar { height:10px; border-radius:6px; background:rgba(0,0,0,.35); overflow:hidden; }
+  .bars .b .fill { height:100%; width:100%; transition:width .2s, background .2s; }
+
+  canvas { border-radius:10px; display:block; box-shadow:0 8px 24px rgba(0,0,0,.4); image-rendering:pixelated; max-width:100%; height:auto; }
+  .inv { display:flex; gap:14px; margin-top:10px; font-size:16px; font-weight:bold; background:var(--panel); padding:8px 16px; border-radius:10px; flex-wrap:wrap; justify-content:center; }
+  .msg { margin-top:8px; font-size:14px; font-weight:bold; min-height:20px; text-align:center; opacity:.95; }
+
+  .pad { margin-top:12px; display:grid; grid-template-columns:repeat(3,48px); grid-gap:6px; justify-content:center; }
+  .pad button { padding:0; height:48px; font-size:20px; }
+  .actions { margin-top:10px; display:flex; gap:8px; flex-wrap:wrap; justify-content:center; }
+  .actions button { font-size:14px; }
+
+  .over { position:relative; }
+  .hint { margin-top:10px; font-size:13px; opacity:.6; text-align:center; }
+  .stage { display:flex; gap:28px; align-items:flex-start; justify-content:center; flex-wrap:wrap; width:100%; }
+  .game-col { display:flex; flex-direction:column; align-items:center; }
+  .guide-panel { background:var(--panel); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:16px 18px; min-width:215px; max-width:260px; margin-top:56px; box-shadow:0 8px 24px rgba(0,0,0,.35); }
+  .guide-panel h2 { font-size:14px; letter-spacing:1px; text-transform:uppercase; opacity:.85; margin-bottom:14px; }
+  .guide-panel .row2 { margin-bottom:8px; font-size:13px; }
+  .guide-panel .sep { height:1px; background:rgba(255,255,255,.09); margin:12px 0; }
+  .guide-panel .note { font-size:12px; opacity:.6; margin-top:8px; line-height:1.55; }
+  kbd { display:inline-block; background:#20223a; border:1px solid rgba(255,255,255,.15); border-bottom-width:2px; border-radius:6px; padding:2px 6px; font-family:inherit; font-size:12px; font-weight:bold; }
+  @media (max-width:760px){ .guide-panel{ margin-top:8px; max-width:100%; width:100%; } }
+  @media (max-width:480px){ body{ padding:12px; } h1{ font-size:22px; } }
+</style>
+</head>
+<body>
+<div class="stage">
+<div class="game-col">
+  <h1>🌲 ВЫЖИВАНИЕ</h1>
+
+  <div class="controls">
+    <a class="btn" href="../../index.html">← Меню</a>
+    <button id="restart">🔄 Заново</button>
+  </div>
+
+  <div class="status">
+    <span>📅 День <span id="day">1</span></span>
+    <span id="tod">☀️ День</span>
+    <span>🏆 Рекорд <span id="best">0</span></span>
+  </div>
+
+  <div class="bars">
+    <div class="b"><div class="lab">❤️ Здоровье</div><div class="bar"><div class="fill" id="fHp" style="background:#ef476f"></div></div></div>
+    <div class="b"><div class="lab">🍖 Голод</div><div class="bar"><div class="fill" id="fFood" style="background:#ffd166"></div></div></div>
+    <div class="b"><div class="lab">🔥 Тепло</div><div class="bar"><div class="fill" id="fWarm" style="background:#4cc9f0"></div></div></div>
+  </div>
+
+  <canvas id="game" width="476" height="336"></canvas>
+
+  <div class="inv">
+    <span>🪵 <span id="iWood">0</span></span>
+    <span>🪨 <span id="iStone">0</span></span>
+    <span>🍓 <span id="iBerry">0</span></span>
+    <span>💎 <span id="iOre">0</span></span>
+    <span>🕯️ <span id="iTorch">0</span>с</span>
+  </div>
+  <div class="msg" id="msg">Собери ветки и камни, к ночи разведи костёр!</div>
+
+  <div class="pad">
+    <span></span><button data-dir="up">▲</button><span></span>
+    <button data-dir="left">◀</button><button id="gatherBtn">🤚</button><button data-dir="right">▶</button>
+    <span></span><button data-dir="down">▼</button><span></span>
+  </div>
+  <div class="actions">
+    <button id="eatBtn">🍓 Съесть (F)</button>
+    <button id="fireBtn">🔥 Костёр (1)</button>
+    <button id="torchBtn">🕯️ Факел (2)</button>
+  </div>
+
+  <div class="hint">WASD/стрелки — ходить · Space/E — собрать · F — съесть · 1 — костёр · 2 — факел</div>
+</div>
+<aside class="guide-panel">
+  <h2>🎛 Как выжить</h2>
+  <div class="row2">Ходи по карте, собирай 🪵 ветки (деревья), 🪨 камни, 🍓 ягоды (кусты), 💎 руду.</div>
+  <div class="row2"><b>Собрать:</b> встань рядом, смотри на объект, жми Space/E (или 🤚).</div>
+  <div class="row2"><b>Рецепты:</b> Костёр = 2🪵 + 1🪨 · Факел = 1🪵.</div>
+  <div class="sep"></div>
+  <div class="note">Голод падает всегда — ешь ягоды. НОЧЬЮ наступает темнота: если ты НЕ рядом с костром и без факела — падает Тепло, потом Здоровье. Разведи костёр (ставится под тобой) или зажги факел, чтобы пережить ночь. Костёр гаснет — подкинь 🪵 (встань на него и жми «Костёр»). Цель — прожить как можно больше дней. Рекорд сохраняется.</div>
+</aside>
+</div>
+
+<script>
+const T = 28, MAPW = 44, MAPH = 44;
+const GRASS = 0, WATER = 1, TREE = 2, ROCK = 3, BUSH = 4;
+const CYCLE = 80;                 // секунд в сутках
+const RECIPES = { campfire: { wood: 2, stone: 1 }, torch: { wood: 1 } };
+const FIRE_R = 3, TORCH_TIME = 25, FIRE_FUEL = 45;
+const HUNGER_RATE = 1.0;
+
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const CW = canvas.width, CH = canvas.height;
+const night = document.createElement('canvas'); night.width = CW; night.height = CH;
+const nctx = night.getContext('2d');
+
+const el = {
+  day: document.getElementById('day'), best: document.getElementById('best'), tod: document.getElementById('tod'),
+  fHp: document.getElementById('fHp'), fFood: document.getElementById('fFood'), fWarm: document.getElementById('fWarm'),
+  iWood: document.getElementById('iWood'), iStone: document.getElementById('iStone'), iBerry: document.getElementById('iBerry'),
+  iOre: document.getElementById('iOre'), iTorch: document.getElementById('iTorch'), msg: document.getElementById('msg'),
+};
+
+let tiles, res, player, inv, health, hunger, warmth, fires, torchTime, clock, over, best, gcd, anim, msgTimer, lastFrame;
+const held = { up: false, down: false, left: false, right: false, gather: false };
+let dirOrder = [];
+
+best = parseInt(localStorage.getItem('survivalBest') || '0', 10);
+
+const rnd = n => Math.floor(Math.random() * n);
+const inb = (x, y) => x >= 0 && x < MAPW && y >= 0 && y < MAPH;
+
+function genMap() {
+  tiles = []; res = [];
+  for (let y = 0; y < MAPH; y++) { tiles[y] = []; res[y] = []; for (let x = 0; x < MAPW; x++) { tiles[y][x] = GRASS; res[y][x] = 0; } }
+  for (let b = 0; b < 6; b++) { let wx = rnd(MAPW), wy = rnd(MAPH); for (let s = 0; s < 26; s++) { if (inb(wx, wy)) tiles[wy][wx] = WATER; wx += rnd(3) - 1; wy += rnd(3) - 1; } }
+  for (let y = 0; y < MAPH; y++) for (let x = 0; x < MAPW; x++) if (tiles[y][x] === GRASS) {
+    const r = Math.random();
+    if (r < 0.10) { tiles[y][x] = TREE; res[y][x] = 3; }
+    else if (r < 0.15) { tiles[y][x] = ROCK; res[y][x] = 3; }
+    else if (r < 0.19) { tiles[y][x] = BUSH; res[y][x] = 2; }
+  }
+  const cx = MAPW >> 1, cy = MAPH >> 1;
+  for (let y = cy - 2; y <= cy + 2; y++) for (let x = cx - 2; x <= cx + 2; x++) if (inb(x, y)) { tiles[y][x] = GRASS; res[y][x] = 0; }
+  return { cx, cy };
+}
+
+function passable(x, y) { return inb(x, y) && tiles[y][x] === GRASS; }
+
+function reset() {
+  const { cx, cy } = genMap();
+  player = { tx: cx, ty: cy, px: (cx + 0.5) * T, py: (cy + 0.5) * T, dir: { x: 0, y: 1 }, moving: false, fx: 0, fy: 0, ox: 0, oy: 0, mt: 0 };
+  inv = { wood: 0, stone: 0, berries: 0, ore: 0 };
+  health = 100; hunger = 100; warmth = 100;
+  fires = []; torchTime = 0; clock = 0; over = false; gcd = 0; anim = 0; msgTimer = 0;
+  el.best.textContent = best;
+  message('Собери ветки и камни, к ночи разведи костёр!');
+  render();
+}
+
+function message(t) { el.msg.textContent = t; msgTimer = 3; }
+
+// --- ресурсы / крафт ---
+function harvest(tx, ty) {
+  if (!inb(tx, ty)) return false;
+  const t = tiles[ty][tx];
+  if (t === TREE) inv.wood++;
+  else if (t === ROCK) { inv.stone++; if (Math.random() < 0.3) inv.ore++; }
+  else if (t === BUSH) inv.berries++;
+  else return false;
+  res[ty][tx]--; hunger = Math.max(0, hunger - 0.5);
+  if (res[ty][tx] <= 0) tiles[ty][tx] = GRASS;
+  return true;
+}
+function eat() {
+  if (inv.berries > 0 && hunger < 100) { inv.berries--; hunger = Math.min(100, hunger + 30); message('🍓 Съел ягоду (+голод)'); return true; }
+  if (inv.berries <= 0) message('Нет ягод'); else message('Голод полон');
+  return false;
+}
+function craftFire() {
+  const f = fires.find(f => f.tx === player.tx && f.ty === player.ty);
+  if (f) { if (inv.wood >= 1) { inv.wood--; f.fuel += 30; message('🔥 Подкинул дров'); return 'refuel'; } message('Нет дров'); return 'nowood'; }
+  const r = RECIPES.campfire;
+  if (inv.wood >= r.wood && inv.stone >= r.stone) { inv.wood -= r.wood; inv.stone -= r.stone; fires.push({ tx: player.tx, ty: player.ty, fuel: FIRE_FUEL }); message('🔥 Костёр разведён!'); return 'built'; }
+  message('Нужно 2🪵 и 1🪨'); return 'nores';
+}
+function craftTorch() {
+  if (inv.wood >= RECIPES.torch.wood) { inv.wood -= RECIPES.torch.wood; torchTime = TORCH_TIME; message('🕯️ Факел зажжён'); return true; }
+  message('Нужна 1🪵'); return false;
+}
+
+// --- день/ночь ---
+function tnorm() { return (clock % CYCLE) / CYCLE; }
+function isNight() { const t = tnorm(); return t > 0.60 && t < 0.95; }
+function darkness() {
+  const t = tnorm();
+  if (t < 0.55) return 0;
+  if (t < 0.65) return (t - 0.55) / 0.10 * 0.94;
+  if (t < 0.90) return 0.94;
+  if (t < 1.0) return (1.0 - t) / 0.10 * 0.94;
+  return 0;
+}
+function nearWarmth() {
+  if (torchTime > 0) return true;
+  return fires.some(f => Math.abs(f.tx - player.tx) <= FIRE_R && Math.abs(f.ty - player.ty) <= FIRE_R);
+}
+function dayNum() { return Math.floor(clock / CYCLE) + 1; }
+
+// --- обновление ---
+function heldDir() {
+  for (let i = dirOrder.length - 1; i >= 0; i--) { const d = dirOrder[i]; if (held[d]) return DIRS[d]; }
+  for (const d of ['up', 'down', 'left', 'right']) if (held[d]) return DIRS[d];
+  return null;
+}
+const DIRS = { up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 }, right: { x: 1, y: 0 } };
+
+function update(dt) {
+  anim += dt;
+  if (msgTimer > 0) { msgTimer -= dt; if (msgTimer <= 0 && !over) el.msg.textContent = ''; }
+  if (over) return;
+
+  // движение (по сетке с интерполяцией)
+  if (!player.moving) {
+    const d = heldDir();
+    if (d) {
+      player.dir = d;
+      const nx = player.tx + d.x, ny = player.ty + d.y;
+      if (passable(nx, ny)) { player.moving = true; player.ox = player.px; player.oy = player.py; player.tx = nx; player.ty = ny; player.fx = (nx + 0.5) * T; player.fy = (ny + 0.5) * T; player.mt = 0; }
+    }
+  }
+  if (player.moving) {
+    player.mt += dt / 0.13;
+    if (player.mt >= 1) { player.mt = 1; player.moving = false; }
+    player.px = player.ox + (player.fx - player.ox) * player.mt;
+    player.py = player.oy + (player.fy - player.oy) * player.mt;
+  }
+
+  // сбор (удержание)
+  gcd -= dt;
+  if (held.gather && gcd <= 0) {
+    const ok = harvest(player.tx + player.dir.x, player.ty + player.dir.y);
+    gcd = ok ? 0.28 : 0.1;
+  }
+
+  // показатели
+  clock += dt;
+  hunger = Math.max(0, hunger - HUNGER_RATE * dt);
+  const warm = !isNight() || nearWarmth();
+  warmth = warm ? Math.min(100, warmth + 18 * dt) : Math.max(0, warmth - 9 * dt);
+  let dmg = 0;
+  if (hunger <= 0) dmg += 3 * dt;
+  if (warmth <= 0) dmg += 4 * dt;
+  if (dmg > 0) health = Math.max(0, health - dmg);
+  else if (hunger > 60 && warmth > 60) health = Math.min(100, health + 1.5 * dt);
+
+  for (const f of fires) f.fuel -= dt;
+  fires = fires.filter(f => f.fuel > 0);
+  if (torchTime > 0) torchTime = Math.max(0, torchTime - dt);
+
+  if (dayNum() > best) { best = dayNum(); localStorage.setItem('survivalBest', String(best)); }
+  if (health <= 0) endGame();
+}
+
+function endGame() {
+  over = true;
+  const cause = warmth <= 0 ? '🥶 Замёрз в темноте' : '🍖 Умер от голода';
+  el.msg.textContent = cause + ' · прожито дней: ' + dayNum() + ' · Enter — заново';
+}
+
+// --- отрисовка ---
+function tileColor(t) { return t === WATER ? '#2b6ca3' : (t === GRASS || t === TREE || t === ROCK || t === BUSH) ? '#3e7d3a' : '#3e7d3a'; }
+function render() {
+  if (!tiles) return;
+  const camX = Math.max(0, Math.min(MAPW * T - CW, player.px - CW / 2));
+  const camY = Math.max(0, Math.min(MAPH * T - CH, player.py - CH / 2));
+  const c0 = Math.floor(camX / T), r0 = Math.floor(camY / T);
+
+  for (let y = r0; y <= r0 + CH / T + 1; y++) for (let x = c0; x <= c0 + CW / T + 1; x++) {
+    if (!inb(x, y)) { ctx.fillStyle = '#141726'; ctx.fillRect(x * T - camX, y * T - camY, T, T); continue; }
+    const sx = x * T - camX, sy = y * T - camY, t = tiles[y][x];
+    // земля
+    ctx.fillStyle = ((x + y) & 1) ? '#3e7d3a' : '#3a7636';
+    ctx.fillRect(sx, sy, T, T);
+    if (t === WATER) { ctx.fillStyle = '#2b6ca3'; ctx.fillRect(sx, sy, T, T); ctx.fillStyle = 'rgba(255,255,255,.08)'; ctx.fillRect(sx + 4, sy + 6, 8, 2); }
+    else if (t === TREE) { ctx.fillStyle = '#6b4a24'; ctx.fillRect(sx + T / 2 - 3, sy + T - 12, 6, 12); ctx.fillStyle = '#1f8a3b'; ctx.beginPath(); ctx.arc(sx + T / 2, sy + T / 2 - 2, T * 0.42, 0, 7); ctx.fill(); ctx.fillStyle = '#2fbf71'; ctx.beginPath(); ctx.arc(sx + T / 2 - 3, sy + T / 2 - 5, T * 0.22, 0, 7); ctx.fill(); }
+    else if (t === ROCK) { ctx.fillStyle = '#8d99ae'; ctx.beginPath(); ctx.arc(sx + T / 2, sy + T / 2 + 2, T * 0.36, 0, 7); ctx.fill(); ctx.fillStyle = '#b0b9c9'; ctx.beginPath(); ctx.arc(sx + T / 2 - 4, sy + T / 2 - 2, T * 0.16, 0, 7); ctx.fill(); }
+    else if (t === BUSH) { ctx.fillStyle = '#2e7d32'; ctx.beginPath(); ctx.arc(sx + T / 2, sy + T / 2 + 2, T * 0.34, 0, 7); ctx.fill(); ctx.fillStyle = '#ef233c'; for (const [dx, dy] of [[-4, -2], [5, 0], [0, 5]]) { ctx.beginPath(); ctx.arc(sx + T / 2 + dx, sy + T / 2 + dy, 2.4, 0, 7); ctx.fill(); } }
+  }
+
+  // костры
+  for (const f of fires) {
+    const sx = (f.tx + 0.5) * T - camX, sy = (f.ty + 0.5) * T - camY;
+    ctx.fillStyle = '#5a4636'; ctx.fillRect(sx - 8, sy + 6, 16, 4);
+    const fl = 8 + Math.sin(anim * 12 + f.tx) * 2;
+    ctx.fillStyle = '#ff9f1c'; ctx.beginPath(); ctx.moveTo(sx - 6, sy + 6); ctx.lineTo(sx + 6, sy + 6); ctx.lineTo(sx, sy + 6 - fl); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#ffd166'; ctx.beginPath(); ctx.moveTo(sx - 3, sy + 6); ctx.lineTo(sx + 3, sy + 6); ctx.lineTo(sx, sy + 6 - fl * 0.6); ctx.closePath(); ctx.fill();
+  }
+
+  // игрок
+  const px = player.px - camX, py = player.py - camY;
+  ctx.fillStyle = '#0d0e1a'; ctx.beginPath(); ctx.ellipse(px, py + 10, 8, 3, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = '#ffd166'; ctx.beginPath(); ctx.arc(px, py, 9, 0, 7); ctx.fill();
+  ctx.fillStyle = '#0d0e1a'; ctx.beginPath(); ctx.arc(px + player.dir.x * 3, py + player.dir.y * 3 - 1, 2.4, 0, 7); ctx.fill();
+  if (torchTime > 0) { ctx.fillStyle = '#ff9f1c'; ctx.beginPath(); ctx.arc(px + player.dir.x * 10, py + player.dir.y * 10, 3, 0, 7); ctx.fill(); }
+
+  // ночь (тьма с «дырками» света)
+  const dk = darkness();
+  if (dk > 0.01) {
+    nctx.clearRect(0, 0, CW, CH);
+    nctx.fillStyle = 'rgba(6,10,26,' + dk + ')'; nctx.fillRect(0, 0, CW, CH);
+    nctx.globalCompositeOperation = 'destination-out';
+    const plr = (torchTime > 0 ? 3.4 : 1.5) * T;
+    punch(px, py, plr);
+    for (const f of fires) { const flick = 0.2 * Math.sin(anim * 10 + f.tx); punch((f.tx + 0.5) * T - camX, (f.ty + 0.5) * T - camY, (2.6 + flick) * T); }
+    nctx.globalCompositeOperation = 'source-over';
+    ctx.drawImage(night, 0, 0);
+  }
+
+  // HUD
+  el.day.textContent = dayNum();
+  el.tod.textContent = isNight() ? '🌙 Ночь' : (darkness() > 0 ? '🌆 Сумерки' : '☀️ День');
+  el.fHp.style.width = health + '%'; el.fFood.style.width = hunger + '%'; el.fWarm.style.width = warmth + '%';
+  el.iWood.textContent = inv.wood; el.iStone.textContent = inv.stone; el.iBerry.textContent = inv.berries;
+  el.iOre.textContent = inv.ore; el.iTorch.textContent = Math.ceil(torchTime);
+}
+function punch(x, y, r) { const g = nctx.createRadialGradient(x, y, r * 0.25, x, y, r); g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(1, 'rgba(0,0,0,0)'); nctx.fillStyle = g; nctx.beginPath(); nctx.arc(x, y, r, 0, 7); nctx.fill(); }
+
+// --- цикл ---
+function frame(now) {
+  if (lastFrame === null) lastFrame = now;
+  let dt = (now - lastFrame) / 1000; lastFrame = now;
+  if (dt > 0.05) dt = 0.05;
+  update(dt); render();
+  requestAnimationFrame(frame);
+}
+
+// --- ввод ---
+const KEYDIR = { ArrowUp: 'up', w: 'up', W: 'up', ArrowDown: 'down', s: 'down', S: 'down', ArrowLeft: 'left', a: 'left', A: 'left', ArrowRight: 'right', d: 'right', D: 'right' };
+document.addEventListener('keydown', (e) => {
+  if (over && e.key === 'Enter') { reset(); return; }
+  const dir = KEYDIR[e.key];
+  if (dir) { if (!held[dir]) dirOrder.push(dir); held[dir] = true; e.preventDefault(); return; }
+  if (e.key === ' ' || e.key === 'e' || e.key === 'E') { held.gather = true; e.preventDefault(); }
+  else if (e.key === 'f' || e.key === 'F') eat();
+  else if (e.key === '1') craftFire();
+  else if (e.key === '2') craftTorch();
+});
+document.addEventListener('keyup', (e) => {
+  const dir = KEYDIR[e.key];
+  if (dir) { held[dir] = false; dirOrder = dirOrder.filter(d => d !== dir); }
+  if (e.key === ' ' || e.key === 'e' || e.key === 'E') held.gather = false;
+});
+
+// экранные кнопки
+document.querySelectorAll('.pad button[data-dir]').forEach(b => {
+  const dir = b.getAttribute('data-dir');
+  const on = e => { e.preventDefault(); if (!held[dir]) dirOrder.push(dir); held[dir] = true; };
+  const off = e => { e.preventDefault(); held[dir] = false; dirOrder = dirOrder.filter(d => d !== dir); };
+  b.addEventListener('pointerdown', on); b.addEventListener('pointerup', off); b.addEventListener('pointerleave', off); b.addEventListener('pointercancel', off);
+});
+const gb = document.getElementById('gatherBtn');
+gb.addEventListener('pointerdown', e => { e.preventDefault(); held.gather = true; });
+gb.addEventListener('pointerup', e => { e.preventDefault(); held.gather = false; });
+gb.addEventListener('pointerleave', () => { held.gather = false; });
+document.getElementById('eatBtn').addEventListener('click', eat);
+document.getElementById('fireBtn').addEventListener('click', craftFire);
+document.getElementById('torchBtn').addEventListener('click', craftTorch);
+document.getElementById('restart').addEventListener('click', reset);
+
+reset();
+lastFrame = null;
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
