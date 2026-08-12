@@ -67,13 +67,18 @@
     .controls{ gap:7px; margin-bottom:10px; }
   }
 
-  /* --- полноэкранный режим --- */
+  /* --- полноэкранный режим: виден ТОЛЬКО игровой экран --- */
   .fsbtn.on { background:#06d6a0; color:#10121f; }
-  :fullscreen { overflow:auto; }
-  :fullscreen .guide-panel { display:none; }        /* в полный экран — только игра */
-  :fullscreen .stage { gap:0; }
-  :fullscreen canvas { height:min(76vh,calc(100vh - 210px)); width:auto; max-width:97vw; }
-  :fullscreen #board { transform-origin:top center; }
+  :fullscreen { background:#07080f; overflow:hidden; }
+  :fullscreen body, body:fullscreen { background:#07080f; padding:0; justify-content:center; }
+  /* прячем обвязку страницы: заголовок, навигацию, справочник, подсказки.
+     .fs-hide ставится скриптом на ряд с кнопкой ⛶ — игровые кнопки остаются */
+  :fullscreen h1, :fullscreen .fs-hide, :fullscreen .guide-panel, :fullscreen .hint,
+  :fullscreen footer, :fullscreen .sub { display:none !important; }
+  :fullscreen .stage { gap:0; align-items:center; justify-content:center; min-height:100vh; }
+  :fullscreen .game-col { justify-content:center; }
+  /* элементы с этим классом остаются — без них в игру не сыграть */
+  :fullscreen .fs-keep { display:flex !important; }
 </style>
 </head>
 <body>
@@ -401,7 +406,7 @@ el.msg.textContent = 'Настрой режим и жми «Новая игра�
       else { (document.exitFullscreen||document.webkitExitFullscreen).call(document); }
     }catch(e){}
   }
-  if(btn) btn.addEventListener("click",toggle);
+  if(btn){ btn.addEventListener("click",toggle); var nav=btn.closest&&btn.closest(".controls"); if(nav) nav.classList.add("fs-hide"); }
   document.addEventListener("fullscreenchange",upd);
   document.addEventListener("webkitfullscreenchange",upd);
   document.addEventListener("keydown",function(e){ if(e.target&&e.target.tagName==="INPUT")return; if(e.code==="KeyF"&&!e.repeat&&!e.ctrlKey&&!e.altKey&&!e.metaKey){ toggle(); } });
