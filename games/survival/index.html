@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Выживание</title>
-<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
   :root { --bg:#2b2d42; --panel:#3a3d5c; --panel2:#4a4e73; --text:#edf2f4; --accent:#06d6a0; }
   * { box-sizing:border-box; margin:0; padding:0; }
@@ -326,31 +326,54 @@ function setupConn() {
   conn.on('close', () => { connected = false; netStatus('Друг отключился'); });
 }
 function randCode() { const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s = ''; for (let i = 0; i < 4; i++) s += A[rnd(A.length)]; return s; }
+const PEER_OPTS = { config: { iceServers: [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' },
+  { urls: 'stun:global.stun.twilio.com:3478' },
+] } };
+function peerErrMsg(type) {
+  return ({
+    'peer-unavailable': 'Комната не найдена — проверь код (хост должен быть онлайн)',
+    'unavailable-id': 'Код занят, пробую другой…',
+    'network': 'Нет связи с сервером PeerJS — попробуй ещё раз',
+    'server-error': 'Сервер PeerJS недоступен — попробуй позже',
+    'browser-incompatible': 'Браузер не поддерживает WebRTC',
+    'ssl-unavailable': 'Нужно открывать по ссылке https',
+    'socket-error': 'Сбой связи — попробуй ещё раз',
+    'socket-closed': 'Связь с сервером закрыта — попробуй ещё раз',
+    'webrtc': 'Сбой WebRTC (возможно, строгий NAT/файрвол)',
+  })[type] || ('Ошибка сети: ' + type);
+}
+let hostTries = 0;
 function hostRoom() {
-  if (typeof Peer === 'undefined') { netStatus('Нет PeerJS (нужен интернет и открытие по ссылке)'); return; }
+  if (typeof Peer === 'undefined') { netStatus('PeerJS не загрузился — проверь интернет и открой по ссылке (https)'); return; }
   const code = randCode();
-  peer = new Peer('dslite-' + code);
-  role = 'host'; me = 0;
-  showCode(code);
-  netStatus('Ждём друга… отправь ему код: ' + code);
-  peer.on('error', e => netStatus('Ошибка сети: ' + e.type));
+  peer = new Peer('dslite-' + code, PEER_OPTS);
+  role = 'host'; me = 0; showCode(code);
+  netStatus('Регистрирую комнату…');
+  peer.on('open', () => netStatus('Готово! Ждём друга. Код: ' + code));
+  peer.on('error', e => {
+    if (e.type === 'unavailable-id' && hostTries < 5) { hostTries++; try { peer.destroy(); } catch (_) {} hostRoom(); return; }
+    netStatus(peerErrMsg(e.type));
+  });
   peer.on('connection', c => {
     conn = c; setupConn();
-    c.on('open', () => { connected = true; startWorld(2); netSend({ t: 'map', tiles, res }); broadcastState(); netStatus('Друг подключён! Код: ' + code); message('Играем вдвоём!'); render(); });
+    c.on('open', () => { connected = true; startWorld(2); netSend({ t: 'map', tiles, res }); broadcastState(); netStatus('✅ Друг подключён! Код: ' + code); message('Играем вдвоём!'); render(); });
   });
 }
 function joinRoom() {
   const code = (document.getElementById('joinCode').value || '').trim().toUpperCase();
   if (!code) { netStatus('Введи код комнаты'); return; }
-  if (typeof Peer === 'undefined') { netStatus('Нет PeerJS (нужен интернет)'); return; }
-  peer = new Peer();
+  if (typeof Peer === 'undefined') { netStatus('PeerJS не загрузился — проверь интернет / открой по https'); return; }
+  peer = new Peer(undefined, PEER_OPTS);
   role = 'join'; me = 1;
   netStatus('Подключение к ' + code + '…');
-  peer.on('error', e => netStatus('Ошибка: ' + e.type + ' (проверь код)'));
+  peer.on('error', e => netStatus(peerErrMsg(e.type)));
   peer.on('open', () => {
     conn = peer.connect('dslite-' + code, { reliable: true });
     setupConn();
-    conn.on('open', () => { connected = true; netStatus('Подключено к ' + code); message('Ожидание карты от хоста…'); });
+    conn.on('open', () => { connected = true; netStatus('✅ Подключено к ' + code); message('Ожидание карты от хоста…'); });
+    setTimeout(() => { if (!connected) netStatus('Не удалось подключиться к ' + code + ' — проверь код, хост онлайн, или мешает строгий NAT/файрвол'); }, 15000);
   });
 }
 function broadcastState() {
@@ -486,6 +509,8 @@ document.getElementById('joinBtn').addEventListener('click', joinRoom);
 document.getElementById('copyBtn').addEventListener('click', copyCode);
 const rci = document.getElementById('roomCodeInput');
 rci.addEventListener('click', () => { rci.select(); try { rci.setSelectionRange(0, 99); } catch (_) {} });
+
+if (typeof location !== 'undefined' && location.protocol === 'file:') netStatus('⚠️ Онлайн работает только по ссылке http(s), не через file://');
 
 reset();
 lastFrame = null;
