@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Блекджек (21)</title>
+<style>
+  :root {
+    --bg: #2b2d42;
+    --panel: #3a3d5c;
+    --panel2: #4a4e73;
+    --text: #edf2f4;
+    --accent: #06d6a0;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', Tahoma, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    user-select: none;
+  }
+  h1 { margin-bottom: 14px; letter-spacing: 2px; }
+  .controls {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  button, select {
+    background: var(--panel);
+    color: var(--text);
+    border: none;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 15px;
+    cursor: pointer;
+    transition: background .15s;
+  }
+  button:hover:not(:disabled), select:hover { background: var(--panel2); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.primary { background: var(--accent); color: #0d1a14; font-weight: bold; }
+  button.primary:hover:not(:disabled) { background: #08f5b4; }
+  .status {
+    display: flex;
+    gap: 22px;
+    margin-bottom: 14px;
+    font-size: 18px;
+    font-weight: bold;
+    background: var(--panel);
+    padding: 10px 18px;
+    border-radius: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .status span { display: inline-flex; align-items: center; gap: 6px; }
+
+  .table {
+    width: 380px; max-width: 100%;
+    background: radial-gradient(120% 90% at 50% 0%, #1f6b46, #14472f);
+    border-radius: 14px;
+    padding: 18px 16px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.4), inset 0 0 0 3px rgba(255,255,255,.05);
+  }
+  .hand-area { margin: 6px 0; }
+  .label { font-size: 14px; opacity: .9; margin-bottom: 8px; font-weight: bold; text-align: center; }
+  .label .sc { background: rgba(0,0,0,.35); padding: 1px 9px; border-radius: 20px; margin-left: 6px; }
+  .hand { display: flex; gap: 8px; min-height: 82px; flex-wrap: wrap; justify-content: center; }
+  .msg { text-align: center; font-size: 16px; font-weight: bold; min-height: 24px; margin: 12px 0; }
+
+  .card {
+    width: 54px; height: 78px; border-radius: 8px;
+    background: #f7f8fb; color: #1a1c2e;
+    display: flex; flex-direction: column; justify-content: space-between;
+    padding: 5px 7px; box-shadow: 0 3px 8px rgba(0,0,0,.35);
+    animation: dealin .22s ease;
+  }
+  @keyframes dealin { from { opacity: 0; transform: translateY(-10px) scale(.9); } to { opacity: 1; transform: none; } }
+  .card.red { color: #d21f3c; }
+  .card .r { font-size: 16px; line-height: 1; font-weight: bold; }
+  .card .s { font-size: 26px; text-align: center; }
+  .card.back { background: repeating-linear-gradient(45deg, #3f43a0, #3f43a0 6px, #2c2f76 6px, #2c2f76 12px); }
+
+  .actions { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; justify-content: center; align-items: center; }
+  .actions[hidden] { display: none; }
+  .actions .bet { font-size: 16px; font-weight: bold; }
+
+  .hint { margin-top: 12px; font-size: 13px; opacity: .6; text-align: center; }
+
+  .stage { display:flex; gap:28px; align-items:flex-start; justify-content:center; flex-wrap:wrap; width:100%; }
+  .game-col { display:flex; flex-direction:column; align-items:center; }
+  .guide-panel {
+    background: var(--panel);
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 12px;
+    padding: 16px 18px;
+    min-width: 215px;
+    max-width: 260px;
+    margin-top: 56px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.35);
+  }
+  .guide-panel h2 { font-size:14px; letter-spacing:1px; text-transform:uppercase; opacity:.85; margin-bottom:14px; display:flex; align-items:center; gap:7px; }
+  .guide-panel .row { display:flex; align-items:center; gap:10px; margin-bottom:10px; font-size:13.5px; }
+  .guide-panel .keys { display:flex; gap:4px; flex-shrink:0; }
+  .guide-panel .desc { opacity:.85; }
+  .guide-panel .sep { height:1px; background:rgba(255,255,255,.09); margin:12px 0; }
+  .guide-panel .note { font-size:12px; opacity:.6; margin-top:8px; line-height:1.55; }
+  kbd {
+    display:inline-block; min-width:22px; text-align:center;
+    background:#20223a; border:1px solid rgba(255,255,255,.15);
+    border-bottom-width:2px; border-radius:6px; padding:3px 6px;
+    font-family:inherit; font-size:12px; font-weight:bold; color:var(--text);
+  }
+  @media (max-width:760px){ .guide-panel{ margin-top:8px; max-width:100%; width:100%; } }
+  @media (max-width:480px){ body{ padding:12px; } h1{ font-size:22px; } }
+</style>
+</head>
+<body>
+<div class="stage">
+<div class="game-col">
+  <h1>🃏 БЛЕКДЖЕК 21</h1>
+
+  <div class="controls">
+    <a href="../../index.html" style="background:var(--panel);color:var(--text);padding:8px 14px;border-radius:8px;font-size:15px;text-decoration:none;display:inline-flex;align-items:center;">← Меню</a>
+    <button id="resetBank">🔄 Сброс банка</button>
+  </div>
+
+  <div class="status">
+    <span>💰 <span id="balance">100</span></span>
+    <span>🎯 <span id="curbet">0</span></span>
+    <span>🏆 <span id="record">100</span></span>
+  </div>
+
+  <div class="table">
+    <div class="hand-area">
+      <div class="label">🤖 Дилер <span class="sc" id="dealerScore">—</span></div>
+      <div class="hand" id="dealerHand"></div>
+    </div>
+    <div class="msg" id="msg">Сделай ставку и раздай карты</div>
+    <div class="hand-area">
+      <div class="label">🧑 Ты <span class="sc" id="playerScore">—</span></div>
+      <div class="hand" id="playerHand"></div>
+    </div>
+  </div>
+
+  <div class="actions" id="betControls">
+    <button id="betMinus">− 5</button>
+    <span class="bet">Ставка: <span id="betVal">10</span> 💰</span>
+    <button id="betPlus">+ 5</button>
+    <button id="betAllin">Ва-банк</button>
+    <button id="dealBtn" class="primary">🃏 Раздать</button>
+  </div>
+  <div class="actions" id="playControls" hidden>
+    <button id="hitBtn" class="primary">Взять</button>
+    <button id="standBtn">Хватит</button>
+    <button id="doubleBtn">Удвоить</button>
+  </div>
+  <div class="actions" id="overControls" hidden>
+    <button id="againBtn" class="primary">Новая раздача</button>
+  </div>
+
+  <div class="hint">Набери больше дилера, но не больше 21 · дилер берёт до 17 · туз = 11 или 1</div>
+</div>
+<aside class="guide-panel">
+  <h2>🎛 Справочник</h2>
+  <div class="row"><span class="keys"><kbd>Взять</kbd></span><span class="desc">ещё карта (hit)</span></div>
+  <div class="row"><span class="keys"><kbd>Хватит</kbd></span><span class="desc">остановиться (stand)</span></div>
+  <div class="row"><span class="keys"><kbd>Удвоить</kbd></span><span class="desc">×2 ставка + 1 карта</span></div>
+  <div class="sep"></div>
+  <div class="note">Цель — набрать очков больше дилера, но не больше 21. Картинки = 10, туз = 11 или 1 (как выгоднее). Перебор (>21) — проигрыш. «Блекджек» (туз + 10 с первых двух карт) платит 3:2. Дилер обязан брать до 17 и остановиться. Ставишь фишки, банк сохраняется в браузере.</div>
+</aside>
+</div>
+
+<script>
+const SUITS = ['♠', '♥', '♦', '♣'];
+const RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+const RED = { '♥': 1, '♦': 1 };
+
+const el = {
+  balance: document.getElementById('balance'), curbet: document.getElementById('curbet'),
+  record: document.getElementById('record'), betVal: document.getElementById('betVal'),
+  dealerHand: document.getElementById('dealerHand'), playerHand: document.getElementById('playerHand'),
+  dealerScore: document.getElementById('dealerScore'), playerScore: document.getElementById('playerScore'),
+  msg: document.getElementById('msg'),
+  betControls: document.getElementById('betControls'), playControls: document.getElementById('playControls'),
+  overControls: document.getElementById('overControls'), doubleBtn: document.getElementById('doubleBtn'),
+  dealBtn: document.getElementById('dealBtn'),
+};
+
+let deck, player, dealer, balance, bet, currentBet, record, state, message;
+
+balance = parseInt(localStorage.getItem('blackjackBalance') || '100', 10);
+record = parseInt(localStorage.getItem('blackjackRecord') || '100', 10);
+bet = 10;
+state = 'BET';
+message = 'Сделай ставку и раздай карты';
+
+// --- колода / значения ---
+function newDeck() {
+  const d = [];
+  for (const s of SUITS) for (const r of RANKS) d.push({ r, s });
+  return d;
+}
+function shuffle(d) {
+  for (let i = d.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [d[i], d[j]] = [d[j], d[i]]; }
+  return d;
+}
+function draw() { return deck.pop(); }
+function cardVal(r) { if (r === 'A') return 11; if (r === 'K' || r === 'Q' || r === 'J' || r === '10') return 10; return Number(r); }
+function handValue(cards) {
+  let t = 0, a = 0;
+  for (const c of cards) { t += cardVal(c.r); if (c.r === 'A') a++; }
+  while (t > 21 && a > 0) { t -= 10; a--; }
+  return t;
+}
+function isBlackjack(cards) { return cards.length === 2 && handValue(cards) === 21; }
+
+function saveBank() {
+  localStorage.setItem('blackjackBalance', String(balance));
+  localStorage.setItem('blackjackRecord', String(record));
+}
+
+// --- ход игры ---
+function deal() {
+  if (state !== 'BET') return;
+  bet = Math.max(5, Math.min(bet, balance));
+  if (balance < 5) { message = 'Банк пуст — нажми «Сброс банка»'; render(); return; }
+  balance -= bet; currentBet = bet;
+  deck = shuffle(newDeck());
+  player = [draw(), draw()];
+  dealer = [draw(), draw()];
+  state = 'PLAYER';
+  const pbj = isBlackjack(player), dbj = isBlackjack(dealer);
+  if (pbj || dbj) { endRound(pbj && dbj ? 'push' : pbj ? 'blackjack' : 'lose'); return; }
+  message = 'Твой ход: Взять или Хватит?';
+  render();
+}
+
+function hit() {
+  if (state !== 'PLAYER') return;
+  player.push(draw());
+  if (handValue(player) > 21) { endRound('lose'); return; }
+  render();
+}
+
+function stand() {
+  if (state !== 'PLAYER') return;
+  dealerPlayAndCompare();
+}
+
+function double() {
+  if (state !== 'PLAYER' || player.length !== 2 || balance < bet) return;
+  balance -= bet; currentBet += bet;
+  player.push(draw());
+  if (handValue(player) > 21) { endRound('lose'); return; }
+  dealerPlayAndCompare();
+}
+
+function dealerPlayAndCompare() {
+  state = 'DEALER';
+  while (handValue(dealer) < 17) dealer.push(draw());
+  const pv = handValue(player), dv = handValue(dealer);
+  let res;
+  if (dv > 21) res = 'win';
+  else if (dv > pv) res = 'lose';
+  else if (dv < pv) res = 'win';
+  else res = 'push';
+  endRound(res);
+}
+
+function endRound(result) {
+  let gain = 0, title = '';
+  if (result === 'blackjack') { gain = Math.floor(currentBet * 2.5); title = '🎉 Блекджек!'; }
+  else if (result === 'win') { gain = currentBet * 2; title = '🎉 Ты выиграл!'; }
+  else if (result === 'push') { gain = currentBet; title = '🤝 Ничья'; }
+  else { gain = 0; title = '😕 Дилер выиграл'; }
+  balance += gain;
+  const net = gain - currentBet;
+  record = Math.max(record, balance);
+  saveBank();
+  state = 'OVER';
+  message = title + ' · ' + (net >= 0 ? '+' : '') + net + '💰';
+  render(true);
+}
+
+// --- отрисовка ---
+function cardEl(card, faceDown) {
+  const d = document.createElement('div');
+  if (faceDown) { d.className = 'card back'; return d; }
+  d.className = 'card' + (RED[card.s] ? ' red' : '');
+  const r = document.createElement('div'); r.className = 'r'; r.textContent = card.r + card.s;
+  const s = document.createElement('div'); s.className = 's'; s.textContent = card.s;
+  d.appendChild(r); d.appendChild(s);
+  return d;
+}
+
+function renderHand(container, cards, hideHole) {
+  container.innerHTML = '';
+  cards.forEach((c, i) => container.appendChild(cardEl(c, hideHole && i === 1)));
+}
+
+function render(reveal) {
+  const hideHole = (state === 'PLAYER') && !reveal;
+  if (player && player.length) {
+    renderHand(el.playerHand, player, false);
+    el.playerScore.textContent = handValue(player);
+  } else { el.playerHand.innerHTML = ''; el.playerScore.textContent = '—'; }
+
+  if (dealer && dealer.length) {
+    renderHand(el.dealerHand, dealer, hideHole);
+    el.dealerScore.textContent = hideHole ? cardVal(dealer[0].r) + ' + ?' : handValue(dealer);
+  } else { el.dealerHand.innerHTML = ''; el.dealerScore.textContent = '—'; }
+
+  el.msg.textContent = message;
+  el.balance.textContent = balance;
+  el.curbet.textContent = (state === 'BET') ? 0 : currentBet;
+  el.record.textContent = record;
+  el.betVal.textContent = bet;
+
+  el.betControls.hidden = state !== 'BET';
+  el.playControls.hidden = state !== 'PLAYER';
+  el.overControls.hidden = state !== 'OVER';
+  el.doubleBtn.disabled = !(state === 'PLAYER' && player.length === 2 && balance >= bet);
+  el.dealBtn.disabled = balance < 5;
+}
+
+function setBet(v) { bet = Math.max(5, Math.min(v, Math.max(5, balance))); render(); }
+
+// --- кнопки ---
+document.getElementById('betMinus').addEventListener('click', () => setBet(bet - 5));
+document.getElementById('betPlus').addEventListener('click', () => setBet(bet + 5));
+document.getElementById('betAllin').addEventListener('click', () => setBet(balance));
+document.getElementById('dealBtn').addEventListener('click', deal);
+document.getElementById('hitBtn').addEventListener('click', hit);
+document.getElementById('standBtn').addEventListener('click', stand);
+document.getElementById('doubleBtn').addEventListener('click', double);
+document.getElementById('againBtn').addEventListener('click', () => { state = 'BET'; message = 'Сделай ставку и раздай карты'; player = []; dealer = []; render(); });
+document.getElementById('resetBank').addEventListener('click', () => {
+  balance = 100; record = Math.max(record, 100); bet = 10; state = 'BET'; player = []; dealer = [];
+  message = 'Банк пополнен. Сделай ставку!'; saveBank(); render();
+});
+
+// клавиши-хоткеи
+document.addEventListener('keydown', (e) => {
+  if (state === 'PLAYER') {
+    if (e.key === 'h' || e.key === 'H' || e.key === 'ArrowDown') hit();
+    else if (e.key === 's' || e.key === 'S' || e.key === 'ArrowUp' || e.key === ' ') { e.preventDefault(); stand(); }
+    else if (e.key === 'd' || e.key === 'D') double();
+  } else if (state === 'BET' && e.key === 'Enter') deal();
+  else if (state === 'OVER' && e.key === 'Enter') { state = 'BET'; message = 'Сделай ставку и раздай карты'; player = []; dealer = []; render(); }
+});
+
+player = []; dealer = [];
+render();
+</script>
+</body>
+</html>
