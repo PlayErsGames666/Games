@@ -25,23 +25,31 @@
   .bars .b .fill { height:100%; width:100%; transition:width .2s, background .2s; }
 
   canvas { border-radius:10px; display:block; box-shadow:0 8px 24px rgba(0,0,0,.4); image-rendering:pixelated; max-width:100%; height:auto; }
-  .inv { display:flex; gap:14px; margin-top:10px; font-size:16px; font-weight:bold; background:var(--panel); padding:8px 16px; border-radius:10px; flex-wrap:wrap; justify-content:center; }
+  .inv { display:flex; gap:14px; margin-top:10px; font-size:15px; font-weight:bold; background:var(--panel); padding:7px 14px; border-radius:10px; flex-wrap:wrap; justify-content:center; }
   .msg { margin-top:8px; font-size:14px; font-weight:bold; min-height:20px; text-align:center; opacity:.95; }
+
+  .hotbar { display:flex; gap:6px; margin-top:10px; flex-wrap:wrap; justify-content:center; }
+  .slot { width:54px; height:60px; background:var(--panel); border:2px solid rgba(255,255,255,.08); border-radius:8px; display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; position:relative; }
+  .slot.sel { border-color:var(--accent); box-shadow:0 0 0 2px rgba(6,214,160,.35); }
+  .slot.dim { opacity:.42; }
+  .slot .si { font-size:22px; line-height:1; }
+  .slot .sn { font-size:9px; opacity:.85; margin-top:2px; text-align:center; line-height:1.05; }
+  .slot .sc { position:absolute; bottom:1px; right:4px; font-size:11px; font-weight:bold; color:#ffd166; }
+  .slot .key { position:absolute; top:1px; left:4px; font-size:9px; opacity:.55; }
 
   .pad { margin-top:12px; display:grid; grid-template-columns:repeat(3,48px); grid-gap:6px; justify-content:center; }
   .pad button { padding:0; height:48px; font-size:20px; }
   .actions { margin-top:10px; display:flex; gap:8px; flex-wrap:wrap; justify-content:center; }
-  .actions button { font-size:14px; }
 
   .hint { margin-top:10px; font-size:13px; opacity:.6; text-align:center; }
   .stage { display:flex; gap:28px; align-items:flex-start; justify-content:center; flex-wrap:wrap; width:100%; }
   .game-col { display:flex; flex-direction:column; align-items:center; }
-  .guide-panel { background:var(--panel); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:16px 18px; min-width:215px; max-width:260px; margin-top:56px; box-shadow:0 8px 24px rgba(0,0,0,.35); }
+  .guide-panel { background:var(--panel); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:16px 18px; min-width:215px; max-width:270px; margin-top:56px; box-shadow:0 8px 24px rgba(0,0,0,.35); }
   .guide-panel h2 { font-size:14px; letter-spacing:1px; text-transform:uppercase; opacity:.85; margin-bottom:14px; }
   .guide-panel .row2 { margin-bottom:8px; font-size:13px; }
   .guide-panel .sep { height:1px; background:rgba(255,255,255,.09); margin:12px 0; }
   .guide-panel .note { font-size:12px; opacity:.6; margin-top:8px; line-height:1.55; }
-  @media (max-width:760px){ .guide-panel{ margin-top:8px; max-width:100%; width:100%; } }
+  @media (max-width:800px){ .guide-panel{ margin-top:8px; max-width:100%; width:100%; } }
   @media (max-width:480px){ body{ padding:12px; } h1{ font-size:22px; } }
 </style>
 </head>
@@ -81,11 +89,14 @@
   <div class="inv">
     <span>🪵 <span id="iWood">0</span></span>
     <span>🪨 <span id="iStone">0</span></span>
-    <span>🍓 <span id="iBerry">0</span></span>
     <span>💎 <span id="iOre">0</span></span>
+    <span>🍖 <span id="iMeat">0</span></span>
+    <span>🍓 <span id="iBerry">0</span></span>
     <span>🕯️ <span id="iTorch">0</span>с</span>
   </div>
-  <div class="msg" id="msg">Собери ветки и камни, к ночи разведи костёр!</div>
+  <div class="msg" id="msg">Собирай ресурсы, к ночи разведи костёр — ночью выходят мобы!</div>
+
+  <div class="hotbar" id="hotbar"></div>
 
   <div class="pad">
     <span></span><button data-dir="up">▲</button><span></span>
@@ -93,29 +104,31 @@
     <span></span><button data-dir="down">▼</button><span></span>
   </div>
   <div class="actions">
-    <button id="eatBtn">🍓 Съесть (F)</button>
-    <button id="fireBtn">🔥 Костёр (1)</button>
-    <button id="torchBtn">🕯️ Факел (2)</button>
+    <button id="useBtn">🛠️ Использовать (Q)</button>
+    <button id="eatBtn">🍓 Быстро съесть (F)</button>
   </div>
 
-  <div class="hint">WASD/стрелки — ходить · Space/E — собрать · F — съесть · 1 — костёр · 2 — факел · P/Esc — пауза (клавиши работают при любой раскладке)</div>
+  <div class="hint">WASD — ходить · Space/E — действие (собрать/атаковать/сломать) · 1-9 выбор в хотбаре · Q — поставить/скрафтить · P/Esc — пауза</div>
 </div>
 <aside class="guide-panel">
-  <h2>🎛 Как выжить</h2>
-  <div class="row2">Собирай 🪵 ветки, 🪨 камни, 🍓 ягоды, 💎 руду. Собрать: встань рядом, смотри на объект, Space/E.</div>
-  <div class="row2"><b>Рецепты:</b> Костёр = 2🪵 + 1🪨 · Факел = 1🪵.</div>
+  <h2>🎛 Как играть</h2>
+  <div class="row2"><b>Хотбар (1-9):</b> выбери предмет, жми <b>Q</b> — поставить/скрафтить/съесть. Пустые ячейки — на будущее.</div>
+  <div class="row2"><b>Space/E</b> — универсальное действие перед собой: рубить дерево, бить моба, ломать стену, собрать урожай.</div>
+  <div class="row2"><b>🛠️ Верстак:</b> поставь его (4🪵). Рядом с ним открываются рецепты (🌱 грядка).</div>
+  <div class="row2"><b>Фермерство:</b> поставь грядку → «Посадить» (🌰, 1🍓) → вырастет → собери Space.</div>
+  <div class="row2"><b>Строительство:</b> 🧱 стена (2🪨) блокирует мобов.</div>
   <div class="sep"></div>
-  <div class="row2"><b>🌐 Онлайн-кооп:</b> «Создать комнату» → отправь другу КОД. Друг вводит код и жмёт «Войти». Общая карта, общий склад и показатели; ночью грейтесь оба у костра.</div>
-  <div class="note">Голод падает всегда — ешьте ягоды. Ночью темно: если КТО-ТО из вас не у костра/без факела — падает Тепло, затем Здоровье. Онлайн работает по ссылке (GitHub Pages), не через file://. Рекорд сохраняется.</div>
+  <div class="note">Ночью появляются мобы 👾 — они идут к тебе и бьют. Бей их Space/E (падает 🍖 мясо, ешь для голода). Днём мобы сгорают. Онлайн-кооп есть; мобы/грядки синхронизируются от хоста. Рекорд по дням сохраняется.</div>
 </aside>
 </div>
 
 <script>
 const T = 28, MAPW = 44, MAPH = 44;
-const GRASS = 0, WATER = 1, TREE = 2, ROCK = 3, BUSH = 4;
+const GRASS = 0, WATER = 1, TREE = 2, ROCK = 3, BUSH = 4, WALL = 5, TABLE = 6, FARM = 7;
 const CYCLE = 80;
-const RECIPES = { campfire: { wood: 2, stone: 1 }, torch: { wood: 1 } };
 const FIRE_R = 3, TORCH_TIME = 25, FIRE_FUEL = 45, HUNGER_RATE = 0.5;
+const WALL_HP = 5, CROP_STAGE_TIME = 16, CROP_MAX = 3;   // 3 стадии роста ~48с
+const MOB_CAP = 6, MOB_HP = 3, MOB_DMG = 8, MOB_SPEED = 4;
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -126,24 +139,39 @@ const nctx = night.getContext('2d');
 const el = {
   day: document.getElementById('day'), best: document.getElementById('best'), tod: document.getElementById('tod'),
   fHp: document.getElementById('fHp'), fFood: document.getElementById('fFood'), fWarm: document.getElementById('fWarm'),
-  iWood: document.getElementById('iWood'), iStone: document.getElementById('iStone'), iBerry: document.getElementById('iBerry'),
-  iOre: document.getElementById('iOre'), iTorch: document.getElementById('iTorch'), msg: document.getElementById('msg'),
+  iWood: document.getElementById('iWood'), iStone: document.getElementById('iStone'), iOre: document.getElementById('iOre'),
+  iMeat: document.getElementById('iMeat'), iBerry: document.getElementById('iBerry'), iTorch: document.getElementById('iTorch'),
+  msg: document.getElementById('msg'), hotbar: document.getElementById('hotbar'),
 };
 
-let tiles, res, players, inv, health, hunger, warmth, fires, clock, over, best, anim, msgTimer, lastFrame;
-let paused, particles, hitFx, lastHarvest;
-// сеть
+let tiles, res, players, mobs, crops, inv, health, hunger, warmth, fires, clock, over, best, anim, msgTimer, lastFrame;
+let paused, particles, hitFx, lastHarvest, selSlot = 0, mobSpawnAcc = 0;
 let role = 'solo', peer = null, conn = null, connected = false, me = 0, netAcc = 0;
 let remoteHeld = { up: false, down: false, left: false, right: false, gather: false };
 const held = { up: false, down: false, left: false, right: false, gather: false };
 let dirOrder = [];
 const DIRS = { up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 }, right: { x: 1, y: 0 } };
 
+// хотбар: еда / предметы / крафт (некоторые ячейки пустые)
+const HOTBAR = [
+  { id: 'meat',  ico: '🍖', name: 'Мясо',    kind: 'food',  hunger: 40 },
+  { id: 'berry', ico: '🍓', name: 'Ягоды',   kind: 'food',  hunger: 30 },
+  { id: 'torch', ico: '🕯️', name: 'Факел',   kind: 'torch', cost: { wood: 1 } },
+  { id: 'fire',  ico: '🔥', name: 'Костёр',  kind: 'place', tile: -1, cost: { wood: 2, stone: 1 } },
+  { id: 'wall',  ico: '🧱', name: 'Стена',   kind: 'place', tile: WALL, cost: { stone: 2 } },
+  { id: 'table', ico: '🛠️', name: 'Верстак', kind: 'place', tile: TABLE, cost: { wood: 4 } },
+  { id: 'farm',  ico: '🌱', name: 'Грядка',  kind: 'place', tile: FARM, cost: { wood: 2 }, needTable: true },
+  { id: 'plant', ico: '🌰', name: 'Посадить', kind: 'plant', cost: { berries: 1 } },
+  { id: 'empty', ico: '', name: '', kind: 'empty' },
+];
+
 best = parseInt(localStorage.getItem('survivalBest') || '0', 10);
 const rnd = n => Math.floor(Math.random() * n);
 const inb = (x, y) => x >= 0 && x < MAPW && y >= 0 && y < MAPH;
+const ckey = (x, y) => x + ',' + y;
 
 function makePlayer(tx, ty) { return { tx, ty, px: (tx + 0.5) * T, py: (ty + 0.5) * T, dir: { x: 0, y: 1 }, moving: false, ox: 0, oy: 0, fx: 0, fy: 0, mt: 0, chop: 0, gcd: 0, torch: 0, npx: null, npy: null }; }
+function makeMob(tx, ty) { return { tx, ty, px: (tx + 0.5) * T, py: (ty + 0.5) * T, moving: false, ox: 0, oy: 0, fx: 0, fy: 0, mt: 0, hp: MOB_HP, cd: 0, npx: null, npy: null }; }
 
 function genMap() {
   tiles = []; res = [];
@@ -159,80 +187,104 @@ function genMap() {
   for (let y = cy - 2; y <= cy + 2; y++) for (let x = cx - 2; x <= cx + 2; x++) if (inb(x, y)) { tiles[y][x] = GRASS; res[y][x] = 0; }
   return { cx, cy };
 }
-function passable(x, y) { return inb(x, y) && tiles[y][x] === GRASS; }
+function passable(x, y) { return inb(x, y) && (tiles[y][x] === GRASS || tiles[y][x] === FARM); }
 
 function startWorld(n) {
   const { cx, cy } = genMap();
   const spots = [[cx, cy], [cx + 1, cy], [cx - 1, cy], [cx, cy + 1]];
   players = [];
   for (let i = 0; i < n; i++) { const s = spots[i]; players.push(makePlayer(s[0], s[1])); }
-  inv = { wood: 0, stone: 0, berries: 0, ore: 0 };
+  mobs = []; crops = {};
+  inv = { wood: 0, stone: 0, berries: 0, ore: 0, meat: 0 };
   health = 100; hunger = 100; warmth = 100;
   fires = []; clock = 0; over = false; anim = 0; msgTimer = 0;
-  paused = false; particles = []; hitFx = {}; lastHarvest = null;
+  paused = false; particles = []; hitFx = {}; lastHarvest = null; mobSpawnAcc = 0;
 }
 function reset() {
   if (role === 'join') { message('Только хост может начать заново'); return; }
   startWorld(role === 'solo' ? 1 : 2);
   el.best.textContent = best; updatePauseBtn();
-  message('Собери ветки и камни, к ночи разведи костёр!');
+  message('Собирай ресурсы, к ночи разведи костёр — ночью выходят мобы!');
   if (role === 'host' && connected) { netSend({ t: 'map', tiles, res }); broadcastState(); }
   render();
 }
 function updatePauseBtn() { document.getElementById('pause').textContent = paused ? '▶ Продолжить' : '⏸ Пауза'; }
 function message(t) { el.msg.textContent = t; msgTimer = 3; }
+function setTile(x, y, t) { if (!inb(x, y)) return; tiles[y][x] = t; if (role === 'host' && connected) netSend({ t: 'tile', x, y, tt: t }); }
 
-// --- ресурсы / крафт ---
-function harvest(tx, ty, by) {
+// --- сбор / бой / ломание перед собой ---
+const PCOL = { [TREE]: ['#8a5a2b', '#6b4a24', '#a9793f'], [ROCK]: ['#8d99ae', '#b0b9c9', '#6c7789'], [BUSH]: ['#ef233c', '#2fbf71', '#ff6b6b'], mob: ['#b388ff', '#7b2ff7', '#ef476f'], crop: ['#2fbf71', '#ef233c'] };
+function spawnHit(cx, cy, cols, fromTx, fromTy) {
+  const base = Math.atan2((cy / T - fromTy) || 0.01, (cx / T - fromTx) || 0.01);
+  for (let i = 0; i < 9; i++) { const ang = base + (Math.random() - 0.5) * 2.4, sp = 45 + Math.random() * 95; particles.push({ x: cx, y: cy, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp - 35, life: 0.4 + Math.random() * 0.3, max: 0.7, size: 2 + Math.random() * 3, color: cols[rnd(cols.length)], g: 270 }); }
+}
+function actionFront(by) {
   by = by || players[0];
+  const tx = by.tx + by.dir.x, ty = by.ty + by.dir.y;
+  by.chop = 0.18;
+  // моб на этой клетке?
+  const m = mobs.find(mo => mo.tx === tx && mo.ty === ty);
+  if (m) { m.hp -= 2; spawnHit((tx + 0.5) * T, (ty + 0.5) * T, PCOL.mob, by.tx, by.ty); if (m.hp <= 0) { mobs = mobs.filter(x => x !== m); inv.meat++; message('👾 Моб повержен (+🍖)'); } return true; }
   if (!inb(tx, ty)) return false;
   const t = tiles[ty][tx];
-  if (t === TREE) inv.wood++;
-  else if (t === ROCK) { inv.stone++; if (Math.random() < 0.3) inv.ore++; }
-  else if (t === BUSH) inv.berries++;
-  else return false;
-  spawnHit(tx, ty, t, by.tx, by.ty); by.chop = 0.18; hitFx[tx + ',' + ty] = 0.18;
-  lastHarvest = { x: tx, y: ty, type: t, fx: by.tx, fy: by.ty };
-  res[ty][tx]--; hunger = Math.max(0, hunger - 0.4);
-  if (res[ty][tx] <= 0) tiles[ty][tx] = GRASS;
-  return true;
-}
-const PCOL = { [TREE]: ['#8a5a2b', '#6b4a24', '#a9793f'], [ROCK]: ['#8d99ae', '#b0b9c9', '#6c7789'], [BUSH]: ['#ef233c', '#2fbf71', '#ff6b6b'] };
-function spawnHit(tx, ty, type, fromTx, fromTy) {
-  const cx = (tx + 0.5) * T, cy = (ty + 0.5) * T;
-  const cols = PCOL[type] || ['#edf2f4'];
-  const base = Math.atan2((ty - fromTy) || 0.01, (tx - fromTx) || 0.01);
-  for (let i = 0; i < 9; i++) {
-    const ang = base + (Math.random() - 0.5) * 2.4, sp = 45 + Math.random() * 95;
-    particles.push({ x: cx, y: cy, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp - 35, life: 0.4 + Math.random() * 0.3, max: 0.7, size: 2 + Math.random() * 3, color: cols[rnd(cols.length)], g: 270 });
+  if (t === TREE || t === ROCK || t === BUSH) {
+    if (t === TREE) inv.wood++; else if (t === ROCK) { inv.stone++; if (Math.random() < 0.3) inv.ore++; } else inv.berries++;
+    spawnHit((tx + 0.5) * T, (ty + 0.5) * T, PCOL[t], by.tx, by.ty); hitFx[ckey(tx, ty)] = 0.18;
+    res[ty][tx]--; hunger = Math.max(0, hunger - 0.4);
+    if (res[ty][tx] <= 0) setTile(tx, ty, GRASS);
+    return true;
   }
+  if (t === WALL) { res[ty][tx] -= 2; hitFx[ckey(tx, ty)] = 0.18; spawnHit((tx + 0.5) * T, (ty + 0.5) * T, PCOL[ROCK], by.tx, by.ty); if (res[ty][tx] <= 0) setTile(tx, ty, GRASS); return true; }
+  if (t === TABLE) { setTile(tx, ty, GRASS); inv.wood += 2; message('🛠️ Верстак разобран'); return true; }
+  if (t === FARM) { const c = crops[ckey(tx, ty)]; if (c && c.stage >= CROP_MAX) { inv.berries += 3; delete crops[ckey(tx, ty)]; spawnHit((tx + 0.5) * T, (ty + 0.5) * T, PCOL.crop, by.tx, by.ty); message('🌾 Урожай собран (+3🍓)'); return true; } }
+  return false;
 }
+// совместимость: harvest как раньше (для тестов) — просто действие/сбор
+function harvest(tx, ty, by) { by = by || players[0]; if (!inb(tx, ty)) return false; const t = tiles[ty][tx]; if (t !== TREE && t !== ROCK && t !== BUSH) return false; if (t === TREE) inv.wood++; else if (t === ROCK) { inv.stone++; if (Math.random() < 0.3) inv.ore++; } else inv.berries++; spawnHit((tx + 0.5) * T, (ty + 0.5) * T, PCOL[t], by.tx, by.ty); by.chop = 0.18; hitFx[ckey(tx, ty)] = 0.18; lastHarvest = { x: tx, y: ty }; res[ty][tx]--; hunger = Math.max(0, hunger - 0.4); if (res[ty][tx] <= 0) setTile(tx, ty, GRASS); return true; }
+
 function updateParticles(dt) {
   for (const p of particles) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += p.g * dt; p.life -= dt; }
   particles = particles.filter(p => p.life > 0);
   for (const k in hitFx) { hitFx[k] -= dt; if (hitFx[k] <= 0) delete hitFx[k]; }
 }
-function eat() {
-  if (inv.berries > 0 && hunger < 100) { inv.berries--; hunger = Math.min(100, hunger + 30); message('🍓 Ягода съедена (+голод)'); return true; }
+function eatFood(kind) {
+  if (kind === 'meat') { if (inv.meat > 0 && hunger < 100) { inv.meat--; hunger = Math.min(100, hunger + 40); message('🍖 Мясо съедено'); return true; } message(inv.meat <= 0 ? 'Нет мяса' : 'Голод полон'); return false; }
+  if (inv.berries > 0 && hunger < 100) { inv.berries--; hunger = Math.min(100, hunger + 30); message('🍓 Ягода съедена'); return true; }
   message(inv.berries <= 0 ? 'Нет ягод' : 'Голод полон'); return false;
 }
-function craftFire(p) {
+function eat() { return eatFood('berry'); }
+function craftFire(p) { p = p || players[0]; const f = fires.find(f => f.tx === p.tx && f.ty === p.ty); if (f) { if (inv.wood >= 1) { inv.wood--; f.fuel += 30; message('🔥 Подкинул дров'); return 'refuel'; } message('Нет дров'); return 'nowood'; } if (inv.wood >= 2 && inv.stone >= 1) { inv.wood -= 2; inv.stone -= 1; fires.push({ tx: p.tx, ty: p.ty, fuel: FIRE_FUEL }); message('🔥 Костёр разведён!'); return 'built'; } message('Нужно 2🪵 и 1🪨'); return 'nores'; }
+function craftTorch(p) { p = p || players[0]; if (inv.wood >= 1) { inv.wood--; p.torch = TORCH_TIME; message('🕯️ Факел зажжён'); return true; } message('Нужна 1🪵'); return false; }
+
+function canAfford(cost) { for (const k in cost) if ((inv[k] || 0) < cost[k]) return false; return true; }
+function pay(cost) { for (const k in cost) inv[k] -= cost[k]; }
+function nearTable(p) { for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const x = p.tx + dx, y = p.ty + dy; if (inb(x, y) && tiles[y][x] === TABLE) return true; } return false; }
+
+function useSlot(p, slot) {
   p = p || players[0];
-  const f = fires.find(f => f.tx === p.tx && f.ty === p.ty);
-  if (f) { if (inv.wood >= 1) { inv.wood--; f.fuel += 30; message('🔥 Подкинул дров'); return 'refuel'; } message('Нет дров'); return 'nowood'; }
-  const r = RECIPES.campfire;
-  if (inv.wood >= r.wood && inv.stone >= r.stone) { inv.wood -= r.wood; inv.stone -= r.stone; fires.push({ tx: p.tx, ty: p.ty, fuel: FIRE_FUEL }); message('🔥 Костёр разведён!'); return 'built'; }
-  message('Нужно 2🪵 и 1🪨'); return 'nores';
-}
-function craftTorch(p) {
-  p = p || players[0];
-  if (inv.wood >= RECIPES.torch.wood) { inv.wood -= RECIPES.torch.wood; p.torch = TORCH_TIME; message('🕯️ Факел зажжён'); return true; }
-  message('Нужна 1🪵'); return false;
+  const it = HOTBAR[slot]; if (!it || it.kind === 'empty') return;
+  if (it.kind === 'food') { eatFood(it.id === 'meat' ? 'meat' : 'berry'); return; }
+  if (it.kind === 'torch') { if (canAfford(it.cost)) { pay(it.cost); p.torch = TORCH_TIME; message('🕯️ Факел зажжён'); } else message('Нужна 1🪵'); return; }
+  const tx = p.tx + p.dir.x, ty = p.ty + p.dir.y;
+  if (it.kind === 'plant') {
+    if (inb(tx, ty) && tiles[ty][tx] === FARM && !crops[ckey(tx, ty)]) { if (canAfford(it.cost)) { pay(it.cost); crops[ckey(tx, ty)] = { stage: 0, timer: 0 }; message('🌰 Посажено'); } else message('Нужна 1🍓'); }
+    else message('Нужна пустая грядка перед собой');
+    return;
+  }
+  if (it.kind === 'place') {
+    if (it.needTable && !nearTable(p)) { message('Нужен верстак рядом'); return; }
+    if (it.tile === -1) { // костёр
+      if (inb(tx, ty) && tiles[ty][tx] === GRASS) { const f = fires.find(f => f.tx === tx && f.ty === ty); if (f) { if (inv.wood >= 1) { inv.wood--; f.fuel += 30; message('🔥 Дрова добавлены'); } else message('Нет дров'); } else if (canAfford(it.cost)) { pay(it.cost); fires.push({ tx, ty, fuel: FIRE_FUEL }); message('🔥 Костёр поставлен'); } else message('Нужно 2🪵 и 1🪨'); }
+      else message('Ставь на траву перед собой');
+      return;
+    }
+    if (inb(tx, ty) && tiles[ty][tx] === GRASS) { if (canAfford(it.cost)) { pay(it.cost); setTile(tx, ty, it.tile); if (it.tile === WALL) res[ty][tx] = WALL_HP; message(it.name + ' поставлено'); } else message('Не хватает ресурсов'); }
+    else message('Ставь на траву перед собой');
+  }
 }
 // действия локального игрока (в join уходят хосту)
+function doUse() { if (role === 'join') netSend({ t: 'act', a: 'use', slot: selSlot }); else useSlot(players[0], selSlot); }
 function doEat() { if (role === 'join') netSend({ t: 'act', a: 'eat' }); else eat(); }
-function doFire() { if (role === 'join') netSend({ t: 'act', a: 'fire' }); else craftFire(players[0]); }
-function doTorch() { if (role === 'join') netSend({ t: 'act', a: 'torch' }); else craftTorch(players[0]); }
 
 // --- день/ночь ---
 function tnorm() { return (clock % CYCLE) / CYCLE; }
@@ -241,27 +293,37 @@ function darkness() { const t = tnorm(); if (t < 0.55) return 0; if (t < 0.65) r
 function nearWarmth(p) { p = p || players[0]; if (p.torch > 0) return true; return fires.some(f => Math.abs(f.tx - p.tx) <= FIRE_R && Math.abs(f.ty - p.ty) <= FIRE_R); }
 function dayNum() { return Math.floor(clock / CYCLE) + 1; }
 
-// --- движение сущности ---
-function heldDir(h, order) {
-  if (order) { for (let i = order.length - 1; i >= 0; i--) { const d = order[i]; if (h[d]) return DIRS[d]; } }
-  for (const d of ['up', 'down', 'left', 'right']) if (h[d]) return DIRS[d];
-  return null;
-}
+// --- движение / ИИ ---
+function heldDir(h, order) { if (order) { for (let i = order.length - 1; i >= 0; i--) { const d = order[i]; if (h[d]) return DIRS[d]; } } for (const d of ['up', 'down', 'left', 'right']) if (h[d]) return DIRS[d]; return null; }
+function moveEntity(e, dt, speed) { if (e.moving) { e.mt += dt / (1 / (speed || 7)); if (e.mt >= 1) { e.mt = 1; e.moving = false; } e.px = e.ox + (e.fx - e.ox) * e.mt; e.py = e.oy + (e.fy - e.oy) * e.mt; } }
+function startMove(e, nx, ny) { e.moving = true; e.ox = e.px; e.oy = e.py; e.tx = nx; e.ty = ny; e.fx = (nx + 0.5) * T; e.fy = (ny + 0.5) * T; e.mt = 0; }
+
 function stepEntity(p, h, order, dt) {
-  if (!p.moving) {
-    const d = heldDir(h, order);
-    if (d) { p.dir = d; const nx = p.tx + d.x, ny = p.ty + d.y; if (passable(nx, ny)) { p.moving = true; p.ox = p.px; p.oy = p.py; p.tx = nx; p.ty = ny; p.fx = (nx + 0.5) * T; p.fy = (ny + 0.5) * T; p.mt = 0; } }
-  }
-  if (p.moving) { p.mt += dt / 0.13; if (p.mt >= 1) { p.mt = 1; p.moving = false; } p.px = p.ox + (p.fx - p.ox) * p.mt; p.py = p.oy + (p.fy - p.oy) * p.mt; }
+  if (!p.moving) { const d = heldDir(h, order); if (d) { p.dir = d; const nx = p.tx + d.x, ny = p.ty + d.y; if (passable(nx, ny)) startMove(p, nx, ny); } }
+  moveEntity(p, dt, 7);
   p.gcd -= dt;
-  if (h.gather && p.gcd <= 0) {
-    const ok = harvest(p.tx + p.dir.x, p.ty + p.dir.y, p);
-    p.gcd = ok ? 0.28 : 0.1;
-    if (ok && role === 'host' && connected && lastHarvest) {
-      netSend({ t: 'hit', x: lastHarvest.x, y: lastHarvest.y, type: lastHarvest.type, fx: lastHarvest.fx, fy: lastHarvest.fy });
-      netSend({ t: 'tile', x: lastHarvest.x, y: lastHarvest.y, tt: tiles[lastHarvest.y][lastHarvest.x] });
+  if (h.gather && p.gcd <= 0) { const ok = actionFront(p); p.gcd = ok ? 0.28 : 0.12; }
+}
+
+function nearestPlayer(mx, my) { let best = null, bd = 1e9; for (const p of players) { const d = Math.abs(p.tx - mx) + Math.abs(p.ty - my); if (d < bd) { bd = d; best = p; } } return best; }
+function stepMob(m, dt) {
+  if (!m.moving) {
+    const tgt = nearestPlayer(m.tx, m.ty);
+    if (tgt) {
+      const dx = Math.sign(tgt.tx - m.tx), dy = Math.sign(tgt.ty - m.ty);
+      const tries = Math.abs(tgt.tx - m.tx) > Math.abs(tgt.ty - m.ty) ? [[dx, 0], [0, dy], [0, -dy], [-dx, 0]] : [[0, dy], [dx, 0], [-dx, 0], [0, -dy]];
+      for (const [ax, ay] of tries) { if ((ax || ay) && passable(m.tx + ax, m.ty + ay)) { startMove(m, m.tx + ax, m.ty + ay); break; } }
     }
   }
+  moveEntity(m, dt, MOB_SPEED);
+  m.cd -= dt;
+  const p = nearestPlayer(m.tx, m.ty);
+  if (p && Math.abs(p.tx - m.tx) <= 1 && Math.abs(p.ty - m.ty) <= 1 && m.cd <= 0) { health = Math.max(0, health - MOB_DMG); m.cd = 1; }
+  if (!isNight()) m.hp -= dt * 3; // днём сгорают
+}
+function spawnMob() {
+  const p = players[rnd(players.length)];
+  for (let a = 0; a < 20; a++) { const ang = Math.random() * 7, dist = 7 + rnd(5); const mx = p.tx + Math.round(Math.cos(ang) * dist), my = p.ty + Math.round(Math.sin(ang) * dist); if (passable(mx, my)) { mobs.push(makeMob(mx, my)); return; } }
 }
 
 // --- обновление ---
@@ -275,22 +337,27 @@ function update(dt) {
   if (role === 'join') {
     netSend({ t: 'in', h: { up: held.up, down: held.down, left: held.left, right: held.right, gather: held.gather } });
     if (players) for (const p of players) if (p.npx != null) { p.px += (p.npx - p.px) * Math.min(1, dt * 12); p.py += (p.npy - p.py) * Math.min(1, dt * 12); }
+    if (mobs) for (const m of mobs) if (m.npx != null) { m.px += (m.npx - m.px) * Math.min(1, dt * 12); m.py += (m.npy - m.py) * Math.min(1, dt * 12); }
     return;
   }
 
-  // solo / host — авторитетная симуляция
   stepEntity(players[0], held, dirOrder, dt);
   if (role === 'host' && players[1]) stepEntity(players[1], remoteHeld, null, dt);
+
+  // мобы
+  if (isNight()) { mobSpawnAcc += dt; if (mobSpawnAcc > 3 && mobs.length < MOB_CAP) { mobSpawnAcc = 0; spawnMob(); } }
+  for (const m of mobs) stepMob(m, dt);
+  mobs = mobs.filter(m => m.hp > 0);
+
+  // грядки растут
+  for (const k in crops) { const c = crops[k]; if (c.stage < CROP_MAX) { c.timer += dt; if (c.timer >= CROP_STAGE_TIME) { c.timer = 0; c.stage++; } } }
 
   clock += dt;
   hunger = Math.max(0, hunger - HUNGER_RATE * dt);
   const warm = !isNight() || players.every(p => nearWarmth(p));
   warmth = warm ? Math.min(100, warmth + 18 * dt) : Math.max(0, warmth - 9 * dt);
-  let dmg = 0;
-  if (hunger <= 0) dmg += 3 * dt;
-  if (warmth <= 0) dmg += 4 * dt;
-  if (dmg > 0) health = Math.max(0, health - dmg);
-  else if (hunger > 60 && warmth > 60) health = Math.min(100, health + 1.5 * dt);
+  let dmg = 0; if (hunger <= 0) dmg += 3 * dt; if (warmth <= 0) dmg += 4 * dt;
+  if (dmg > 0) health = Math.max(0, health - dmg); else if (hunger > 60 && warmth > 60) health = Math.min(100, health + 1.5 * dt);
   for (const f of fires) f.fuel -= dt; fires = fires.filter(f => f.fuel > 0);
   for (const p of players) if (p.torch > 0) p.torch = Math.max(0, p.torch - dt);
   if (dayNum() > best) { best = dayNum(); localStorage.setItem('survivalBest', String(best)); }
@@ -298,107 +365,59 @@ function update(dt) {
 
   if (role === 'host' && connected) { netAcc += dt; if (netAcc >= 1 / 15) { netAcc = 0; broadcastState(); } }
 }
-function endGame() { over = true; const cause = warmth <= 0 ? '🥶 Замёрзли в темноте' : '🍖 Умерли от голода'; el.msg.textContent = cause + ' · прожито дней: ' + dayNum() + (role === 'join' ? '' : ' · Enter — заново'); }
+function endGame() { over = true; const cause = warmth <= 0 ? '🥶 Замёрзли в темноте' : (health <= 0 && hunger <= 0 ? '🍖 Умерли от голода' : '💀 Погибли'); el.msg.textContent = cause + ' · прожито дней: ' + dayNum() + (role === 'join' ? '' : ' · Enter — заново'); }
 
 // --- сеть ---
 function netStatus(t) { document.getElementById('netStatus').textContent = t; }
-function showCode(code) {
-  const inp = document.getElementById('roomCodeInput');
-  inp.value = code; inp.hidden = false;
-  document.getElementById('copyBtn').hidden = false;
-  document.getElementById('hostBtn').disabled = true;
-  document.getElementById('joinCode').hidden = true;
-  document.getElementById('joinBtn').hidden = true;
-}
-async function copyCode() {
-  const inp = document.getElementById('roomCodeInput'); const code = inp.value;
-  if (!code) return;
-  try { await navigator.clipboard.writeText(code); netStatus('✅ Код скопирован: ' + code + ' — отправь другу'); }
-  catch (e) {
-    inp.hidden = false; inp.focus(); inp.select(); try { inp.setSelectionRange(0, 99); } catch (_) {}
-    try { document.execCommand('copy'); netStatus('✅ Код скопирован: ' + code); }
-    catch (_) { netStatus('Выдели код вручную и скопируй: ' + code); }
-  }
-}
+function showCode(code) { const inp = document.getElementById('roomCodeInput'); inp.value = code; inp.hidden = false; document.getElementById('copyBtn').hidden = false; document.getElementById('hostBtn').disabled = true; document.getElementById('joinCode').hidden = true; document.getElementById('joinBtn').hidden = true; }
+async function copyCode() { const inp = document.getElementById('roomCodeInput'), code = inp.value; if (!code) return; try { await navigator.clipboard.writeText(code); netStatus('✅ Код скопирован: ' + code + ' — отправь другу'); } catch (e) { inp.hidden = false; inp.focus(); inp.select(); try { document.execCommand('copy'); netStatus('✅ Код скопирован: ' + code); } catch (_) { netStatus('Выдели код вручную: ' + code); } } }
 function netSend(o) { try { if (conn && connected) conn.send(o); } catch (e) {} }
-function setupConn() {
-  conn.on('data', onData);
-  conn.on('close', () => { connected = false; netStatus('Друг отключился'); });
-}
+function setupConn() { conn.on('data', onData); conn.on('close', () => { connected = false; netStatus('Друг отключился'); }); }
 function randCode() { const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s = ''; for (let i = 0; i < 4; i++) s += A[rnd(A.length)]; return s; }
-const PEER_OPTS = { config: { iceServers: [
-  { urls: 'stun:stun.l.google.com:19302' },
-  { urls: 'stun:stun1.l.google.com:19302' },
-  { urls: 'stun:global.stun.twilio.com:3478' },
-] } };
-function peerErrMsg(type) {
-  return ({
-    'peer-unavailable': 'Комната не найдена — проверь код (хост должен быть онлайн)',
-    'unavailable-id': 'Код занят, пробую другой…',
-    'network': 'Нет связи с сервером PeerJS — попробуй ещё раз',
-    'server-error': 'Сервер PeerJS недоступен — попробуй позже',
-    'browser-incompatible': 'Браузер не поддерживает WebRTC',
-    'ssl-unavailable': 'Нужно открывать по ссылке https',
-    'socket-error': 'Сбой связи — попробуй ещё раз',
-    'socket-closed': 'Связь с сервером закрыта — попробуй ещё раз',
-    'webrtc': 'Сбой WebRTC (возможно, строгий NAT/файрвол)',
-  })[type] || ('Ошибка сети: ' + type);
-}
+const PEER_OPTS = { config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }, { urls: 'stun:global.stun.twilio.com:3478' }] } };
+function peerErrMsg(type) { return ({ 'peer-unavailable': 'Комната не найдена — проверь код', 'unavailable-id': 'Код занят, пробую другой…', 'network': 'Нет связи с сервером — попробуй ещё раз', 'server-error': 'Сервер недоступен — позже', 'browser-incompatible': 'Браузер без WebRTC', 'webrtc': 'Сбой WebRTC (строгий NAT?)' })[type] || ('Ошибка: ' + type); }
 let hostTries = 0;
 function hostRoom() {
-  if (typeof Peer === 'undefined') { netStatus('PeerJS не загрузился — проверь интернет и открой по ссылке (https)'); return; }
-  const code = randCode();
-  peer = new Peer('dslite-' + code, PEER_OPTS);
-  role = 'host'; me = 0; showCode(code);
-  netStatus('Регистрирую комнату…');
+  if (typeof Peer === 'undefined') { netStatus('PeerJS не загрузился — интернет/https'); return; }
+  const code = randCode(); peer = new Peer('dslite-' + code, PEER_OPTS); role = 'host'; me = 0; showCode(code); netStatus('Регистрирую комнату…');
   peer.on('open', () => netStatus('Готово! Ждём друга. Код: ' + code));
-  peer.on('error', e => {
-    if (e.type === 'unavailable-id' && hostTries < 5) { hostTries++; try { peer.destroy(); } catch (_) {} hostRoom(); return; }
-    netStatus(peerErrMsg(e.type));
-  });
-  peer.on('connection', c => {
-    conn = c; setupConn();
-    c.on('open', () => { connected = true; startWorld(2); netSend({ t: 'map', tiles, res }); broadcastState(); netStatus('✅ Друг подключён! Код: ' + code); message('Играем вдвоём!'); render(); });
-  });
+  peer.on('error', e => { if (e.type === 'unavailable-id' && hostTries < 5) { hostTries++; try { peer.destroy(); } catch (_) {} hostRoom(); return; } netStatus(peerErrMsg(e.type)); });
+  peer.on('connection', c => { conn = c; setupConn(); c.on('open', () => { connected = true; startWorld(2); netSend({ t: 'map', tiles, res }); broadcastState(); netStatus('✅ Друг подключён! Код: ' + code); message('Играем вдвоём!'); render(); }); });
 }
 function joinRoom() {
   const code = (document.getElementById('joinCode').value || '').trim().toUpperCase();
   if (!code) { netStatus('Введи код комнаты'); return; }
-  if (typeof Peer === 'undefined') { netStatus('PeerJS не загрузился — проверь интернет / открой по https'); return; }
-  peer = new Peer(undefined, PEER_OPTS);
-  role = 'join'; me = 1;
-  netStatus('Подключение к ' + code + '…');
+  if (typeof Peer === 'undefined') { netStatus('PeerJS не загрузился — интернет/https'); return; }
+  peer = new Peer(undefined, PEER_OPTS); role = 'join'; me = 1; netStatus('Подключение к ' + code + '…');
   peer.on('error', e => netStatus(peerErrMsg(e.type)));
-  peer.on('open', () => {
-    conn = peer.connect('dslite-' + code, { reliable: true });
-    setupConn();
-    conn.on('open', () => { connected = true; netStatus('✅ Подключено к ' + code); message('Ожидание карты от хоста…'); });
-    setTimeout(() => { if (!connected) netStatus('Не удалось подключиться к ' + code + ' — проверь код, хост онлайн, или мешает строгий NAT/файрвол'); }, 15000);
-  });
+  peer.on('open', () => { conn = peer.connect('dslite-' + code, { reliable: true }); setupConn(); conn.on('open', () => { connected = true; netStatus('✅ Подключено к ' + code); message('Ожидание карты…'); }); setTimeout(() => { if (!connected) netStatus('Не удалось подключиться к ' + code + ' — код/хост/NAT'); }, 15000); });
 }
 function broadcastState() {
-  netSend({ t: 'state', clock, health, hunger, warmth, over, inv, fires, p: players.map(p => ({ tx: p.tx, ty: p.ty, px: p.px, py: p.py, dir: p.dir, chop: p.chop, torch: p.torch, moving: p.moving })) });
+  netSend({ t: 'state', clock, health, hunger, warmth, over, inv, fires,
+    p: players.map(p => ({ tx: p.tx, ty: p.ty, px: p.px, py: p.py, dir: p.dir, chop: p.chop, torch: p.torch, moving: p.moving })),
+    m: mobs.map(m => ({ tx: m.tx, ty: m.ty, px: m.px, py: m.py, hp: m.hp })),
+    cr: Object.keys(crops).map(k => ({ k, s: crops[k].stage })) });
 }
 function onData(msg) {
-  if (msg.t === 'map') { tiles = msg.tiles; res = msg.res; if (!players || players.length < 2) { const cx = MAPW >> 1, cy = MAPH >> 1; players = [makePlayer(cx, cy), makePlayer(cx + 1, cy)]; } inv = inv || { wood: 0, stone: 0, berries: 0, ore: 0 }; fires = fires || []; particles = particles || []; hitFx = hitFx || {}; over = false; }
+  if (msg.t === 'map') { tiles = msg.tiles; res = msg.res; if (!players || players.length < 2) { const cx = MAPW >> 1, cy = MAPH >> 1; players = [makePlayer(cx, cy), makePlayer(cx + 1, cy)]; } mobs = mobs || []; crops = crops || {}; inv = inv || { wood: 0, stone: 0, berries: 0, ore: 0, meat: 0 }; fires = fires || []; particles = particles || []; hitFx = hitFx || {}; over = false; }
   else if (msg.t === 'state') {
     clock = msg.clock; health = msg.health; hunger = msg.hunger; warmth = msg.warmth; over = msg.over; inv = msg.inv; fires = msg.fires;
     if (!players) players = [];
-    for (let i = 0; i < msg.p.length; i++) { let p = players[i]; if (!p) { p = makePlayer(msg.p[i].tx, msg.p[i].ty); players[i] = p; } const s = msg.p[i]; p.tx = s.tx; p.ty = s.ty; p.dir = s.dir; p.chop = s.chop; p.torch = s.torch; p.moving = s.moving; p.npx = s.px; p.npy = s.py; if (p.px == null) { p.px = s.px; p.py = s.py; } }
+    for (let i = 0; i < msg.p.length; i++) { let p = players[i] || (players[i] = makePlayer(msg.p[i].tx, msg.p[i].ty)); const s = msg.p[i]; p.tx = s.tx; p.ty = s.ty; p.dir = s.dir; p.chop = s.chop; p.torch = s.torch; p.moving = s.moving; p.npx = s.px; p.npy = s.py; if (p.px == null) { p.px = s.px; p.py = s.py; } }
     players.length = msg.p.length;
+    mobs = (msg.m || []).map(s => { const m = makeMob(s.tx, s.ty); m.hp = s.hp; m.npx = s.px; m.npy = s.py; m.px = s.px; m.py = s.py; return m; });
+    crops = {}; for (const c of (msg.cr || [])) crops[c.k] = { stage: c.s, timer: 0 };
   }
   else if (msg.t === 'tile') { if (inb(msg.x, msg.y)) tiles[msg.y][msg.x] = msg.tt; }
-  else if (msg.t === 'hit') { if (particles) spawnHit(msg.x, msg.y, msg.type, msg.fx, msg.fy); }
   else if (msg.t === 'in') { remoteHeld = msg.h; }
-  else if (msg.t === 'act' && players && players[1]) { if (msg.a === 'eat') eat(); else if (msg.a === 'fire') craftFire(players[1]); else if (msg.a === 'torch') craftTorch(players[1]); }
+  else if (msg.t === 'act' && players && players[1]) { if (msg.a === 'eat') eat(); else if (msg.a === 'use') useSlot(players[1], msg.slot); }
 }
 
 // --- отрисовка ---
 function render() {
   if (!tiles || !players) return;
   const cam = players[me] || players[0];
-  const camX = Math.max(0, Math.min(MAPW * T - CW, cam.px - CW / 2));
-  const camY = Math.max(0, Math.min(MAPH * T - CH, cam.py - CH / 2));
+  const camX = Math.max(0, Math.min(MAPW * T - CW, cam.px - CW / 2)), camY = Math.max(0, Math.min(MAPH * T - CH, cam.py - CH / 2));
   const c0 = Math.floor(camX / T), r0 = Math.floor(camY / T);
 
   for (let y = r0; y <= r0 + CH / T + 1; y++) for (let x = c0; x <= c0 + CW / T + 1; x++) {
@@ -406,8 +425,15 @@ function render() {
     const sx = x * T - camX, sy = y * T - camY, t = tiles[y][x];
     ctx.fillStyle = ((x + y) & 1) ? '#3e7d3a' : '#3a7636'; ctx.fillRect(sx, sy, T, T);
     if (t === WATER) { ctx.fillStyle = '#2b6ca3'; ctx.fillRect(sx, sy, T, T); ctx.fillStyle = 'rgba(255,255,255,.08)'; ctx.fillRect(sx + 4, sy + 6, 8, 2); }
+    else if (t === WALL) { ctx.fillStyle = '#6c7789'; ctx.fillRect(sx + 2, sy + 2, T - 4, T - 4); ctx.strokeStyle = '#4a5468'; ctx.lineWidth = 2; ctx.strokeRect(sx + 2, sy + 2, T - 4, T - 4); ctx.beginPath(); ctx.moveTo(sx + 2, sy + T / 2); ctx.lineTo(sx + T - 2, sy + T / 2); ctx.moveTo(sx + T / 2, sy + 2); ctx.lineTo(sx + T / 2, sy + T / 2); ctx.stroke(); }
+    else if (t === TABLE) { ctx.fillStyle = '#8a5a2b'; ctx.fillRect(sx + 3, sy + 3, T - 6, T - 6); ctx.fillStyle = '#6b4a24'; ctx.fillRect(sx + 3, sy + 3, T - 6, 4); ctx.strokeStyle = '#4a3418'; ctx.lineWidth = 1; ctx.strokeRect(sx + 6, sy + 8, T - 12, T - 14); }
+    else if (t === FARM) {
+      ctx.fillStyle = '#5a4326'; ctx.fillRect(sx + 2, sy + 2, T - 4, T - 4); ctx.fillStyle = '#4a3620'; for (let i = 0; i < 3; i++) ctx.fillRect(sx + 3, sy + 6 + i * 7, T - 6, 2);
+      const c = crops[ckey(x, y)];
+      if (c) { const gg = Math.min(1, (c.stage + c.timer / CROP_STAGE_TIME) / CROP_MAX); ctx.fillStyle = '#2fbf71'; ctx.beginPath(); ctx.arc(sx + T / 2, sy + T / 2 + 2, 3 + gg * 8, 0, 7); ctx.fill(); if (c.stage >= CROP_MAX) { ctx.fillStyle = '#ef233c'; for (const [dx, dy] of [[-4, -2], [5, 0], [0, 5]]) { ctx.beginPath(); ctx.arc(sx + T / 2 + dx, sy + T / 2 + dy, 2.2, 0, 7); ctx.fill(); } } }
+    }
     else if (t === TREE || t === ROCK || t === BUSH) {
-      const hf = hitFx[x + ',' + y]; ctx.save(); if (hf) ctx.translate(Math.sin(hf * 60) * 2, 1);
+      const hf = hitFx[ckey(x, y)]; ctx.save(); if (hf) ctx.translate(Math.sin(hf * 60) * 2, 1);
       if (t === TREE) { ctx.fillStyle = '#6b4a24'; ctx.fillRect(sx + T / 2 - 3, sy + T - 12, 6, 12); ctx.fillStyle = '#1f8a3b'; ctx.beginPath(); ctx.arc(sx + T / 2, sy + T / 2 - 2, T * 0.42, 0, 7); ctx.fill(); ctx.fillStyle = '#2fbf71'; ctx.beginPath(); ctx.arc(sx + T / 2 - 3, sy + T / 2 - 5, T * 0.22, 0, 7); ctx.fill(); }
       else if (t === ROCK) { ctx.fillStyle = '#8d99ae'; ctx.beginPath(); ctx.arc(sx + T / 2, sy + T / 2 + 2, T * 0.36, 0, 7); ctx.fill(); ctx.fillStyle = '#b0b9c9'; ctx.beginPath(); ctx.arc(sx + T / 2 - 4, sy + T / 2 - 2, T * 0.16, 0, 7); ctx.fill(); }
       else { ctx.fillStyle = '#2e7d32'; ctx.beginPath(); ctx.arc(sx + T / 2, sy + T / 2 + 2, T * 0.34, 0, 7); ctx.fill(); ctx.fillStyle = '#ef233c'; for (const [dx, dy] of [[-4, -2], [5, 0], [0, 5]]) { ctx.beginPath(); ctx.arc(sx + T / 2 + dx, sy + T / 2 + dy, 2.4, 0, 7); ctx.fill(); } }
@@ -415,60 +441,59 @@ function render() {
     }
   }
 
-  for (const f of fires) {
-    const sx = (f.tx + 0.5) * T - camX, sy = (f.ty + 0.5) * T - camY;
-    ctx.fillStyle = '#5a4636'; ctx.fillRect(sx - 8, sy + 6, 16, 4);
-    const fl = 8 + Math.sin(anim * 12 + f.tx) * 2;
-    ctx.fillStyle = '#ff9f1c'; ctx.beginPath(); ctx.moveTo(sx - 6, sy + 6); ctx.lineTo(sx + 6, sy + 6); ctx.lineTo(sx, sy + 6 - fl); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#ffd166'; ctx.beginPath(); ctx.moveTo(sx - 3, sy + 6); ctx.lineTo(sx + 3, sy + 6); ctx.lineTo(sx, sy + 6 - fl * 0.6); ctx.closePath(); ctx.fill();
-  }
+  for (const f of fires) { const sx = (f.tx + 0.5) * T - camX, sy = (f.ty + 0.5) * T - camY; ctx.fillStyle = '#5a4636'; ctx.fillRect(sx - 8, sy + 6, 16, 4); const fl = 8 + Math.sin(anim * 12 + f.tx) * 2; ctx.fillStyle = '#ff9f1c'; ctx.beginPath(); ctx.moveTo(sx - 6, sy + 6); ctx.lineTo(sx + 6, sy + 6); ctx.lineTo(sx, sy + 6 - fl); ctx.closePath(); ctx.fill(); ctx.fillStyle = '#ffd166'; ctx.beginPath(); ctx.moveTo(sx - 3, sy + 6); ctx.lineTo(sx + 3, sy + 6); ctx.lineTo(sx, sy + 6 - fl * 0.6); ctx.closePath(); ctx.fill(); }
+
+  // мобы
+  for (const m of mobs) { const mx = m.px - camX, my = m.py - camY; ctx.fillStyle = '#0d0e1a'; ctx.beginPath(); ctx.ellipse(mx, my + 9, 7, 3, 0, 0, 7); ctx.fill(); ctx.fillStyle = '#7b2ff7'; ctx.beginPath(); ctx.arc(mx, my, 8, 0, 7); ctx.fill(); ctx.fillStyle = '#ef476f'; ctx.fillRect(mx - 4, my - 3, 2.5, 3); ctx.fillRect(mx + 1.5, my - 3, 2.5, 3); }
 
   // игроки
-  for (let i = 0; i < players.length; i++) {
-    const p = players[i];
-    let lx = 0, ly = 0, reach = 0;
-    if (p.chop > 0) { const l = Math.sin((1 - p.chop / 0.18) * Math.PI); lx = p.dir.x * l * 5; ly = p.dir.y * l * 5; reach = 8 + l * 9; }
-    const px = p.px - camX + lx, py = p.py - camY + ly;
-    ctx.fillStyle = '#0d0e1a'; ctx.beginPath(); ctx.ellipse(p.px - camX, p.py - camY + 10, 8, 3, 0, 0, 7); ctx.fill();
-    if (reach > 0) { ctx.strokeStyle = '#c9a227'; ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + p.dir.x * reach, py + p.dir.y * reach); ctx.stroke(); }
-    ctx.fillStyle = (i === me) ? '#ffd166' : '#4cc9f0';
-    ctx.beginPath(); ctx.arc(px, py, 9, 0, 7); ctx.fill();
-    ctx.fillStyle = '#0d0e1a'; ctx.beginPath(); ctx.arc(px + p.dir.x * 3, py + p.dir.y * 3 - 1, 2.4, 0, 7); ctx.fill();
-    if (p.torch > 0) { ctx.fillStyle = '#ff9f1c'; ctx.beginPath(); ctx.arc(px + p.dir.x * 12, py + p.dir.y * 12, 3, 0, 7); ctx.fill(); }
-  }
+  for (let i = 0; i < players.length; i++) { const p = players[i]; let lx = 0, ly = 0, reach = 0; if (p.chop > 0) { const l = Math.sin((1 - p.chop / 0.18) * Math.PI); lx = p.dir.x * l * 5; ly = p.dir.y * l * 5; reach = 8 + l * 9; } const px = p.px - camX + lx, py = p.py - camY + ly; ctx.fillStyle = '#0d0e1a'; ctx.beginPath(); ctx.ellipse(p.px - camX, p.py - camY + 10, 8, 3, 0, 0, 7); ctx.fill(); if (reach > 0) { ctx.strokeStyle = '#c9a227'; ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + p.dir.x * reach, py + p.dir.y * reach); ctx.stroke(); } ctx.fillStyle = (i === me) ? '#ffd166' : '#4cc9f0'; ctx.beginPath(); ctx.arc(px, py, 9, 0, 7); ctx.fill(); ctx.fillStyle = '#0d0e1a'; ctx.beginPath(); ctx.arc(px + p.dir.x * 3, py + p.dir.y * 3 - 1, 2.4, 0, 7); ctx.fill(); if (p.torch > 0) { ctx.fillStyle = '#ff9f1c'; ctx.beginPath(); ctx.arc(px + p.dir.x * 12, py + p.dir.y * 12, 3, 0, 7); ctx.fill(); } }
 
-  for (const p of particles) { ctx.globalAlpha = Math.max(0, p.life / p.max); ctx.fillStyle = p.color; ctx.fillRect(p.x - camX - p.size / 2, p.y - camY - p.size / 2, p.size, p.size); }
-  ctx.globalAlpha = 1;
+  for (const p of particles) { ctx.globalAlpha = Math.max(0, p.life / p.max); ctx.fillStyle = p.color; ctx.fillRect(p.x - camX - p.size / 2, p.y - camY - p.size / 2, p.size, p.size); } ctx.globalAlpha = 1;
 
   const dk = darkness();
-  if (dk > 0.01) {
-    nctx.clearRect(0, 0, CW, CH); nctx.fillStyle = 'rgba(6,10,26,' + dk + ')'; nctx.fillRect(0, 0, CW, CH);
-    nctx.globalCompositeOperation = 'destination-out';
-    for (const p of players) { const r = (p.torch > 0 ? 3.4 : 1.5) * T; punch(p.px - camX, p.py - camY, r); }
-    for (const f of fires) { const fk = 0.2 * Math.sin(anim * 10 + f.tx); punch((f.tx + 0.5) * T - camX, (f.ty + 0.5) * T - camY, (2.6 + fk) * T); }
-    nctx.globalCompositeOperation = 'source-over';
-    ctx.drawImage(night, 0, 0);
-  }
+  if (dk > 0.01) { nctx.clearRect(0, 0, CW, CH); nctx.fillStyle = 'rgba(6,10,26,' + dk + ')'; nctx.fillRect(0, 0, CW, CH); nctx.globalCompositeOperation = 'destination-out'; for (const p of players) punch(p.px - camX, p.py - camY, (p.torch > 0 ? 3.4 : 1.5) * T); for (const f of fires) punch((f.tx + 0.5) * T - camX, (f.ty + 0.5) * T - camY, (2.6 + 0.2 * Math.sin(anim * 10 + f.tx)) * T); nctx.globalCompositeOperation = 'source-over'; ctx.drawImage(night, 0, 0); }
 
   if (paused && !over) { ctx.fillStyle = 'rgba(13,14,26,.6)'; ctx.fillRect(0, 0, CW, CH); ctx.fillStyle = '#edf2f4'; ctx.textAlign = 'center'; ctx.font = 'bold 28px Segoe UI, sans-serif'; ctx.fillText('⏸ ПАУЗА', CW / 2, CH / 2 - 4); ctx.font = '14px Segoe UI, sans-serif'; ctx.fillText('P / Esc — продолжить', CW / 2, CH / 2 + 20); }
 
-  el.day.textContent = dayNum();
-  el.tod.textContent = isNight() ? '🌙 Ночь' : (dk > 0 ? '🌆 Сумерки' : '☀️ День');
+  el.day.textContent = dayNum(); el.tod.textContent = isNight() ? '🌙 Ночь' : (dk > 0 ? '🌆 Сумерки' : '☀️ День');
   el.fHp.style.width = health + '%'; el.fFood.style.width = hunger + '%'; el.fWarm.style.width = warmth + '%';
-  el.iWood.textContent = inv.wood; el.iStone.textContent = inv.stone; el.iBerry.textContent = inv.berries;
-  el.iOre.textContent = inv.ore; el.iTorch.textContent = Math.ceil((players[me] || players[0]).torch);
+  el.iWood.textContent = inv.wood; el.iStone.textContent = inv.stone; el.iOre.textContent = inv.ore; el.iMeat.textContent = inv.meat; el.iBerry.textContent = inv.berries; el.iTorch.textContent = Math.ceil((players[me] || players[0]).torch);
+  updateHotbar();
 }
 function punch(x, y, r) { const g = nctx.createRadialGradient(x, y, r * 0.25, x, y, r); g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(1, 'rgba(0,0,0,0)'); nctx.fillStyle = g; nctx.beginPath(); nctx.arc(x, y, r, 0, 7); nctx.fill(); }
 
-function frame(now) {
-  if (lastFrame === null) lastFrame = now;
-  let dt = (now - lastFrame) / 1000; lastFrame = now;
-  if (dt > 0.05) dt = 0.05;
-  update(dt); render();
-  requestAnimationFrame(frame);
+// --- хотбар ---
+const slotEls = [];
+function buildHotbar() {
+  el.hotbar.innerHTML = '';
+  HOTBAR.forEach((it, i) => {
+    const d = document.createElement('div'); d.className = 'slot';
+    d.innerHTML = '<span class="key">' + (i + 1) + '</span><span class="si">' + it.ico + '</span><span class="sn">' + it.name + '</span><span class="sc"></span>';
+    d.addEventListener('click', () => { selSlot = i; updateHotbar(); });
+    el.hotbar.appendChild(d); slotEls.push(d);
+  });
+}
+function slotAvailable(it) {
+  if (it.kind === 'empty') return false;
+  if (it.kind === 'food') return (it.id === 'meat' ? inv.meat : inv.berries) > 0;
+  return canAfford(it.cost);
+}
+function updateHotbar() {
+  HOTBAR.forEach((it, i) => {
+    const d = slotEls[i]; if (!d) return;
+    d.classList.toggle('sel', i === selSlot);
+    d.classList.toggle('dim', it.kind !== 'empty' && !slotAvailable(it));
+    const sc = d.querySelector('.sc');
+    if (it.kind === 'food') sc.textContent = (it.id === 'meat' ? inv.meat : inv.berries) || '';
+    else if (it.cost) { const c = it.cost; sc.textContent = Object.keys(c).map(k => c[k] + ({ wood: '🪵', stone: '🪨', berries: '🍓' })[k]).join(''); }
+    else sc.textContent = '';
+  });
 }
 
-// --- ввод (по физическим кодам — любая раскладка) ---
+function frame(now) { if (lastFrame === null) lastFrame = now; let dt = (now - lastFrame) / 1000; lastFrame = now; if (dt > 0.05) dt = 0.05; update(dt); render(); requestAnimationFrame(frame); }
+
+// --- ввод ---
 const KEYDIR = { ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down', ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right' };
 document.addEventListener('keydown', (e) => {
   if (e.target && e.target.tagName === 'INPUT') return;
@@ -479,39 +504,29 @@ document.addEventListener('keydown', (e) => {
   if (dir) { if (!held[dir]) dirOrder.push(dir); held[dir] = true; e.preventDefault(); return; }
   if (e.code === 'Space' || e.code === 'KeyE') { held.gather = true; e.preventDefault(); return; }
   if (e.repeat) return;
-  if (e.code === 'KeyF') doEat();
-  else if (e.code === 'Digit1' || e.code === 'Numpad1') doFire();
-  else if (e.code === 'Digit2' || e.code === 'Numpad2') doTorch();
+  if (e.code === 'KeyQ') doUse();
+  else if (e.code === 'KeyF') doEat();
+  else if (e.code.startsWith('Digit')) { const n = parseInt(e.code.slice(5)); if (n >= 1 && n <= 9) { selSlot = n - 1; updateHotbar(); } }
 });
-document.addEventListener('keyup', (e) => {
-  const dir = KEYDIR[e.code];
-  if (dir) { held[dir] = false; dirOrder = dirOrder.filter(d => d !== dir); }
-  if (e.code === 'Space' || e.code === 'KeyE') held.gather = false;
-});
+document.addEventListener('keyup', (e) => { const dir = KEYDIR[e.code]; if (dir) { held[dir] = false; dirOrder = dirOrder.filter(d => d !== dir); } if (e.code === 'Space' || e.code === 'KeyE') held.gather = false; });
 
-document.querySelectorAll('.pad button[data-dir]').forEach(b => {
-  const dir = b.getAttribute('data-dir');
-  const on = e => { e.preventDefault(); if (!held[dir]) dirOrder.push(dir); held[dir] = true; };
-  const off = e => { e.preventDefault(); held[dir] = false; dirOrder = dirOrder.filter(d => d !== dir); };
-  b.addEventListener('pointerdown', on); b.addEventListener('pointerup', off); b.addEventListener('pointerleave', off); b.addEventListener('pointercancel', off);
-});
+document.querySelectorAll('.pad button[data-dir]').forEach(b => { const dir = b.getAttribute('data-dir'); const on = e => { e.preventDefault(); if (!held[dir]) dirOrder.push(dir); held[dir] = true; }; const off = e => { e.preventDefault(); held[dir] = false; dirOrder = dirOrder.filter(d => d !== dir); }; b.addEventListener('pointerdown', on); b.addEventListener('pointerup', off); b.addEventListener('pointerleave', off); b.addEventListener('pointercancel', off); });
 const gb = document.getElementById('gatherBtn');
 gb.addEventListener('pointerdown', e => { e.preventDefault(); held.gather = true; });
 gb.addEventListener('pointerup', e => { e.preventDefault(); held.gather = false; });
 gb.addEventListener('pointerleave', () => { held.gather = false; });
+document.getElementById('useBtn').addEventListener('click', doUse);
 document.getElementById('eatBtn').addEventListener('click', doEat);
-document.getElementById('fireBtn').addEventListener('click', doFire);
-document.getElementById('torchBtn').addEventListener('click', doTorch);
 document.getElementById('restart').addEventListener('click', reset);
 document.getElementById('pause').addEventListener('click', () => { if (!over) { paused = !paused; updatePauseBtn(); } });
 document.getElementById('hostBtn').addEventListener('click', hostRoom);
 document.getElementById('joinBtn').addEventListener('click', joinRoom);
 document.getElementById('copyBtn').addEventListener('click', copyCode);
-const rci = document.getElementById('roomCodeInput');
-rci.addEventListener('click', () => { rci.select(); try { rci.setSelectionRange(0, 99); } catch (_) {} });
+const rci = document.getElementById('roomCodeInput'); rci.addEventListener('click', () => { rci.select(); try { rci.setSelectionRange(0, 99); } catch (_) {} });
 
 if (typeof location !== 'undefined' && location.protocol === 'file:') netStatus('⚠️ Онлайн работает только по ссылке http(s), не через file://');
 
+buildHotbar();
 reset();
 lastFrame = null;
 requestAnimationFrame(frame);
