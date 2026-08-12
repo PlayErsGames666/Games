@@ -124,7 +124,7 @@
   <div class="row"><span class="keys"><kbd>P</kbd><kbd>Esc</kbd></span><span class="desc">пауза / продолжить</span></div>
   <div class="row"><span class="keys"><kbd>Enter</kbd></span><span class="desc">заново (после проигрыша)</span></div>
   <div class="sep"></div>
-  <div class="note">Веди ракету через изгибающуюся пещеру: держишь тягу — летишь вверх, отпускаешь — падаешь вниз. Не задевай стены и каменные шипы (сталактиты/сталагмиты). Пещера постепенно сужается и петляет, скорость растёт. Рекорд сохраняется в браузере.</div>
+  <div class="note">Веди ракету через изгибающуюся пещеру: держишь тягу — летишь вверх, отпускаешь — падаешь вниз. Не задевай стены и каменные шипы (сталактиты/сталагмиты). Пещера постепенно сужается и петляет, скорость растёт. Каждый запуск — НОВАЯ пещера. Рекорд сохраняется в браузере.</div>
 </aside>
 </div>
 
@@ -147,6 +147,7 @@ let player, scroll, speed, score, best;
 let pillars, nextPillar;
 let thrusting, started, over, paused;
 let flame, lastFrame;
+let seed;   // случайные параметры пещеры (новые на каждый запуск)
 
 best = parseInt(localStorage.getItem('copterBest') || '0', 10);
 el.best.textContent = best;
@@ -155,15 +156,29 @@ el.best.textContent = best;
 function gapAt(worldX) {
   return Math.max(MIN_GAP, START_GAP - worldX * 0.008);
 }
+function makeSeed() {
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const TAU = Math.PI * 2;
+  return {
+    a1: rnd(50, 82), f1: rnd(0.0045, 0.008), p1: rnd(0, TAU),
+    a2: rnd(16, 32),  f2: rnd(0.010, 0.020), p2: rnd(0, TAU),
+    a3: rnd(22, 44),  f3: rnd(0.0018, 0.0045), p3: rnd(0, TAU),
+  };
+}
 function caveAt(worldX) {
-  const t = worldX * 0.006;
-  let center = H / 2 + Math.sin(t) * 70 + Math.sin(t * 2.3 + 1) * 28 + Math.sin(t * 0.5 + 2) * 42;
+  const s = seed;
+  const wig = Math.sin(worldX * s.f1 + s.p1) * s.a1
+            + Math.sin(worldX * s.f2 + s.p2) * s.a2
+            + Math.sin(worldX * s.f3 + s.p3) * s.a3;
+  const ease = Math.min(1, worldX / 300); // у старта пещера по центру, дальше — с изгибами
   const gap = gapAt(worldX);
+  let center = H / 2 + wig * ease;
   center = Math.max(gap / 2 + 16, Math.min(H - gap / 2 - 16, center));
   return { top: center - gap / 2, bot: center + gap / 2, gap };
 }
 
 function reset() {
+  seed = makeSeed();          // новая пещера на каждый запуск
   player = { y: H / 2, vy: 0 };
   scroll = 0; speed = 150; score = 0;
   pillars = []; nextPillar = 260;
