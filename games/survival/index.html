@@ -36,6 +36,20 @@
   .slot .sn { font-size:9px; opacity:.85; margin-top:2px; text-align:center; line-height:1.05; }
   .slot .sc { position:absolute; bottom:1px; right:4px; font-size:11px; font-weight:bold; color:#ffd166; }
   .slot .key { position:absolute; top:1px; left:4px; font-size:9px; opacity:.55; }
+  .slot.assign { border-color:#ffd166; box-shadow:0 0 0 2px rgba(255,209,102,.35); cursor:copy; }
+
+  .invpanel { margin-top:10px; background:var(--panel); border:2px solid var(--accent); border-radius:10px; padding:12px; text-align:left; }
+  .invhead { font-size:13px; font-weight:bold; margin-bottom:8px; }
+  .invhead #invhint { font-weight:normal; opacity:.7; }
+  .invres { font-size:15px; margin-bottom:10px; }
+  .invgrid { display:flex; gap:6px; flex-wrap:wrap; }
+  .invcard { width:66px; height:66px; background:var(--panel2); border:2px solid transparent; border-radius:8px; display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; }
+  .invcard.sel { border-color:#ffd166; box-shadow:0 0 0 2px rgba(255,209,102,.35); }
+  .invcard.dim { opacity:.4; }
+  .invcard .si { font-size:22px; line-height:1; }
+  .invcard .sn { font-size:10px; margin-top:2px; }
+  .invcard .sc { font-size:10px; font-weight:bold; color:#ffd166; margin-top:1px; }
+  #bagBtn.on { background:var(--accent); color:#08251c; }
 
   .pad { margin-top:12px; display:grid; grid-template-columns:repeat(3,48px); grid-gap:6px; justify-content:center; }
   .pad button { padding:0; height:48px; font-size:20px; }
@@ -96,6 +110,12 @@
   </div>
   <div class="msg" id="msg">Собирай ресурсы, к ночи разведи костёр — ночью выходят мобы!</div>
 
+  <div class="invpanel" id="invpanel" hidden>
+    <div class="invhead">🎒 Рюкзак — <span id="invhint">Клик по предмету, затем клик по ячейке хотбара внизу</span></div>
+    <div class="invres">Ресурсы: <span id="invres"></span></div>
+    <div class="invgrid" id="invgrid"></div>
+  </div>
+
   <div class="hotbar" id="hotbar"></div>
 
   <div class="pad">
@@ -104,11 +124,12 @@
     <span></span><button data-dir="down">▼</button><span></span>
   </div>
   <div class="actions">
+    <button id="bagBtn">🎒 Рюкзак (I)</button>
     <button id="useBtn">🛠️ Использовать (Q)</button>
     <button id="eatBtn">🍓 Быстро съесть (F)</button>
   </div>
 
-  <div class="hint">WASD — ходить · Space/E — действие (собрать/атаковать/сломать) · 1-9 выбор в хотбаре · Q — поставить/скрафтить · P/Esc — пауза</div>
+  <div class="hint">Хотбар пуст — открой 🎒 Рюкзак (I), выбери предмет и положи в ячейку · WASD — ходить · Space/E — действие · 1-9 выбор ячейки · Q — поставить/скрафтить · P/Esc — пауза</div>
 </div>
 <aside class="guide-panel">
   <h2>🎛 Как играть</h2>
@@ -153,18 +174,20 @@ const held = { up: false, down: false, left: false, right: false, gather: false 
 let dirOrder = [];
 const DIRS = { up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 }, right: { x: 1, y: 0 } };
 
-// хотбар: еда / предметы / крафт (некоторые ячейки пустые)
-const HOTBAR = [
-  { id: 'meat',  ico: '🍖', name: 'Мясо',    kind: 'food',  hunger: 40 },
-  { id: 'berry', ico: '🍓', name: 'Ягоды',   kind: 'food',  hunger: 30 },
-  { id: 'torch', ico: '🕯️', name: 'Факел',   kind: 'torch', cost: { wood: 1 } },
-  { id: 'fire',  ico: '🔥', name: 'Костёр',  kind: 'place', tile: -1, cost: { wood: 2, stone: 1 } },
-  { id: 'wall',  ico: '🧱', name: 'Стена',   kind: 'place', tile: WALL, cost: { stone: 2 } },
-  { id: 'table', ico: '🛠️', name: 'Верстак', kind: 'place', tile: TABLE, cost: { wood: 4 } },
-  { id: 'farm',  ico: '🌱', name: 'Грядка',  kind: 'place', tile: FARM, cost: { wood: 2 }, needTable: true },
-  { id: 'plant', ico: '🌰', name: 'Посадить', kind: 'plant', cost: { berries: 1 } },
-  { id: 'empty', ico: '', name: '', kind: 'empty' },
-];
+// каталог предметов; назначаются в хотбар из рюкзака (по умолчанию хотбар ПУСТ)
+const ITEMS = {
+  meat:  { ico: '🍖', name: 'Мясо',    kind: 'food',  food: 'meat' },
+  berry: { ico: '🍓', name: 'Ягоды',   kind: 'food',  food: 'berry' },
+  torch: { ico: '🕯️', name: 'Факел',   kind: 'torch', cost: { wood: 1 } },
+  fire:  { ico: '🔥', name: 'Костёр',  kind: 'place', tile: -1, cost: { wood: 2, stone: 1 } },
+  wall:  { ico: '🧱', name: 'Стена',   kind: 'place', tile: WALL, cost: { stone: 2 } },
+  table: { ico: '🛠️', name: 'Верстак', kind: 'place', tile: TABLE, cost: { wood: 4 } },
+  farm:  { ico: '🌱', name: 'Грядка',  kind: 'place', tile: FARM, cost: { wood: 2 }, needTable: true },
+  plant: { ico: '🌰', name: 'Посадить', kind: 'plant', cost: { berries: 1 } },
+};
+const ASSIGNABLE = ['torch', 'fire', 'wall', 'table', 'farm', 'plant', 'berry', 'meat'];
+let hot = [null, null, null, null, null, null, null, null, null];
+let invOpen = false, selItem = null;
 
 best = parseInt(localStorage.getItem('survivalBest') || '0', 10);
 const rnd = n => Math.floor(Math.random() * n);
@@ -270,10 +293,10 @@ function canAfford(cost) { for (const k in cost) if ((inv[k] || 0) < cost[k]) re
 function pay(cost) { for (const k in cost) inv[k] -= cost[k]; }
 function nearTable(p) { for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const x = p.tx + dx, y = p.ty + dy; if (inb(x, y) && tiles[y][x] === TABLE) return true; } return false; }
 
-function useSlot(p, slot) {
+function applyItem(p, it) {
   p = p || players[0];
-  const it = HOTBAR[slot]; if (!it || it.kind === 'empty') return;
-  if (it.kind === 'food') { eatFood(it.id === 'meat' ? 'meat' : 'berry'); return; }
+  if (!it) return;
+  if (it.kind === 'food') { eatFood(it.food); return; }
   if (it.kind === 'torch') { if (canAfford(it.cost)) { pay(it.cost); p.torch = TORCH_TIME; message('🕯️ Факел зажжён'); } else message('Нужна 1🪵'); return; }
   const tx = p.tx + p.dir.x, ty = p.ty + p.dir.y;
   if (it.kind === 'plant') {
@@ -292,8 +315,10 @@ function useSlot(p, slot) {
     else message('Ставь на траву перед собой');
   }
 }
+function useSlot(p, slot) { const id = hot[slot]; if (id) applyItem(p, ITEMS[id]); }
+function useById(p, id) { if (ITEMS[id]) applyItem(p, ITEMS[id]); }
 // действия локального игрока (в join уходят хосту)
-function doUse() { if (role === 'join') netSend({ t: 'act', a: 'use', slot: selSlot }); else useSlot(players[0], selSlot); }
+function doUse() { const id = hot[selSlot]; if (role === 'join') { if (id) netSend({ t: 'act', a: 'use', id }); } else useSlot(players[0], selSlot); }
 function doEat() { if (role === 'join') netSend({ t: 'act', a: 'eat' }); else eat(); }
 
 // --- день/ночь ---
@@ -428,7 +453,7 @@ function onData(msg) {
   }
   else if (msg.t === 'tile') { if (inb(msg.x, msg.y)) tiles[msg.y][msg.x] = msg.tt; }
   else if (msg.t === 'in') { remoteHeld = msg.h; }
-  else if (msg.t === 'act' && players && players[1]) { if (msg.a === 'eat') eat(); else if (msg.a === 'use') useSlot(players[1], msg.slot); }
+  else if (msg.t === 'act' && players && players[1]) { if (msg.a === 'eat') eat(); else if (msg.a === 'use') useById(players[1], msg.id); }
 }
 
 // --- отрисовка ---
@@ -499,35 +524,69 @@ function render() {
   el.fHp.style.width = health + '%'; el.fFood.style.width = hunger + '%'; el.fWarm.style.width = warmth + '%';
   el.iWood.textContent = inv.wood; el.iStone.textContent = inv.stone; el.iOre.textContent = inv.ore; el.iMeat.textContent = inv.meat; el.iBerry.textContent = inv.berries; el.iTorch.textContent = Math.ceil((players[me] || players[0]).torch);
   updateHotbar();
+  if (invOpen) updateInv();
 }
 function punch(x, y, r) { const g = nctx.createRadialGradient(x, y, r * 0.25, x, y, r); g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(1, 'rgba(0,0,0,0)'); nctx.fillStyle = g; nctx.beginPath(); nctx.arc(x, y, r, 0, 7); nctx.fill(); }
 
-// --- хотбар ---
+// --- хотбар (по умолчанию пуст; предметы кладутся из рюкзака) ---
 const slotEls = [];
+function costStr(cost) { return cost ? Object.keys(cost).map(k => cost[k] + ({ wood: '🪵', stone: '🪨', berries: '🍓' })[k]).join('') : ''; }
+function itemUsable(id) { const it = ITEMS[id]; if (!it) return false; if (it.kind === 'food') return (it.food === 'meat' ? inv.meat : inv.berries) > 0; return canAfford(it.cost); }
 function buildHotbar() {
-  el.hotbar.innerHTML = '';
-  HOTBAR.forEach((it, i) => {
+  el.hotbar.innerHTML = ''; slotEls.length = 0;
+  for (let i = 0; i < 9; i++) {
     const d = document.createElement('div'); d.className = 'slot';
-    d.innerHTML = '<span class="key">' + (i + 1) + '</span><span class="si">' + it.ico + '</span><span class="sn">' + it.name + '</span><span class="sc"></span>';
-    d.addEventListener('click', () => { selSlot = i; updateHotbar(); });
+    d.innerHTML = '<span class="key">' + (i + 1) + '</span><span class="si"></span><span class="sn"></span><span class="sc"></span>';
+    d.addEventListener('click', () => onHotClick(i));
     el.hotbar.appendChild(d); slotEls.push(d);
-  });
+  }
 }
-function slotAvailable(it) {
-  if (it.kind === 'empty') return false;
-  if (it.kind === 'food') return (it.id === 'meat' ? inv.meat : inv.berries) > 0;
-  return canAfford(it.cost);
+function onHotClick(i) {
+  if (invOpen) { hot[i] = selItem || null; updateHotbar(); updateInv(); }
+  else { selSlot = i; updateHotbar(); }
 }
 function updateHotbar() {
-  HOTBAR.forEach((it, i) => {
-    const d = slotEls[i]; if (!d) return;
+  for (let i = 0; i < 9; i++) {
+    const d = slotEls[i]; if (!d) continue;
+    const id = hot[i], it = id ? ITEMS[id] : null;
     d.classList.toggle('sel', i === selSlot);
-    d.classList.toggle('dim', it.kind !== 'empty' && !slotAvailable(it));
+    d.classList.toggle('assign', invOpen && !!selItem);
+    d.querySelector('.si').textContent = it ? it.ico : '';
+    d.querySelector('.sn').textContent = it ? it.name : '';
     const sc = d.querySelector('.sc');
-    if (it.kind === 'food') sc.textContent = (it.id === 'meat' ? inv.meat : inv.berries) || '';
-    else if (it.cost) { const c = it.cost; sc.textContent = Object.keys(c).map(k => c[k] + ({ wood: '🪵', stone: '🪨', berries: '🍓' })[k]).join(''); }
-    else sc.textContent = '';
-  });
+    if (!it) { sc.textContent = ''; d.classList.remove('dim'); }
+    else if (it.kind === 'food') { sc.textContent = (it.food === 'meat' ? inv.meat : inv.berries) || ''; d.classList.toggle('dim', !itemUsable(id)); }
+    else { sc.textContent = costStr(it.cost); d.classList.toggle('dim', !itemUsable(id)); }
+  }
+}
+
+// --- рюкзак / инвентарь (отдельный мини-блок как в майнкрафте) ---
+const invCards = {};
+function buildInv() {
+  const grid = document.getElementById('invgrid'); if (!grid) return;
+  grid.innerHTML = '';
+  for (const id of ASSIGNABLE) {
+    const it = ITEMS[id];
+    const c = document.createElement('div'); c.className = 'invcard';
+    c.innerHTML = '<span class="si">' + it.ico + '</span><span class="sn">' + it.name + '</span><span class="sc">' + costStr(it.cost) + '</span>';
+    c.addEventListener('click', () => { selItem = (selItem === id) ? null : id; updateInv(); updateHotbar(); });
+    grid.appendChild(c); invCards[id] = c;
+  }
+}
+function updateInv() {
+  const rs = document.getElementById('invres'); if (rs) rs.textContent = '🪵' + inv.wood + '   🪨' + inv.stone + '   💎' + inv.ore + '   🍖' + inv.meat + '   🍓' + inv.berries;
+  for (const id of ASSIGNABLE) { const c = invCards[id]; if (!c) continue; c.classList.toggle('dim', !itemUsable(id)); c.classList.toggle('sel', selItem === id); }
+  const hint = document.getElementById('invhint');
+  if (hint) hint.textContent = selItem
+    ? ('Выбрано «' + ITEMS[selItem].name + '» — кликни ячейку хотбара, чтобы положить (клик по ячейке без выбора — очистить)')
+    : 'Клик по предмету, затем клик по ячейке хотбара внизу';
+}
+function toggleInv(v) {
+  invOpen = (v === undefined) ? !invOpen : v;
+  const panel = document.getElementById('invpanel'); if (panel) panel.hidden = !invOpen;
+  const btn = document.getElementById('bagBtn'); if (btn) btn.classList.toggle('on', invOpen);
+  if (!invOpen) selItem = null;
+  updateInv(); updateHotbar();
 }
 
 function frame(now) { if (lastFrame === null) lastFrame = now; let dt = (now - lastFrame) / 1000; lastFrame = now; if (dt > 0.05) dt = 0.05; update(dt); render(); requestAnimationFrame(frame); }
@@ -537,7 +596,9 @@ const KEYDIR = { ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down', Arr
 document.addEventListener('keydown', (e) => {
   if (e.target && e.target.tagName === 'INPUT') return;
   if (over) { if (e.code === 'Enter') reset(); return; }
-  if (e.code === 'KeyP' || e.code === 'Escape') { if (!e.repeat) { paused = !paused; updatePauseBtn(); } e.preventDefault(); return; }
+  if (e.code === 'Escape') { if (!e.repeat) { if (invOpen) toggleInv(false); else { paused = !paused; updatePauseBtn(); } } e.preventDefault(); return; }
+  if (e.code === 'KeyP') { if (!e.repeat) { paused = !paused; updatePauseBtn(); } e.preventDefault(); return; }
+  if (e.code === 'KeyI') { if (!e.repeat) toggleInv(); e.preventDefault(); return; }
   if (paused) return;
   const dir = KEYDIR[e.code];
   if (dir) { if (!held[dir]) dirOrder.push(dir); held[dir] = true; e.preventDefault(); return; }
@@ -566,8 +627,11 @@ const rci = document.getElementById('roomCodeInput'); rci.addEventListener('clic
 
 if (typeof location !== 'undefined' && location.protocol === 'file:') netStatus('⚠️ Онлайн работает только по ссылке http(s), не через file://');
 
+document.getElementById('bagBtn').addEventListener('click', () => toggleInv());
 buildHotbar();
+buildInv();
 reset();
+toggleInv(false);
 lastFrame = null;
 requestAnimationFrame(frame);
 </script>
