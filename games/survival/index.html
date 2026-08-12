@@ -59,6 +59,8 @@
     <button id="hostBtn">🌐 Создать комнату</button>
     <input id="joinCode" class="code" placeholder="КОД" maxlength="6">
     <button id="joinBtn">Войти</button>
+    <input id="roomCodeInput" class="code" readonly hidden title="Код комнаты — кликни, чтобы выделить">
+    <button id="copyBtn" hidden>📋 Копировать код</button>
     <span id="netStatus" style="font-size:13px;opacity:.85;">оффлайн (одиночная игра)</span>
   </div>
 
@@ -300,6 +302,24 @@ function endGame() { over = true; const cause = warmth <= 0 ? '🥶 Замёрз
 
 // --- сеть ---
 function netStatus(t) { document.getElementById('netStatus').textContent = t; }
+function showCode(code) {
+  const inp = document.getElementById('roomCodeInput');
+  inp.value = code; inp.hidden = false;
+  document.getElementById('copyBtn').hidden = false;
+  document.getElementById('hostBtn').disabled = true;
+  document.getElementById('joinCode').hidden = true;
+  document.getElementById('joinBtn').hidden = true;
+}
+async function copyCode() {
+  const inp = document.getElementById('roomCodeInput'); const code = inp.value;
+  if (!code) return;
+  try { await navigator.clipboard.writeText(code); netStatus('✅ Код скопирован: ' + code + ' — отправь другу'); }
+  catch (e) {
+    inp.hidden = false; inp.focus(); inp.select(); try { inp.setSelectionRange(0, 99); } catch (_) {}
+    try { document.execCommand('copy'); netStatus('✅ Код скопирован: ' + code); }
+    catch (_) { netStatus('Выдели код вручную и скопируй: ' + code); }
+  }
+}
 function netSend(o) { try { if (conn && connected) conn.send(o); } catch (e) {} }
 function setupConn() {
   conn.on('data', onData);
@@ -311,7 +331,8 @@ function hostRoom() {
   const code = randCode();
   peer = new Peer('dslite-' + code);
   role = 'host'; me = 0;
-  netStatus('Комната: ' + code + ' — ждём друга…');
+  showCode(code);
+  netStatus('Ждём друга… отправь ему код: ' + code);
   peer.on('error', e => netStatus('Ошибка сети: ' + e.type));
   peer.on('connection', c => {
     conn = c; setupConn();
@@ -462,6 +483,9 @@ document.getElementById('restart').addEventListener('click', reset);
 document.getElementById('pause').addEventListener('click', () => { if (!over) { paused = !paused; updatePauseBtn(); } });
 document.getElementById('hostBtn').addEventListener('click', hostRoom);
 document.getElementById('joinBtn').addEventListener('click', joinRoom);
+document.getElementById('copyBtn').addEventListener('click', copyCode);
+const rci = document.getElementById('roomCodeInput');
+rci.addEventListener('click', () => { rci.select(); try { rci.setSelectionRange(0, 99); } catch (_) {} });
 
 reset();
 lastFrame = null;
