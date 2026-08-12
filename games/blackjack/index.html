@@ -119,6 +119,14 @@
   }
   @media (max-width:760px){ .guide-panel{ margin-top:8px; max-width:100%; width:100%; } }
   @media (max-width:480px){ body{ padding:12px; } h1{ font-size:22px; } }
+
+  /* --- полноэкранный режим --- */
+  .fsbtn.on { background:#06d6a0; color:#10121f; }
+  :fullscreen { overflow:auto; }
+  :fullscreen .guide-panel { display:none; }        /* в полный экран — только игра */
+  :fullscreen .stage { gap:0; }
+  :fullscreen canvas { height:min(76vh,calc(100vh - 210px)); width:auto; max-width:97vw; }
+  :fullscreen #board { transform-origin:top center; }
 </style>
 </head>
 <body>
@@ -128,6 +136,7 @@
 
   <div class="controls">
     <a href="../../index.html" style="background:var(--panel);color:var(--text);padding:8px 14px;border-radius:8px;font-size:15px;text-decoration:none;display:inline-flex;align-items:center;">← Меню</a>
+    <button id="fsBtn" class="fsbtn" title="Полный экран (F)">⛶ Во весь экран</button>
     <button id="resetBank">🔄 Сброс банка</button>
   </div>
 
@@ -366,6 +375,26 @@ document.addEventListener('keydown', (e) => {
 
 player = []; dealer = [];
 render();
+</script>
+
+<script>
+/* полный экран: кнопка ⛶ и клавиша F (там, где F не занята игрой) */
+(function(){
+  var btn=document.getElementById("fsBtn"), root=document.documentElement;
+  function isFs(){ return document.fullscreenElement||document.webkitFullscreenElement||null; }
+  function upd(){ if(!btn) return; var on=!!isFs(); btn.textContent=on?"⛶ Выйти":"⛶ Во весь экран"; btn.classList.toggle("on",on); }
+  function toggle(){
+    try{
+      if(!isFs()){ (root.requestFullscreen||root.webkitRequestFullscreen).call(root); }
+      else { (document.exitFullscreen||document.webkitExitFullscreen).call(document); }
+    }catch(e){}
+  }
+  if(btn) btn.addEventListener("click",toggle);
+  document.addEventListener("fullscreenchange",upd);
+  document.addEventListener("webkitfullscreenchange",upd);
+  document.addEventListener("keydown",function(e){ if(e.target&&e.target.tagName==="INPUT")return; if(e.code==="KeyF"&&!e.repeat&&!e.ctrlKey&&!e.altKey&&!e.metaKey){ toggle(); } });
+  window.__toggleFullscreen=toggle; upd();
+})();
 </script>
 </body>
 </html>

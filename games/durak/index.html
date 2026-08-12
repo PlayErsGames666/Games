@@ -66,6 +66,14 @@
     .mode{ padding:6px 9px; font-size:13px; }
     .controls{ gap:7px; margin-bottom:10px; }
   }
+
+  /* --- полноэкранный режим --- */
+  .fsbtn.on { background:#06d6a0; color:#10121f; }
+  :fullscreen { overflow:auto; }
+  :fullscreen .guide-panel { display:none; }        /* в полный экран — только игра */
+  :fullscreen .stage { gap:0; }
+  :fullscreen canvas { height:min(76vh,calc(100vh - 210px)); width:auto; max-width:97vw; }
+  :fullscreen #board { transform-origin:top center; }
 </style>
 </head>
 <body>
@@ -75,6 +83,7 @@
 
   <div class="controls">
     <a href="../../index.html" style="background:var(--panel);color:var(--text);padding:8px 14px;border-radius:8px;font-size:15px;text-decoration:none;display:inline-flex;align-items:center;">← Меню</a>
+    <button id="fsBtn" class="fsbtn" title="Полный экран (F)">⛶ Во весь экран</button>
     <button class="mode on" id="optPod">🃏 Подкидной</button>
     <span class="modegroup">
       <button class="mode on" id="trNone">Без перевода</button>
@@ -244,7 +253,7 @@ function checkOver() {
   if (deck.length === 0) {
     const a = hands[0].length === 0, b = hands[1].length === 0;
     if (a && b) { over = true; result = '🤝 Ничья'; }
-    else if (a) { over = true; result = '🎉 Ты выиграл! Компьютер — дурак'; }
+    else if (a) { over = true; result = '🎉 Ты выиграл! Компьютер — дурак'; localStorage.setItem('durakBest', (parseInt(localStorage.getItem('durakBest')) || 0) + 1); }
     else if (b) { over = true; result = '😕 Ты проиграл — ты дурак'; }
   }
 }
@@ -378,6 +387,26 @@ document.getElementById('trD').addEventListener('click', () => { modeTransfer = 
 updateModeButtons();
 
 el.msg.textContent = 'Настрой режим и жми «Новая игра»';
+</script>
+
+<script>
+/* полный экран: кнопка ⛶ и клавиша F (там, где F не занята игрой) */
+(function(){
+  var btn=document.getElementById("fsBtn"), root=document.documentElement;
+  function isFs(){ return document.fullscreenElement||document.webkitFullscreenElement||null; }
+  function upd(){ if(!btn) return; var on=!!isFs(); btn.textContent=on?"⛶ Выйти":"⛶ Во весь экран"; btn.classList.toggle("on",on); }
+  function toggle(){
+    try{
+      if(!isFs()){ (root.requestFullscreen||root.webkitRequestFullscreen).call(root); }
+      else { (document.exitFullscreen||document.webkitExitFullscreen).call(document); }
+    }catch(e){}
+  }
+  if(btn) btn.addEventListener("click",toggle);
+  document.addEventListener("fullscreenchange",upd);
+  document.addEventListener("webkitfullscreenchange",upd);
+  document.addEventListener("keydown",function(e){ if(e.target&&e.target.tagName==="INPUT")return; if(e.code==="KeyF"&&!e.repeat&&!e.ctrlKey&&!e.altKey&&!e.metaKey){ toggle(); } });
+  window.__toggleFullscreen=toggle; upd();
+})();
 </script>
 </body>
 </html>

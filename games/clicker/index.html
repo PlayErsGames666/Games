@@ -147,6 +147,14 @@
     #cookie{ font-size:110px; }
     .counter{ font-size:28px; }
   }
+
+  /* --- полноэкранный режим --- */
+  .fsbtn.on { background:#06d6a0; color:#10121f; }
+  :fullscreen { overflow:auto; }
+  :fullscreen .guide-panel { display:none; }        /* в полный экран — только игра */
+  :fullscreen .stage { gap:0; }
+  :fullscreen canvas { height:min(76vh,calc(100vh - 210px)); width:auto; max-width:97vw; }
+  :fullscreen #board { transform-origin:top center; }
 </style>
 </head>
 <body>
@@ -155,6 +163,7 @@
   <h1>🍪 ПЕЧЕНЬКА-КЛИКЕР</h1>
   <div class="controls">
     <a href="../../index.html" style="background:var(--panel);color:var(--text);padding:8px 14px;border-radius:8px;font-size:15px;text-decoration:none;display:inline-flex;align-items:center;">← Меню</a>
+    <button id="fsBtn" class="fsbtn" title="Полный экран (F)">⛶ Во весь экран</button>
   </div>
 
   <div class="layout">
@@ -219,6 +228,10 @@ function load() {
 
 function save() {
   localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+  // максимум напечённого — для общей таблицы рекордов
+  const prev = parseFloat(localStorage.getItem('clickerBest'));
+  const cur = Math.floor(state.cookies);
+  if (isNaN(prev) || cur > prev) localStorage.setItem('clickerBest', cur);
 }
 
 // цена растёт на 15% за каждую купленную штуку (как в оригинале)
@@ -341,6 +354,26 @@ document.getElementById('reset').addEventListener('click', reset);
 // автосохранение каждые 15 секунд
 setInterval(save, 15000);
 requestAnimationFrame(loop);
+</script>
+
+<script>
+/* полный экран: кнопка ⛶ и клавиша F (там, где F не занята игрой) */
+(function(){
+  var btn=document.getElementById("fsBtn"), root=document.documentElement;
+  function isFs(){ return document.fullscreenElement||document.webkitFullscreenElement||null; }
+  function upd(){ if(!btn) return; var on=!!isFs(); btn.textContent=on?"⛶ Выйти":"⛶ Во весь экран"; btn.classList.toggle("on",on); }
+  function toggle(){
+    try{
+      if(!isFs()){ (root.requestFullscreen||root.webkitRequestFullscreen).call(root); }
+      else { (document.exitFullscreen||document.webkitExitFullscreen).call(document); }
+    }catch(e){}
+  }
+  if(btn) btn.addEventListener("click",toggle);
+  document.addEventListener("fullscreenchange",upd);
+  document.addEventListener("webkitfullscreenchange",upd);
+  document.addEventListener("keydown",function(e){ if(e.target&&e.target.tagName==="INPUT")return; if(e.code==="KeyF"&&!e.repeat&&!e.ctrlKey&&!e.altKey&&!e.metaKey){ toggle(); } });
+  window.__toggleFullscreen=toggle; upd();
+})();
 </script>
 </body>
 </html>

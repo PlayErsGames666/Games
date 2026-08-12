@@ -33,6 +33,13 @@
     margin: 0 auto;
   }
 
+  .lbLink {
+    display:inline-block; background:var(--panel); color:var(--text);
+    padding:9px 18px; border-radius:10px; text-decoration:none; font-weight:bold;
+    border:1px solid rgba(255,255,255,.09); transition:background .15s, transform .15s;
+  }
+  .lbLink:hover { background:#3a3d5c; transform:translateY(-2px); }
+
   .card {
     position: relative;
     aspect-ratio: 520 / 680;         /* портрет — совпадает с виртуальным экраном игры */
@@ -142,6 +149,7 @@
   <header>
     <h1>🎮 ИГРОТЕКА</h1>
     <p>Наведи на игру — увидишь её вживую · кликни, чтобы играть</p>
+    <p style="margin-top:12px;"><a class="lbLink" href="leaderboard.html">🏆 Таблица рекордов</a></p>
   </header>
 
   <div class="grid" id="grid"></div>
