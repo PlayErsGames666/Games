@@ -125,12 +125,13 @@
     <span></span><button data-dir="down">▼</button><span></span>
   </div>
   <div class="actions">
+    <button id="faceBtn">🎯 К врагу (Ctrl)</button>
     <button id="bagBtn">🎒 Рюкзак (I)</button>
     <button id="useBtn">🛠️ Использовать (Q)</button>
     <button id="eatBtn">🍓 Быстро съесть (F)</button>
   </div>
 
-  <div class="hint">Хотбар пуст — открой 🎒 Рюкзак (I), выбери предмет и положи в ячейку · WASD — ходить · Space/E — действие · 1-9 выбор ячейки · Q — поставить/скрафтить · P/Esc — пауза</div>
+  <div class="hint">WASD — ходить (в стену/моба — поворот на месте) · Ctrl — развернуться к врагу в 3 клетках · Space/E — бить/собирать · 🎒 Рюкзак (I) → предмет в ячейку · 1-9 выбор · Q — поставить · P/Esc — пауза</div>
 </div>
 <aside class="guide-panel">
   <h2>🎛 Как играть</h2>
@@ -168,7 +169,7 @@ const el = {
 };
 
 let tiles, res, players, mobs, crops, inv, health, hunger, warmth, fires, clock, over, best, anim, msgTimer, lastFrame;
-let paused, particles, hitFx, lastHarvest, selSlot = 0, mobSpawnAcc = 0, slimeSpawnAcc = 0;
+let paused, particles, hitFx, lastHarvest, selSlot = 0, mobSpawnAcc = 0, slimeSpawnAcc = 0, hurtT = 0;
 let deathT = 0, deathShown = false, deathCause = '', deathDay = 0;
 let role = 'solo', peer = null, conn = null, connected = false, me = 0, netAcc = 0;
 let remoteHeld = { up: false, down: false, left: false, right: false, gather: false };
@@ -224,7 +225,7 @@ function startWorld(n) {
   inv = { wood: 0, stone: 0, berries: 0, ore: 0, meat: 0, slime: 0 };
   health = 100; hunger = 100; warmth = 100;
   fires = []; clock = 0; over = false; anim = 0; msgTimer = 0;
-  paused = false; particles = []; hitFx = {}; lastHarvest = null; mobSpawnAcc = 0; slimeSpawnAcc = 0;
+  paused = false; particles = []; hitFx = {}; lastHarvest = null; mobSpawnAcc = 0; slimeSpawnAcc = 0; hurtT = 0;
   deathT = 0; deathShown = false; deathCause = ''; deathDay = 0;
 }
 function spawnDeathBurst() {
@@ -322,6 +323,7 @@ function useById(p, id) { if (ITEMS[id]) applyItem(p, ITEMS[id]); }
 // действия локального игрока (в join уходят хосту)
 function doUse() { const id = hot[selSlot]; if (role === 'join') { if (id) netSend({ t: 'act', a: 'use', id }); } else useSlot(players[0], selSlot); }
 function doEat() { if (role === 'join') netSend({ t: 'act', a: 'eat' }); else eat(); }
+function doFace() { const p = players[me] || players[0]; const d = nearMobDir(p); if (!d) { message('Рядом нет врага (в 3 клетках)'); return; } p.dir = d; if (role === 'join') netSend({ t: 'act', a: 'face', dx: d.x, dy: d.y }); }
 
 // --- день/ночь ---
 function tnorm() { return (clock % CYCLE) / CYCLE; }
@@ -336,27 +338,34 @@ function moveEntity(e, dt, speed) { if (e.moving) { e.mt += dt / (1 / (speed || 
 function startMove(e, nx, ny) { e.moving = true; e.ox = e.px; e.oy = e.py; e.tx = nx; e.ty = ny; e.fx = (nx + 0.5) * T; e.fy = (ny + 0.5) * T; e.mt = 0; }
 
 function stepEntity(p, h, order, dt) {
-  if (!p.moving) { const d = heldDir(h, order); if (d) { p.dir = d; const nx = p.tx + d.x, ny = p.ty + d.y; if (passable(nx, ny)) startMove(p, nx, ny); } }
+  if (!p.moving) { const d = heldDir(h, order); if (d) { p.dir = d; const nx = p.tx + d.x, ny = p.ty + d.y; if (freeForPlayer(nx, ny)) startMove(p, nx, ny); } } // p.dir всегда обновляется — поворот на месте, даже если путь занят
   moveEntity(p, dt, 7);
   p.gcd -= dt;
   if (h.gather && p.gcd <= 0) { const ok = actionFront(p); p.gcd = ok ? 0.28 : 0.12; }
 }
 
 function nearestPlayer(mx, my) { let best = null, bd = 1e9; for (const p of players) { const d = Math.abs(p.tx - mx) + Math.abs(p.ty - my); if (d < bd) { bd = d; best = p; } } return best; }
+function mobAt(x, y, except) { for (const m of mobs) { if (m === except) continue; if (m.tx === x && m.ty === y) return m; } return null; }
+function playerAt(x, y) { for (const p of players) if (p.tx === x && p.ty === y) return p; return null; }
+function freeForPlayer(x, y) { return passable(x, y) && !mobAt(x, y); }         // мобы «твёрдые» — сквозь них не пройти
+function freeForMob(x, y, self) { return passable(x, y) && !mobAt(x, y, self) && !playerAt(x, y); } // мобы не залезают друг на друга и на игрока
+function hurt(dmg) { health = Math.max(0, health - dmg); hurtT = 0.35; }
+// повернуться к ближайшему мобу в радиусе 3 клеток (без движения)
+function nearMobDir(p) { let best = null, bd = 1e9; for (const m of (mobs || [])) { const d = Math.max(Math.abs(m.tx - p.tx), Math.abs(m.ty - p.ty)); if (d >= 1 && d <= 3 && d < bd) { bd = d; best = m; } } if (!best) return null; const dx = best.tx - p.tx, dy = best.ty - p.ty; return Math.abs(dx) >= Math.abs(dy) ? { x: Math.sign(dx), y: 0 } : { x: 0, y: Math.sign(dy) }; }
 function stepMob(m, dt) {
   if (m.type === 'slime') { stepSlime(m, dt); return; }
   if (!m.moving) {
     const tgt = nearestPlayer(m.tx, m.ty);
-    if (tgt) {
+    if (tgt && (Math.abs(tgt.tx - m.tx) + Math.abs(tgt.ty - m.ty)) > 1) { // вплотную — стоим и бьём, не отступаем
       const dx = Math.sign(tgt.tx - m.tx), dy = Math.sign(tgt.ty - m.ty);
       const tries = Math.abs(tgt.tx - m.tx) > Math.abs(tgt.ty - m.ty) ? [[dx, 0], [0, dy], [0, -dy], [-dx, 0]] : [[0, dy], [dx, 0], [-dx, 0], [0, -dy]];
-      for (const [ax, ay] of tries) { if ((ax || ay) && passable(m.tx + ax, m.ty + ay)) { startMove(m, m.tx + ax, m.ty + ay); break; } }
+      for (const [ax, ay] of tries) { if ((ax || ay) && freeForMob(m.tx + ax, m.ty + ay, m)) { startMove(m, m.tx + ax, m.ty + ay); break; } }
     }
   }
   moveEntity(m, dt, MOB_SPEED);
   m.cd -= dt;
   const p = nearestPlayer(m.tx, m.ty);
-  if (p && Math.abs(p.tx - m.tx) <= 1 && Math.abs(p.ty - m.ty) <= 1 && m.cd <= 0) { health = Math.max(0, health - MOB_DMG); m.cd = 1; }
+  if (p && Math.abs(p.tx - m.tx) <= 1 && Math.abs(p.ty - m.ty) <= 1 && m.cd <= 0) { hurt(MOB_DMG); m.cd = 1; }
   if (!isNight()) m.hp -= dt * 3; // зомби днём сгорают
 }
 // слайм: прыгает по одной клетке, отдыхает между прыжками, днём НЕ горит
@@ -370,9 +379,9 @@ function stepSlime(m, dt) {
       if (tgt && (Math.abs(tgt.tx - m.tx) + Math.abs(tgt.ty - m.ty)) <= 8) {
         const dx = Math.sign(tgt.tx - m.tx), dy = Math.sign(tgt.ty - m.ty);
         const tries = Math.abs(tgt.tx - m.tx) > Math.abs(tgt.ty - m.ty) ? [[dx, 0], [0, dy]] : [[0, dy], [dx, 0]];
-        for (const [ax, ay] of tries) { if ((ax || ay) && passable(m.tx + ax, m.ty + ay)) { dir = [ax, ay]; break; } }
+        for (const [ax, ay] of tries) { if ((ax || ay) && freeForMob(m.tx + ax, m.ty + ay, m)) { dir = [ax, ay]; break; } }
       } else {
-        const opts = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([ax, ay]) => passable(m.tx + ax, m.ty + ay));
+        const opts = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([ax, ay]) => freeForMob(m.tx + ax, m.ty + ay, m));
         if (opts.length) dir = opts[rnd(opts.length)];
       }
       if (dir) startMove(m, m.tx + dir[0], m.ty + dir[1]);
@@ -381,7 +390,7 @@ function stepSlime(m, dt) {
   }
   moveEntity(m, dt, SLIME_SPEED);
   const p = nearestPlayer(m.tx, m.ty);
-  if (p && Math.abs(p.tx - m.tx) <= 1 && Math.abs(p.ty - m.ty) <= 1 && m.cd <= 0) { health = Math.max(0, health - SLIME_DMG); m.cd = 1; }
+  if (p && Math.abs(p.tx - m.tx) <= 1 && Math.abs(p.ty - m.ty) <= 1 && m.cd <= 0) { hurt(SLIME_DMG); m.cd = 1; }
 }
 function spawnMob() {
   const p = players[rnd(players.length)];
@@ -396,6 +405,7 @@ function spawnSlime() {
 function update(dt) {
   anim += dt;
   if (!paused) updateParticles(dt);
+  if (!paused && hurtT > 0) hurtT = Math.max(0, hurtT - dt);
   if (!paused && players) for (const p of players) if (p.chop > 0) p.chop = Math.max(0, p.chop - dt);
   if (msgTimer > 0) { msgTimer -= dt; if (msgTimer <= 0 && !over && !paused) el.msg.textContent = ''; }
   if (over) { if (!deathShown) triggerDeath(); if (!paused && deathT < 1) deathT += dt * 1.3; }
@@ -476,6 +486,7 @@ function broadcastState() {
 function onData(msg) {
   if (msg.t === 'map') { tiles = msg.tiles; res = msg.res; if (!players || players.length < 2) { const cx = MAPW >> 1, cy = MAPH >> 1; players = [makePlayer(cx, cy), makePlayer(cx + 1, cy)]; } mobs = mobs || []; crops = crops || {}; inv = inv || { wood: 0, stone: 0, berries: 0, ore: 0, meat: 0, slime: 0 }; fires = fires || []; particles = particles || []; hitFx = hitFx || {}; over = false; }
   else if (msg.t === 'state') {
+    if (typeof health === 'number' && msg.health < health) hurtT = 0.35; // вспышка урона на стороне джойнера
     clock = msg.clock; health = msg.health; hunger = msg.hunger; warmth = msg.warmth; over = msg.over; inv = msg.inv; fires = msg.fires;
     if (msg.over) { deathCause = msg.dc || 'Колония погибла'; deathDay = Math.floor(msg.clock / CYCLE) + 1; }
     if (!players) players = [];
@@ -486,7 +497,7 @@ function onData(msg) {
   }
   else if (msg.t === 'tile') { if (inb(msg.x, msg.y)) tiles[msg.y][msg.x] = msg.tt; }
   else if (msg.t === 'in') { remoteHeld = msg.h; }
-  else if (msg.t === 'act' && players && players[1]) { if (msg.a === 'eat') eat(); else if (msg.a === 'use') useById(players[1], msg.id); }
+  else if (msg.t === 'act' && players && players[1]) { if (msg.a === 'eat') eat(); else if (msg.a === 'use') useById(players[1], msg.id); else if (msg.a === 'face') players[1].dir = { x: msg.dx, y: msg.dy }; }
 }
 
 // --- отрисовка ---
@@ -544,6 +555,8 @@ function render() {
 
   const dk = darkness();
   if (dk > 0.01) { nctx.clearRect(0, 0, CW, CH); nctx.fillStyle = 'rgba(6,10,26,' + dk + ')'; nctx.fillRect(0, 0, CW, CH); nctx.globalCompositeOperation = 'destination-out'; for (const p of players) punch(p.px - camX, p.py - camY, (p.torch > 0 ? 3.4 : 1.5) * T); for (const f of fires) punch((f.tx + 0.5) * T - camX, (f.ty + 0.5) * T - camY, (2.6 + 0.2 * Math.sin(anim * 10 + f.tx)) * T); nctx.globalCompositeOperation = 'source-over'; ctx.drawImage(night, 0, 0); }
+
+  if (hurtT > 0 && !over) { const a = Math.min(0.5, hurtT * 1.4); const vg2 = ctx.createRadialGradient(CW / 2, CH / 2, CH * 0.18, CW / 2, CH / 2, CH * 0.78); vg2.addColorStop(0, 'rgba(200,20,35,0)'); vg2.addColorStop(1, 'rgba(200,20,35,' + a + ')'); ctx.fillStyle = vg2; ctx.fillRect(0, 0, CW, CH); }
 
   if (paused && !over) { ctx.fillStyle = 'rgba(13,14,26,.6)'; ctx.fillRect(0, 0, CW, CH); ctx.fillStyle = '#edf2f4'; ctx.textAlign = 'center'; ctx.font = 'bold 28px Segoe UI, sans-serif'; ctx.fillText('⏸ ПАУЗА', CW / 2, CH / 2 - 4); ctx.font = '14px Segoe UI, sans-serif'; ctx.fillText('P / Esc — продолжить', CW / 2, CH / 2 + 20); }
 
@@ -651,6 +664,7 @@ document.addEventListener('keydown', (e) => {
   const dir = KEYDIR[e.code];
   if (dir) { if (!held[dir]) dirOrder.push(dir); held[dir] = true; e.preventDefault(); return; }
   if (e.code === 'Space' || e.code === 'KeyE') { held.gather = true; e.preventDefault(); return; }
+  if (e.code === 'ControlLeft' || e.code === 'ControlRight') { if (!e.repeat) doFace(); e.preventDefault(); return; }
   if (e.repeat) return;
   if (e.code === 'KeyQ') doUse();
   else if (e.code === 'KeyF') doEat();
@@ -666,6 +680,7 @@ gb.addEventListener('pointerleave', () => { held.gather = false; });
 canvas.addEventListener('pointerdown', () => { if (over && role !== 'join') reset(); });
 document.getElementById('useBtn').addEventListener('click', doUse);
 document.getElementById('eatBtn').addEventListener('click', doEat);
+document.getElementById('faceBtn').addEventListener('click', doFace);
 document.getElementById('restart').addEventListener('click', reset);
 document.getElementById('pause').addEventListener('click', () => { if (!over) { paused = !paused; updatePauseBtn(); } });
 document.getElementById('hostBtn').addEventListener('click', hostRoom);
