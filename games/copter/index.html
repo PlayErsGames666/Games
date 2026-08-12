@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ракета в пещере</title>
+<style>
+  :root {
+    --bg: #2b2d42;
+    --panel: #3a3d5c;
+    --panel2: #4a4e73;
+    --text: #edf2f4;
+    --accent: #ff9f1c;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', Tahoma, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    user-select: none;
+  }
+  h1 { margin-bottom: 14px; letter-spacing: 2px; }
+  .controls {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  button, select {
+    background: var(--panel);
+    color: var(--text);
+    border: none;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 15px;
+    cursor: pointer;
+    transition: background .15s;
+  }
+  button:hover, select:hover { background: var(--panel2); }
+  .status {
+    display: flex;
+    gap: 24px;
+    margin-bottom: 14px;
+    font-size: 18px;
+    font-weight: bold;
+    background: var(--panel);
+    padding: 10px 18px;
+    border-radius: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .status span { display: inline-flex; align-items: center; gap: 6px; }
+  canvas {
+    border-radius: 10px;
+    display: block;
+    box-shadow: 0 8px 24px rgba(0,0,0,.4);
+    touch-action: none;
+    max-width: 100%;
+    height: auto;
+    cursor: pointer;
+  }
+  .hint { margin-top: 12px; font-size: 13px; opacity: .6; text-align: center; }
+
+  .stage { display:flex; gap:28px; align-items:flex-start; justify-content:center; flex-wrap:wrap; width:100%; }
+  .game-col { display:flex; flex-direction:column; align-items:center; }
+  .guide-panel {
+    background: var(--panel);
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 12px;
+    padding: 16px 18px;
+    min-width: 215px;
+    max-width: 260px;
+    margin-top: 56px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.35);
+  }
+  .guide-panel h2 { font-size:14px; letter-spacing:1px; text-transform:uppercase; opacity:.85; margin-bottom:14px; display:flex; align-items:center; gap:7px; }
+  .guide-panel .row { display:flex; align-items:center; gap:10px; margin-bottom:10px; font-size:13.5px; }
+  .guide-panel .keys { display:flex; gap:4px; flex-shrink:0; }
+  .guide-panel .desc { opacity:.85; }
+  .guide-panel .sep { height:1px; background:rgba(255,255,255,.09); margin:12px 0; }
+  .guide-panel .note { font-size:12px; opacity:.6; margin-top:8px; line-height:1.55; }
+  kbd {
+    display:inline-block; min-width:22px; text-align:center;
+    background:#20223a; border:1px solid rgba(255,255,255,.15);
+    border-bottom-width:2px; border-radius:6px; padding:3px 6px;
+    font-family:inherit; font-size:12px; font-weight:bold; color:var(--text);
+  }
+  @media (max-width:760px){ .guide-panel{ margin-top:8px; max-width:100%; width:100%; } }
+  @media (max-width:480px){ body{ padding:12px; } h1{ font-size:22px; } }
+</style>
+</head>
+<body>
+<div class="stage">
+<div class="game-col">
+  <h1>🚀 РАКЕТА В ПЕЩЕРЕ</h1>
+
+  <div class="controls">
+    <a href="../../index.html" style="background:var(--panel);color:var(--text);padding:8px 14px;border-radius:8px;font-size:15px;text-decoration:none;display:inline-flex;align-items:center;">← Меню</a>
+    <button id="pause">⏸ Пауза</button>
+    <button id="restart">🔄 Заново</button>
+  </div>
+
+  <div class="status">
+    <span>🏆 <span id="score">0</span></span>
+    <span>⭐ <span id="best">0</span></span>
+  </div>
+
+  <canvas id="game" width="480" height="360"></canvas>
+
+  <div class="hint">Держи Пробел / ↑ / кнопку мыши / палец — тяга вверх · отпускаешь — падаешь · P/Esc — пауза</div>
+</div>
+<aside class="guide-panel">
+  <h2>🎛 Справочник</h2>
+  <div class="row"><span class="keys"><kbd>Space</kbd><kbd>↑</kbd></span><span class="desc">тяга вверх (держать)</span></div>
+  <div class="row"><span class="keys"><kbd>ЛКМ</kbd></span><span class="desc">тяга вверх (держать)</span></div>
+  <div class="row"><span class="keys"><kbd>Палец</kbd></span><span class="desc">тяга вверх (держать)</span></div>
+  <div class="row"><span class="keys"><kbd>P</kbd><kbd>Esc</kbd></span><span class="desc">пауза / продолжить</span></div>
+  <div class="row"><span class="keys"><kbd>Enter</kbd></span><span class="desc">заново (после проигрыша)</span></div>
+  <div class="sep"></div>
+  <div class="note">Веди ракету через изгибающуюся пещеру: держишь тягу — летишь вверх, отпускаешь — падаешь вниз. Не задевай стены и каменные шипы (сталактиты/сталагмиты). Пещера постепенно сужается и петляет, скорость растёт. Рекорд сохраняется в браузере.</div>
+</aside>
+</div>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+const PX = 96, R = 11;
+const GRAV = 1500, THRUST = 2900;      // ускорения (вниз / вверх при удержании)
+const VMAX = 460;
+const START_GAP = 200, MIN_GAP = 116;
+
+const el = {
+  score: document.getElementById('score'), best: document.getElementById('best'),
+  pause: document.getElementById('pause'),
+};
+
+let player, scroll, speed, score, best;
+let pillars, nextPillar;
+let thrusting, started, over, paused;
+let flame, lastFrame;
+
+best = parseInt(localStorage.getItem('copterBest') || '0', 10);
+el.best.textContent = best;
+
+// пещера как функция мировой позиции (слоёные синусоиды + сужение)
+function gapAt(worldX) {
+  return Math.max(MIN_GAP, START_GAP - worldX * 0.008);
+}
+function caveAt(worldX) {
+  const t = worldX * 0.006;
+  let center = H / 2 + Math.sin(t) * 70 + Math.sin(t * 2.3 + 1) * 28 + Math.sin(t * 0.5 + 2) * 42;
+  const gap = gapAt(worldX);
+  center = Math.max(gap / 2 + 16, Math.min(H - gap / 2 - 16, center));
+  return { top: center - gap / 2, bot: center + gap / 2, gap };
+}
+
+function reset() {
+  player = { y: H / 2, vy: 0 };
+  scroll = 0; speed = 150; score = 0;
+  pillars = []; nextPillar = 260;
+  thrusting = false; started = false; over = false; paused = false;
+  flame = 0;
+  updateHUD(); updatePauseBtn();
+}
+
+function updateHUD() { el.score.textContent = score; }
+function updatePauseBtn() { el.pause.textContent = paused ? '▶ Продолжить' : '⏸ Пауза'; }
+
+function press() {
+  if (over) { reset(); return; }
+  if (!started) started = true;
+  thrusting = true;
+}
+function release() { thrusting = false; }
+
+function spawnPillar(worldX) {
+  const c = caveAt(worldX);
+  const side = Math.random() < 0.5 ? 'top' : 'bottom';
+  const len = 20 + Math.random() * (c.gap * 0.45);
+  const w = 20 + Math.random() * 14;
+  pillars.push({ worldX, side, len, w, baseY: side === 'top' ? c.top : c.bot });
+}
+
+// --- обновление ---
+function update(dt) {
+  flame += dt;
+  if (over || paused) return;
+  if (!started) return; // ждём первого нажатия
+
+  scroll += speed * dt;
+  speed = Math.min(360, 150 + score * 0.45);
+  score = Math.floor(scroll / 10); updateHUD();
+
+  // физика ракеты
+  player.vy += (thrusting ? (GRAV - THRUST) : GRAV) * dt;
+  player.vy = Math.max(-VMAX, Math.min(VMAX, player.vy));
+  player.y += player.vy * dt;
+
+  // спавн шипов
+  nextPillar -= speed * dt;
+  if (nextPillar <= 0) { spawnPillar(scroll + W + 30); nextPillar = 200 + Math.random() * 240; }
+  pillars = pillars.filter(p => p.worldX - scroll > -60);
+
+  // столкновение со стенами
+  const c = caveAt(scroll + PX);
+  if (player.y - R < c.top || player.y + R > c.bot) return die();
+
+  // столкновение с шипами
+  for (const p of pillars) {
+    const sx = p.worldX - scroll;
+    if (Math.abs(sx - PX) > p.w / 2 + R) continue;
+    const ry = p.side === 'top' ? p.baseY : p.baseY - p.len;
+    if (circleRect(PX, player.y, R - 1, sx - p.w / 2, ry, p.w, p.len)) return die();
+  }
+}
+
+function circleRect(cx, cy, r, rx, ry, rw, rh) {
+  const nx = Math.max(rx, Math.min(cx, rx + rw));
+  const ny = Math.max(ry, Math.min(cy, ry + rh));
+  return (cx - nx) ** 2 + (cy - ny) ** 2 < r * r;
+}
+
+function die() {
+  over = true;
+  if (score > best) { best = score; localStorage.setItem('copterBest', String(best)); el.best.textContent = best; }
+}
+
+// --- отрисовка ---
+function draw() {
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#141726'); g.addColorStop(1, '#20243b');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+
+  // стены пещеры (сэмплируем по X)
+  const STEP = 6;
+  ctx.fillStyle = '#3b3550';
+  ctx.beginPath(); ctx.moveTo(0, 0);
+  for (let x = 0; x <= W; x += STEP) ctx.lineTo(x, caveAt(scroll + x).top);
+  ctx.lineTo(W, 0); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(0, H);
+  for (let x = 0; x <= W; x += STEP) ctx.lineTo(x, caveAt(scroll + x).bot);
+  ctx.lineTo(W, H); ctx.closePath(); ctx.fill();
+  // кромки стен
+  ctx.strokeStyle = '#5a5480'; ctx.lineWidth = 3;
+  ctx.beginPath(); for (let x = 0; x <= W; x += STEP) { const y = caveAt(scroll + x).top; x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); } ctx.stroke();
+  ctx.beginPath(); for (let x = 0; x <= W; x += STEP) { const y = caveAt(scroll + x).bot; x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); } ctx.stroke();
+
+  // шипы
+  ctx.fillStyle = '#6a5f8f';
+  for (const p of pillars) {
+    const sx = p.worldX - scroll;
+    if (sx < -40 || sx > W + 40) continue;
+    ctx.beginPath();
+    if (p.side === 'top') { ctx.moveTo(sx - p.w / 2, p.baseY); ctx.lineTo(sx + p.w / 2, p.baseY); ctx.lineTo(sx, p.baseY + p.len); }
+    else { ctx.moveTo(sx - p.w / 2, p.baseY); ctx.lineTo(sx + p.w / 2, p.baseY); ctx.lineTo(sx, p.baseY - p.len); }
+    ctx.closePath(); ctx.fill();
+  }
+
+  // ракета
+  if (!over) drawRocket();
+
+  if (!started && !over) {
+    ctx.fillStyle = 'rgba(237,242,244,.85)'; ctx.textAlign = 'center'; ctx.font = '16px Segoe UI';
+    ctx.fillText('Держи тягу — старт', W / 2, 40);
+  }
+  if (paused && !over) overlay('⏸ ПАУЗА', 'P / Esc — продолжить');
+  if (over) overlay('💥 Разбился', 'Счёт ' + score + ' · Enter / тап — заново');
+}
+
+function drawRocket() {
+  const y = player.y;
+  const tilt = Math.max(-0.5, Math.min(0.6, player.vy / 500));
+  ctx.save(); ctx.translate(PX, y); ctx.rotate(tilt);
+  // пламя (при тяге)
+  if (thrusting && started) {
+    const f = 10 + Math.sin(flame * 40) * 4;
+    ctx.fillStyle = '#ffd166';
+    ctx.beginPath(); ctx.moveTo(-12, -5); ctx.lineTo(-12, 5); ctx.lineTo(-12 - f, 0); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#ef476f';
+    ctx.beginPath(); ctx.moveTo(-12, -3); ctx.lineTo(-12, 3); ctx.lineTo(-12 - f * 0.6, 0); ctx.closePath(); ctx.fill();
+  }
+  // корпус
+  ctx.fillStyle = '#e9ecf5';
+  ctx.beginPath(); ctx.moveTo(14, 0); ctx.lineTo(-8, -8); ctx.lineTo(-12, 0); ctx.lineTo(-8, 8); ctx.closePath(); ctx.fill();
+  // иллюминатор
+  ctx.fillStyle = '#4cc9f0';
+  ctx.beginPath(); ctx.arc(0, 0, 4, 0, Math.PI * 2); ctx.fill();
+  // крыло
+  ctx.fillStyle = '#ef476f';
+  ctx.beginPath(); ctx.moveTo(-8, 6); ctx.lineTo(-2, 6); ctx.lineTo(-8, 12); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+function overlay(title, subtitle) {
+  ctx.fillStyle = 'rgba(13,14,26,.8)'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#edf2f4'; ctx.textAlign = 'center';
+  ctx.font = 'bold 28px Segoe UI, sans-serif'; ctx.fillText(title, W / 2, H / 2 - 6);
+  ctx.font = '15px Segoe UI, sans-serif'; ctx.fillStyle = 'rgba(237,242,244,.8)';
+  ctx.fillText(subtitle, W / 2, H / 2 + 20);
+}
+
+// --- цикл ---
+function frame(now) {
+  if (lastFrame === null) lastFrame = now;
+  let dt = (now - lastFrame) / 1000; lastFrame = now;
+  if (dt > 0.05) dt = 0.05;
+  update(dt);
+  draw();
+  requestAnimationFrame(frame);
+}
+
+// --- управление ---
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && over) { reset(); e.preventDefault(); return; }
+  if (e.key === ' ' || e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') { press(); e.preventDefault(); }
+  if (e.key === 'p' || e.key === 'P' || e.key === 'з' || e.key === 'З' || e.key === 'Escape') {
+    if (!over) { paused = !paused; updatePauseBtn(); } e.preventDefault();
+  }
+});
+document.addEventListener('keyup', (e) => {
+  if (e.key === ' ' || e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') release();
+});
+canvas.addEventListener('mousedown', press);
+canvas.addEventListener('mouseup', release);
+canvas.addEventListener('mouseleave', release);
+canvas.addEventListener('touchstart', (e) => { e.preventDefault(); press(); }, { passive: false });
+canvas.addEventListener('touchend', (e) => { e.preventDefault(); release(); }, { passive: false });
+
+el.pause.addEventListener('click', () => { if (!over) { paused = !paused; updatePauseBtn(); } });
+document.getElementById('restart').addEventListener('click', reset);
+
+reset();
+lastFrame = null;
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
