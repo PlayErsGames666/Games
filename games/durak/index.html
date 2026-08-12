@@ -15,7 +15,10 @@
   button:hover:not(:disabled) { background:var(--panel2); }
   button:disabled { opacity:.4; cursor:not-allowed; }
   button.primary { background:var(--accent); color:#0d1a14; font-weight:bold; }
-  label.opt { display:inline-flex; align-items:center; gap:6px; font-size:14px; background:var(--panel); padding:6px 10px; border-radius:8px; cursor:pointer; }
+  .mode { background:var(--panel); color:var(--text); border:none; padding:7px 12px; border-radius:8px; font-size:14px; cursor:pointer; transition:background .12s, color .12s; }
+  .mode:hover { background:var(--panel2); }
+  .mode.on { background:var(--accent); color:#0d1a14; font-weight:bold; box-shadow:0 0 0 2px rgba(6,214,160,.35); }
+  .modegroup { display:inline-flex; gap:5px; background:rgba(0,0,0,.2); padding:4px; border-radius:10px; }
   .msg { text-align:center; font-size:15px; font-weight:bold; min-height:22px; margin:8px 0; }
 
   .board { width:520px; max-width:100%; background:radial-gradient(120% 90% at 50% 0%, #1f6b46, #14472f);
@@ -60,10 +63,12 @@
 
   <div class="controls">
     <a href="../../index.html" style="background:var(--panel);color:var(--text);padding:8px 14px;border-radius:8px;font-size:15px;text-decoration:none;display:inline-flex;align-items:center;">← Меню</a>
-    <label class="opt"><input type="checkbox" id="optPod" checked> Подкидной</label>
-    <label class="opt"><input type="radio" name="tr" id="trNone" value="none" checked> Без перевода</label>
-    <label class="opt"><input type="radio" name="tr" id="trS" value="single"> Переводной</label>
-    <label class="opt"><input type="radio" name="tr" id="trD" value="double"> Переводной ×2</label>
+    <button class="mode on" id="optPod">🃏 Подкидной</button>
+    <span class="modegroup">
+      <button class="mode on" id="trNone">Без перевода</button>
+      <button class="mode" id="trS">Переводной</button>
+      <button class="mode" id="trD">Переводной ×2</button>
+    </span>
     <button id="newGame" class="primary">🔄 Новая игра</button>
   </div>
 
@@ -115,16 +120,21 @@ const el = {
 };
 
 // P=0 игрок, C=1 компьютер
-let deck, trump, trumpCard, hands, table, discard, attacker, defender, phase, transferCount, boutMax, over, result, S, thinking;
+let deck, trump, trumpCard, hands, table, discard, attacker, defender, phase, transferCount, boutMax, over, result, S, thinking, bouts;
 
 function newDeck() { const d = []; for (const s of SUITS) for (const r of RANKS) d.push({ r, s }); return d; }
 function shuffle(d) { for (let i = d.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [d[i], d[j]] = [d[j], d[i]]; } return d; }
 function beats(att, def, tr) { return (def.s === att.s && def.r > att.r) || (def.s === tr && att.s !== tr); }
 function cardRank(c, tr) { return (c.s === tr ? 100 : 0) + c.r; } // для сортировки/выбора: козыри старше
 
-function readSettings() {
-  const tr = document.querySelector('input[name="tr"]:checked');
-  return { podkidnoy: document.getElementById('optPod').checked, transfer: tr ? tr.value : 'none' };
+// выбранные режимы (применяются на «Новую игру»)
+let modePod = true, modeTransfer = 'none';
+function readSettings() { return { podkidnoy: modePod, transfer: modeTransfer }; }
+function updateModeButtons() {
+  document.getElementById('optPod').classList.toggle('on', modePod);
+  document.getElementById('trNone').classList.toggle('on', modeTransfer === 'none');
+  document.getElementById('trS').classList.toggle('on', modeTransfer === 'single');
+  document.getElementById('trD').classList.toggle('on', modeTransfer === 'double');
 }
 
 function dealGame() {
@@ -138,7 +148,7 @@ function dealGame() {
   let best = null, who = 0;
   for (let p = 0; p < 2; p++) for (const c of hands[p]) if (c.s === trump && (best === null || c.r < best)) { best = c.r; who = p; }
   attacker = who; defender = 1 - who;
-  phase = 'ATTACK'; transferCount = 0; boutMax = 0; over = false; result = '';
+  phase = 'ATTACK'; transferCount = 0; boutMax = 0; over = false; result = ''; bouts = 0;
 }
 function startGame() { S = readSettings(); dealGame(); render(); scheduleAI(); }
 
@@ -203,14 +213,14 @@ function doBito() { // атакующий закончил, всё отбито
   table = [];
   drawUp([attacker, defender]);
   [attacker, defender] = [defender, attacker];
-  phase = 'ATTACK'; transferCount = 0; boutMax = 0;
+  phase = 'ATTACK'; transferCount = 0; boutMax = 0; bouts++;
   checkOver();
 }
 function doTake() {
   for (const e of table) { hands[defender].push(e.a); if (e.d) hands[defender].push(e.d); }
   table = [];
   drawUp([attacker, defender]);        // роли не меняются: взявший защищается снова
-  phase = 'ATTACK'; transferCount = 0; boutMax = 0;
+  phase = 'ATTACK'; transferCount = 0; boutMax = 0; bouts++;
   checkOver();
 }
 
@@ -218,6 +228,7 @@ function drawUp(order) { for (const p of order) while (hands[p].length < 6 && de
 function removeCard(hand, card) { const i = hand.findIndex(c => c.r === card.r && c.s === card.s); if (i >= 0) hand.splice(i, 1); }
 
 function checkOver() {
+  if (bouts > 150) { over = true; result = '🤝 Ничья (затянувшаяся партия)'; return; } // страховка от вырожденного цикла
   if (deck.length === 0) {
     const a = hands[0].length === 0, b = hands[1].length === 0;
     if (a && b) { over = true; result = '🤝 Ничья'; }
@@ -231,9 +242,11 @@ function lowestBy(cards, keyFn) { let best = null; for (const c of cards) if (be
 function aiActFor(idx) {
   if (over) return;
   if (phase === 'ATTACK' && attacker === idx) {
-    if (hands[idx].length === 0) { checkOver(); return; }   // нечем атаковать
-    if (table.length === 0) { doAttack(idx, lowestBy(hands[idx], c => cardRank(c, trump))); return; }
-    // подкидывание или Бито
+    if (table.length === 0) {
+      if (hands[idx].length === 0) { checkOver(); return; } // карт нет и стол пуст — партия окончена
+      doAttack(idx, lowestBy(hands[idx], c => cardRank(c, trump))); return;
+    }
+    // стол не пуст и всё отбито: подкинуть или «Бито» (в т.ч. когда карт уже не осталось)
     const ranks = tableRanks();
     const cand = hands[idx].filter(c => ranks.has(c.r) && c.s !== trump);
     if (S.podkidnoy && cand.length && table.length < boutMax && table.every(e => e.d)) doAttack(idx, lowestBy(cand, c => c.r));
@@ -345,6 +358,12 @@ function render() {
 el.bitoBtn.addEventListener('click', playerBito);
 el.takeBtn.addEventListener('click', playerTake);
 document.getElementById('newGame').addEventListener('click', startGame);
+
+document.getElementById('optPod').addEventListener('click', () => { modePod = !modePod; updateModeButtons(); });
+document.getElementById('trNone').addEventListener('click', () => { modeTransfer = 'none'; updateModeButtons(); });
+document.getElementById('trS').addEventListener('click', () => { modeTransfer = 'single'; updateModeButtons(); });
+document.getElementById('trD').addEventListener('click', () => { modeTransfer = 'double'; updateModeButtons(); });
+updateModeButtons();
 
 el.msg.textContent = 'Настрой режим и жми «Новая игра»';
 </script>
