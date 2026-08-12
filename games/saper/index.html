@@ -79,6 +79,9 @@
     transition: background .1s;
     flex-shrink: 0;
     -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;      /* без двойного тапа-зума, прокрутка поля остаётся */
+    -webkit-touch-callout: none;     /* Android/iOS не перехватывают долгое нажатие */
+    -webkit-user-select: none; user-select: none;
   }
   .cell:hover:not(.open) { background: #a2adc0; }
   .cell.open {
@@ -105,8 +108,8 @@
   .win { color: #06d6a0; }
   .lose { color: var(--accent); }
   .hint { margin-top: 10px; font-size: 13px; opacity: .6; }
-  .stage { display:flex; gap:28px; align-items:flex-start; justify-content:center; flex-wrap:wrap; width:100%; }
-  .game-col { display:flex; flex-direction:column; align-items:center; }
+  .stage { display:flex; gap:28px; align-items:flex-start; justify-content:center; flex-wrap:wrap; width:100%; max-width:100%; }
+  .game-col { display:flex; flex-direction:column; align-items:center; max-width:100%; min-width:0; }
   .guide-panel {
     background: var(--panel);
     border: 1px solid rgba(255,255,255,.08);
@@ -157,15 +160,18 @@
   <div id="board"></div>
 
   <div class="message" id="message"></div>
-  <div class="hint">ЛКМ — открыть · ПКМ — поставить флажок</div>
+  <div class="hint">ЛКМ — открыть · ПКМ — флажок · на телефоне: тап — открыть, <b>зажать</b> — флажок 🚩</div>
 </div>
 <aside class="guide-panel">
   <h2>🎛 Справочник</h2>
   <div class="row"><span class="keys"><kbd>ЛКМ</kbd></span><span class="desc">открыть клетку</span></div>
   <div class="row"><span class="keys"><kbd>ПКМ</kbd></span><span class="desc">флажок 🚩</span></div>
   <div class="sep"></div>
+  <div class="row"><span class="keys"><kbd>тап</kbd></span><span class="desc">открыть (телефон)</span></div>
+  <div class="row"><span class="keys"><kbd>зажать</kbd></span><span class="desc">флажок 🚩 (телефон)</span></div>
+  <div class="sep"></div>
   <div class="row"><span class="desc">Цифра = сколько мин в 8 соседних клетках.</span></div>
-  <div class="note">Управление только мышью — горячих клавиш нет. Первый клик всегда безопасен.</div>
+  <div class="note">На телефоне: короткий тап открывает, долгое нажатие (~0.4с) ставит и снимает флажок — с вибро-откликом. Свайп по полю прокручивает его. Первый клик всегда безопасен.</div>
 </aside>
 </div>
 
@@ -216,10 +222,13 @@ function init() {
 }
 
 // тач-управление: короткий тап = открыть, долгое нажатие = флажок, свайп = прокрутка
+let lastTouchAt = 0;   // Android на долгом нажатии шлёт ещё и contextmenu — не даём поставить флажок дважды
 function attachTouch(el, r, c) {
   let timer = null, longPressed = false, moved = false, startX = 0, startY = 0;
+  const cancel = () => { clearTimeout(timer); timer = null; };
   el.addEventListener('touchstart', (e) => {
     if (over) return;
+    lastTouchAt = Date.now();
     longPressed = false; moved = false;
     const t = e.touches[0]; startX = t.clientX; startY = t.clientY;
     timer = setTimeout(() => {
@@ -230,10 +239,12 @@ function attachTouch(el, r, c) {
   }, { passive: true });
   el.addEventListener('touchmove', (e) => {
     const t = e.touches[0];
-    if (Math.abs(t.clientX - startX) > 10 || Math.abs(t.clientY - startY) > 10) { moved = true; clearTimeout(timer); }
+    if (Math.abs(t.clientX - startX) > 10 || Math.abs(t.clientY - startY) > 10) { moved = true; cancel(); }
   }, { passive: true });
+  el.addEventListener('touchcancel', () => { cancel(); moved = true; }, { passive: true });
   el.addEventListener('touchend', (e) => {
-    clearTimeout(timer);
+    cancel();
+    lastTouchAt = Date.now();
     if (moved) return;        // это была прокрутка поля
     e.preventDefault();       // гасим синтетический click, чтобы не открыть дважды
     if (longPressed) return;  // флажок уже поставлен долгим нажатием
@@ -250,7 +261,8 @@ function render() {
       const el = document.createElement('div');
       el.className = 'cell';
       el.addEventListener('click', () => onOpen(r, c));
-      el.addEventListener('contextmenu', (e) => { e.preventDefault(); onFlag(r, c); });
+      // ПКМ на десктопе; на тачскрине долгое нажатие уже поставило флажок — второй раз не переключаем
+      el.addEventListener('contextmenu', (e) => { e.preventDefault(); if (Date.now() - lastTouchAt < 1200) return; onFlag(r, c); });
       attachTouch(el, r, c);
       cell.el = el;
       boardEl.appendChild(el);
@@ -327,7 +339,7 @@ function flood(r, c) {
 }
 
 function onFlag(r, c) {
-  if (over || !started) return;
+  if (over) return;   // флажок можно ставить и до первого хода (важно для мобилок)
   const cell = grid[r][c];
   if (cell.open) return;
   cell.flag = !cell.flag;

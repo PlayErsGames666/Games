@@ -42,8 +42,8 @@
   .over[hidden] { display:none; }
 
   .hint { margin-top:12px; font-size:13px; opacity:.6; text-align:center; }
-  .stage { display:flex; gap:28px; align-items:flex-start; justify-content:center; flex-wrap:wrap; width:100%; }
-  .game-col { display:flex; flex-direction:column; align-items:center; }
+  .stage { display:flex; gap:28px; align-items:flex-start; justify-content:center; flex-wrap:wrap; width:100%; max-width:100%; }
+  .game-col { display:flex; flex-direction:column; align-items:center; max-width:100%; min-width:0; }
   .guide-panel { background:var(--panel); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:16px 18px; min-width:215px; max-width:260px; margin-top:56px; box-shadow:0 8px 24px rgba(0,0,0,.35); }
   .guide-panel h2 { font-size:14px; letter-spacing:1px; text-transform:uppercase; opacity:.85; margin-bottom:14px; }
   .guide-panel .row2 { margin-bottom:9px; font-size:13px; }
