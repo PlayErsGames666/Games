@@ -52,6 +52,7 @@
 
   <div class="controls">
     <a class="btn" href="../../index.html">← Меню</a>
+    <button id="pause">⏸ Пауза</button>
     <button id="restart">🔄 Заново</button>
   </div>
 
@@ -89,7 +90,7 @@
     <button id="torchBtn">🕯️ Факел (2)</button>
   </div>
 
-  <div class="hint">WASD/стрелки — ходить · Space/E — собрать · F — съесть · 1 — костёр · 2 — факел</div>
+  <div class="hint">WASD/стрелки — ходить · Space/E — собрать · F — съесть · 1 — костёр · 2 — факел · P/Esc — пауза (клавиши работают при любой раскладке)</div>
 </div>
 <aside class="guide-panel">
   <h2>🎛 Как выжить</h2>
@@ -107,7 +108,7 @@ const GRASS = 0, WATER = 1, TREE = 2, ROCK = 3, BUSH = 4;
 const CYCLE = 80;                 // секунд в сутках
 const RECIPES = { campfire: { wood: 2, stone: 1 }, torch: { wood: 1 } };
 const FIRE_R = 3, TORCH_TIME = 25, FIRE_FUEL = 45;
-const HUNGER_RATE = 1.0;
+const HUNGER_RATE = 0.5;   // медленнее убывает голод
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -123,6 +124,7 @@ const el = {
 };
 
 let tiles, res, player, inv, health, hunger, warmth, fires, torchTime, clock, over, best, gcd, anim, msgTimer, lastFrame;
+let paused, particles, hitFx;
 const held = { up: false, down: false, left: false, right: false, gather: false };
 let dirOrder = [];
 
@@ -154,10 +156,13 @@ function reset() {
   inv = { wood: 0, stone: 0, berries: 0, ore: 0 };
   health = 100; hunger = 100; warmth = 100;
   fires = []; torchTime = 0; clock = 0; over = false; gcd = 0; anim = 0; msgTimer = 0;
+  paused = false; particles = []; hitFx = {}; player.chop = 0;
   el.best.textContent = best;
+  updatePauseBtn();
   message('Собери ветки и камни, к ночи разведи костёр!');
   render();
 }
+function updatePauseBtn() { document.getElementById('pause').textContent = paused ? '▶ Продолжить' : '⏸ Пауза'; }
 
 function message(t) { el.msg.textContent = t; msgTimer = 3; }
 
@@ -169,9 +174,28 @@ function harvest(tx, ty) {
   else if (t === ROCK) { inv.stone++; if (Math.random() < 0.3) inv.ore++; }
   else if (t === BUSH) inv.berries++;
   else return false;
-  res[ty][tx]--; hunger = Math.max(0, hunger - 0.5);
+  spawnHit(tx, ty, t);                    // партиклы разлетаются от удара
+  player.chop = 0.18; hitFx[tx + ',' + ty] = 0.18; // мини-анимация замаха/тряски
+  res[ty][tx]--; hunger = Math.max(0, hunger - 0.4);
   if (res[ty][tx] <= 0) tiles[ty][tx] = GRASS;
   return true;
+}
+
+const PCOL = { [TREE]: ['#8a5a2b', '#6b4a24', '#a9793f'], [ROCK]: ['#8d99ae', '#b0b9c9', '#6c7789'], [BUSH]: ['#ef233c', '#2fbf71', '#ff6b6b'] };
+function spawnHit(tx, ty, type) {
+  const cx = (tx + 0.5) * T, cy = (ty + 0.5) * T;
+  const cols = PCOL[type] || ['#edf2f4'];
+  const base = Math.atan2((ty - player.ty) || 0.01, (tx - player.tx) || 0.01); // от игрока к цели
+  for (let i = 0; i < 9; i++) {
+    const ang = base + (Math.random() - 0.5) * 2.4;
+    const sp = 45 + Math.random() * 95;
+    particles.push({ x: cx, y: cy, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp - 35, life: 0.4 + Math.random() * 0.3, max: 0.7, size: 2 + Math.random() * 3, color: cols[rnd(cols.length)], g: 270 });
+  }
+}
+function updateParticles(dt) {
+  for (const p of particles) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += p.g * dt; p.life -= dt; }
+  particles = particles.filter(p => p.life > 0);
+  for (const k in hitFx) { hitFx[k] -= dt; if (hitFx[k] <= 0) delete hitFx[k]; }
 }
 function eat() {
   if (inv.berries > 0 && hunger < 100) { inv.berries--; hunger = Math.min(100, hunger + 30); message('🍓 Съел ягоду (+голод)'); return true; }
@@ -217,8 +241,10 @@ const DIRS = { up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 },
 
 function update(dt) {
   anim += dt;
-  if (msgTimer > 0) { msgTimer -= dt; if (msgTimer <= 0 && !over) el.msg.textContent = ''; }
-  if (over) return;
+  if (!paused) updateParticles(dt);
+  if (!paused && player.chop > 0) player.chop = Math.max(0, player.chop - dt);
+  if (msgTimer > 0) { msgTimer -= dt; if (msgTimer <= 0 && !over && !paused) el.msg.textContent = ''; }
+  if (over || paused) return;
 
   // движение (по сетке с интерполяцией)
   if (!player.moving) {
@@ -283,9 +309,13 @@ function render() {
     ctx.fillStyle = ((x + y) & 1) ? '#3e7d3a' : '#3a7636';
     ctx.fillRect(sx, sy, T, T);
     if (t === WATER) { ctx.fillStyle = '#2b6ca3'; ctx.fillRect(sx, sy, T, T); ctx.fillStyle = 'rgba(255,255,255,.08)'; ctx.fillRect(sx + 4, sy + 6, 8, 2); }
-    else if (t === TREE) { ctx.fillStyle = '#6b4a24'; ctx.fillRect(sx + T / 2 - 3, sy + T - 12, 6, 12); ctx.fillStyle = '#1f8a3b'; ctx.beginPath(); ctx.arc(sx + T / 2, sy + T / 2 - 2, T * 0.42, 0, 7); ctx.fill(); ctx.fillStyle = '#2fbf71'; ctx.beginPath(); ctx.arc(sx + T / 2 - 3, sy + T / 2 - 5, T * 0.22, 0, 7); ctx.fill(); }
-    else if (t === ROCK) { ctx.fillStyle = '#8d99ae'; ctx.beginPath(); ctx.arc(sx + T / 2, sy + T / 2 + 2, T * 0.36, 0, 7); ctx.fill(); ctx.fillStyle = '#b0b9c9'; ctx.beginPath(); ctx.arc(sx + T / 2 - 4, sy + T / 2 - 2, T * 0.16, 0, 7); ctx.fill(); }
-    else if (t === BUSH) { ctx.fillStyle = '#2e7d32'; ctx.beginPath(); ctx.arc(sx + T / 2, sy + T / 2 + 2, T * 0.34, 0, 7); ctx.fill(); ctx.fillStyle = '#ef233c'; for (const [dx, dy] of [[-4, -2], [5, 0], [0, 5]]) { ctx.beginPath(); ctx.arc(sx + T / 2 + dx, sy + T / 2 + dy, 2.4, 0, 7); ctx.fill(); } }
+    else if (t === TREE || t === ROCK || t === BUSH) {
+      const hf = hitFx[x + ',' + y]; ctx.save(); if (hf) ctx.translate(Math.sin(hf * 60) * 2, 1);
+      if (t === TREE) { ctx.fillStyle = '#6b4a24'; ctx.fillRect(sx + T / 2 - 3, sy + T - 12, 6, 12); ctx.fillStyle = '#1f8a3b'; ctx.beginPath(); ctx.arc(sx + T / 2, sy + T / 2 - 2, T * 0.42, 0, 7); ctx.fill(); ctx.fillStyle = '#2fbf71'; ctx.beginPath(); ctx.arc(sx + T / 2 - 3, sy + T / 2 - 5, T * 0.22, 0, 7); ctx.fill(); }
+      else if (t === ROCK) { ctx.fillStyle = '#8d99ae'; ctx.beginPath(); ctx.arc(sx + T / 2, sy + T / 2 + 2, T * 0.36, 0, 7); ctx.fill(); ctx.fillStyle = '#b0b9c9'; ctx.beginPath(); ctx.arc(sx + T / 2 - 4, sy + T / 2 - 2, T * 0.16, 0, 7); ctx.fill(); }
+      else { ctx.fillStyle = '#2e7d32'; ctx.beginPath(); ctx.arc(sx + T / 2, sy + T / 2 + 2, T * 0.34, 0, 7); ctx.fill(); ctx.fillStyle = '#ef233c'; for (const [dx, dy] of [[-4, -2], [5, 0], [0, 5]]) { ctx.beginPath(); ctx.arc(sx + T / 2 + dx, sy + T / 2 + dy, 2.4, 0, 7); ctx.fill(); } }
+      ctx.restore();
+    }
   }
 
   // костры
@@ -297,12 +327,19 @@ function render() {
     ctx.fillStyle = '#ffd166'; ctx.beginPath(); ctx.moveTo(sx - 3, sy + 6); ctx.lineTo(sx + 3, sy + 6); ctx.lineTo(sx, sy + 6 - fl * 0.6); ctx.closePath(); ctx.fill();
   }
 
-  // игрок
-  const px = player.px - camX, py = player.py - camY;
-  ctx.fillStyle = '#0d0e1a'; ctx.beginPath(); ctx.ellipse(px, py + 10, 8, 3, 0, 0, 7); ctx.fill();
+  // игрок (рывок и замах при рубке)
+  let lx = 0, ly = 0, reach = 0;
+  if (player.chop > 0) { const l = Math.sin((1 - player.chop / 0.18) * Math.PI); lx = player.dir.x * l * 5; ly = player.dir.y * l * 5; reach = 8 + l * 9; }
+  const px = player.px - camX + lx, py = player.py - camY + ly;
+  ctx.fillStyle = '#0d0e1a'; ctx.beginPath(); ctx.ellipse(player.px - camX, player.py - camY + 10, 8, 3, 0, 0, 7); ctx.fill();
+  if (reach > 0) { ctx.strokeStyle = '#c9a227'; ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + player.dir.x * reach, py + player.dir.y * reach); ctx.stroke(); }
   ctx.fillStyle = '#ffd166'; ctx.beginPath(); ctx.arc(px, py, 9, 0, 7); ctx.fill();
   ctx.fillStyle = '#0d0e1a'; ctx.beginPath(); ctx.arc(px + player.dir.x * 3, py + player.dir.y * 3 - 1, 2.4, 0, 7); ctx.fill();
-  if (torchTime > 0) { ctx.fillStyle = '#ff9f1c'; ctx.beginPath(); ctx.arc(px + player.dir.x * 10, py + player.dir.y * 10, 3, 0, 7); ctx.fill(); }
+  if (torchTime > 0) { ctx.fillStyle = '#ff9f1c'; ctx.beginPath(); ctx.arc(px + player.dir.x * 12, py + player.dir.y * 12, 3, 0, 7); ctx.fill(); }
+
+  // партиклы (щепки / осколки / брызги ягод)
+  for (const p of particles) { ctx.globalAlpha = Math.max(0, p.life / p.max); ctx.fillStyle = p.color; ctx.fillRect(p.x - camX - p.size / 2, p.y - camY - p.size / 2, p.size, p.size); }
+  ctx.globalAlpha = 1;
 
   // ночь (тьма с «дырками» света)
   const dk = darkness();
@@ -316,6 +353,8 @@ function render() {
     nctx.globalCompositeOperation = 'source-over';
     ctx.drawImage(night, 0, 0);
   }
+
+  if (paused && !over) { ctx.fillStyle = 'rgba(13,14,26,.6)'; ctx.fillRect(0, 0, CW, CH); ctx.fillStyle = '#edf2f4'; ctx.textAlign = 'center'; ctx.font = 'bold 28px Segoe UI, sans-serif'; ctx.fillText('⏸ ПАУЗА', CW / 2, CH / 2 - 4); ctx.font = '14px Segoe UI, sans-serif'; ctx.fillText('P / Esc — продолжить', CW / 2, CH / 2 + 20); }
 
   // HUD
   el.day.textContent = dayNum();
@@ -336,20 +375,24 @@ function frame(now) {
 }
 
 // --- ввод ---
-const KEYDIR = { ArrowUp: 'up', w: 'up', W: 'up', ArrowDown: 'down', s: 'down', S: 'down', ArrowLeft: 'left', a: 'left', A: 'left', ArrowRight: 'right', d: 'right', D: 'right' };
+// по ФИЗИЧЕСКИМ кодам клавиш — работает при любой раскладке (рус/укр/др.)
+const KEYDIR = { ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down', ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right' };
 document.addEventListener('keydown', (e) => {
-  if (over && e.key === 'Enter') { reset(); return; }
-  const dir = KEYDIR[e.key];
+  if (over) { if (e.code === 'Enter') reset(); return; }
+  if (e.code === 'KeyP' || e.code === 'Escape') { if (!e.repeat) { paused = !paused; updatePauseBtn(); } e.preventDefault(); return; }
+  if (paused) return;
+  const dir = KEYDIR[e.code];
   if (dir) { if (!held[dir]) dirOrder.push(dir); held[dir] = true; e.preventDefault(); return; }
-  if (e.key === ' ' || e.key === 'e' || e.key === 'E') { held.gather = true; e.preventDefault(); }
-  else if (e.key === 'f' || e.key === 'F') eat();
-  else if (e.key === '1') craftFire();
-  else if (e.key === '2') craftTorch();
+  if (e.code === 'Space' || e.code === 'KeyE') { held.gather = true; e.preventDefault(); return; }
+  if (e.repeat) return;
+  if (e.code === 'KeyF') eat();
+  else if (e.code === 'Digit1' || e.code === 'Numpad1') craftFire();
+  else if (e.code === 'Digit2' || e.code === 'Numpad2') craftTorch();
 });
 document.addEventListener('keyup', (e) => {
-  const dir = KEYDIR[e.key];
+  const dir = KEYDIR[e.code];
   if (dir) { held[dir] = false; dirOrder = dirOrder.filter(d => d !== dir); }
-  if (e.key === ' ' || e.key === 'e' || e.key === 'E') held.gather = false;
+  if (e.code === 'Space' || e.code === 'KeyE') held.gather = false;
 });
 
 // экранные кнопки
@@ -367,6 +410,7 @@ document.getElementById('eatBtn').addEventListener('click', eat);
 document.getElementById('fireBtn').addEventListener('click', craftFire);
 document.getElementById('torchBtn').addEventListener('click', craftTorch);
 document.getElementById('restart').addEventListener('click', reset);
+document.getElementById('pause').addEventListener('click', () => { if (!over) { paused = !paused; updatePauseBtn(); } });
 
 reset();
 lastFrame = null;
