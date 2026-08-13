@@ -129,6 +129,11 @@
   :fullscreen .game-col { justify-content:center; }
   /* элементы с этим классом остаются — без них в игру не сыграть */
   :fullscreen .fs-keep { display:flex !important; }
+  /* на компьютере (мышь) экранный D-pad и дублирующие кнопки не нужны —
+     без них игра занимает почти весь экран; на тачскрине они остаются */
+  @media (hover:hover) and (pointer:fine){
+    :fullscreen .pad, :fullscreen .actions { display:none !important; }
+  }
 </style>
 </head>
 <body>
@@ -316,7 +321,19 @@ init();
 (function(){
   var btn=document.getElementById("fsBtn"), root=document.documentElement;
   function isFs(){ return document.fullscreenElement||document.webkitFullscreenElement||null; }
-  function upd(){ if(!btn) return; var on=!!isFs(); btn.textContent=on?"⛶ Выйти":"⛶ Во весь экран"; btn.classList.toggle("on",on); }
+  /* в полный экран растягиваем игровой блок под размер экрана, сохраняя пропорции.
+     transform не меняет вёрстку, а getBoundingClientRect отдаёт УЖЕ масштабированный
+     прямоугольник — поэтому попадания мыши/тача остаются точными */
+  function fit(){
+    var col=document.querySelector(".game-col"); if(!col) return;
+    col.style.transform=""; col.style.transformOrigin="";
+    if(!isFs()) return;
+    var r=col.getBoundingClientRect(), w=r.width, h=r.height;
+    if(!w||!h) return;
+    var k=Math.min(window.innerWidth/w, window.innerHeight/h)*0.98;
+    if(k>1.01){ col.style.transformOrigin="center center"; col.style.transform="scale("+k.toFixed(3)+")"; }
+  }
+  function upd(){ if(btn){ var on=!!isFs(); btn.textContent=on?"⛶ Выйти":"⛶ Во весь экран"; btn.classList.toggle("on",on); } requestAnimationFrame(fit); }
   function toggle(){
     try{
       if(!isFs()){ (root.requestFullscreen||root.webkitRequestFullscreen).call(root); }
@@ -326,8 +343,9 @@ init();
   if(btn){ btn.addEventListener("click",toggle); var nav=btn.closest&&btn.closest(".controls"); if(nav) nav.classList.add("fs-hide"); }
   document.addEventListener("fullscreenchange",upd);
   document.addEventListener("webkitfullscreenchange",upd);
+  window.addEventListener("resize",function(){ if(isFs()) requestAnimationFrame(fit); });
   document.addEventListener("keydown",function(e){ if(e.target&&e.target.tagName==="INPUT")return; if(e.code==="KeyF"&&!e.repeat&&!e.ctrlKey&&!e.altKey&&!e.metaKey){ toggle(); } });
-  window.__toggleFullscreen=toggle; upd();
+  window.__toggleFullscreen=toggle; window.__fsFit=fit; upd();
 })();
 </script>
 </body>
