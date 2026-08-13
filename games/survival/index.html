@@ -429,7 +429,24 @@ async function copyCode() { const inp = document.getElementById('roomCodeInput')
 function netSend(o) { try { if (conn && connected) conn.send(o); } catch (e) {} }
 function setupConn() { conn.on('data', onData); conn.on('close', () => { connected = false; netStatus('Друг отключился'); }); }
 function randCode() { const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s = ''; for (let i = 0; i < 4; i++) s += A[rnd(A.length)]; return s; }
-const PEER_OPTS = { config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }, { urls: 'stun:global.stun.twilio.com:3478' }] } };
+/* Свой брокер сигналинга вместо общего 0.peerjs.com: тот перегружен, режет
+   по лимитам и теряет зарегистрированные комнаты при перезапуске.
+   TURN прописан руками: дефолтные адреса самой PeerJS (eu-0/us-0.turn.peerjs.com)
+   больше не существуют — домены не резолвятся, так что «встроенного»
+   ретранслятора у библиотеки давно нет, а без него пары за symmetric NAT
+   не соединяются в принципе. */
+const PEER_OPTS = {
+  host: 'peer.fast16.net', port: 443, path: '/', secure: true,
+  config: {
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:global.stun.twilio.com:3478' },
+      { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+      { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+      { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
+    ]
+  }
+};
 function peerErrMsg(type) { return ({ 'peer-unavailable': 'Комната не найдена — проверь код', 'unavailable-id': 'Код занят, пробую другой…', 'network': 'Нет связи с сервером — попробуй ещё раз', 'server-error': 'Сервер недоступен — позже', 'browser-incompatible': 'Браузер без WebRTC', 'webrtc': 'Сбой WebRTC (строгий NAT?)' })[type] || ('Ошибка: ' + type); }
 let hostTries = 0;
 function hostRoom() {
