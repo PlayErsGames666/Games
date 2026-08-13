@@ -69,9 +69,10 @@
 <aside class="guide-panel">
   <h2>🏭 Как это работает</h2>
   <div class="row2"><b>Цель:</b> выполнять контракты приёмника 📦 — довезти до него нужное число деталей раньше, чем кончится время.</div>
-  <div class="row2">⛏ <b>Добытчик</b> ставится ТОЛЬКО на пятно руды и выплёвывает добычу вперёд.</div>
+  <div class="row2">💰 <b>Деньги</b> берутся ТОЛЬКО со сдачи в 📦. Платят за что угодно: руда 2, слиток 5, шестерня 14, схема 34. Первым делом протяни ленту от бура прямо к приёмнику — это стартовый доход.</div>
+  <div class="row2">⛏ <b>Добытчик</b> ставится ТОЛЬКО на пятно руды и отдаёт добычу в ЛЮБУЮ соседнюю ленту — стрелка лишь задаёт, куда пробовать первым.</div>
   <div class="row2">➡ <b>Конвейер</b> тянет предмет на клетку вперёд за такт. Уперся — встал, и вся линия за ним тоже.</div>
-  <div class="row2">🏭 <b>Завод</b> принимает с любой стороны, а готовое отдаёт вперёд.</div>
+  <div class="row2">🏭 <b>Завод</b> принимает с любой стороны и готовое тоже отдаёт в любую сторону, где есть место.</div>
   <div class="sep"></div>
   <div class="row2">⑂ <b>Разделитель</b> раскидывает поток по очереди во все стороны, куда влезает.</div>
   <div class="row2">🔻 <b>Сортировщик</b> пропускает вперёд ТОЛЬКО свой ресурс, остальное сбрасывает вбок. Клик по нему меняет фильтр.</div>
@@ -95,9 +96,9 @@ const BAR = CH - 96;                        // верх нижней панел�
 
 // --- ресурсы ---
 const ITEMS = {
-  ironOre:  { name:'Железная руда', col:'#9aa3ad', shape:'circle', ore:true,  pay:1 },
-  copperOre:{ name:'Медная руда',   col:'#c07a45', shape:'circle', ore:true,  pay:1 },
-  coal:     { name:'Уголь',         col:'#4a4a52', shape:'circle', ore:true,  pay:1 },
+  ironOre:  { name:'Железная руда', col:'#9aa3ad', shape:'circle', ore:true,  pay:2 },
+  copperOre:{ name:'Медная руда',   col:'#c07a45', shape:'circle', ore:true,  pay:2 },
+  coal:     { name:'Уголь',         col:'#4a4a52', shape:'circle', ore:true,  pay:2 },
   iron:     { name:'Железный слиток',col:'#d5dae0', shape:'square', pay:5 },
   copper:   { name:'Медный слиток', col:'#e08a4a', shape:'square', pay:5 },
   gear:     { name:'Шестерня',      col:'#7fb0d8', shape:'gear',   pay:14 },
@@ -132,6 +133,7 @@ const START_MONEY = 260;
 // --- состояние ---
 let cells, money, tickAcc, tickN, sel, dir, delMode, speed, paused, over, cause;
 let contract, delivered, jamCount, madeTotal, best, msg, msgT, hubIdx;
+let pops = [], income = 0;
 let anim = 0, lastFrame = null, drag = null, uiHit = [], hover = -1;
 
 const gi = (x,y) => y*GW + x;
@@ -244,13 +246,39 @@ function canAccept(i, item){
 function give(i, item){
   const c = cells[i];
   if(c.b === HUB){
-    money += ITEMS[item].pay; delivered++;
+    const pay = ITEMS[item].pay;
+    money += pay; delivered++; income += pay;
+    pops.push({ i, txt:'+'+pay, t:0 });          // видно, что сдача реально платит
     if(contract && item === contract.item){ contract.done++; if(contract.done >= contract.need) contractDone(); }
     return;
   }
   if(c.b === FACT){ c.buf[item] = (c.buf[item] || 0) + 1; return; }
   c.item = { t:item, p:0 };
 }
+/* Бур и завод отдают в ЛЮБУЮ соседнюю клетку, которая готова принять:
+   сначала туда, куда смотрит стрелка, дальше по кругу в остальные стороны.
+   Раньше выход был только «вперёд», и это сбивало с толку: поставил бур,
+   лента рядом — а из него ничего не выходит, потому что стрелка не туда. */
+function outDirs(c){ const o = []; for(let k=0;k<4;k++) o.push((c.dir + ((c.rr + k) % 4)) % 4); return o; }
+// на ленту, которая ведёт ОБРАТНО в нас, не отдаём: иначе завод выкидывает
+// готовое в свою же входящую ленту, оно возвращается — и линия сама себя душит
+function feedsMe(t, i){ return t >= 0 && cells[t].b === BELT && ahead(t, cells[t].dir) === i; }
+function outOk(i, t, item){ return canAccept(t, item) && !feedsMe(t, i); }
+function canPushOut(i, item){
+  const c = cells[i];
+  for(const d of outDirs(c)) if(outOk(i, ahead(i,d), item)) return true;
+  return false;
+}
+function pushOut(i, item){
+  const c = cells[i];
+  const dirs = outDirs(c);
+  for(let k=0;k<4;k++){
+    const t = ahead(i, dirs[k]);
+    if(outOk(i, t, item)){ c.rr = (c.rr + k + 1) % 4; give(t, item); return true; }
+  }
+  return false;
+}
+
 // куда клетка хочет отдать предмет
 function destOf(i){
   const c = cells[i];
@@ -298,10 +326,7 @@ function stepTick(){
   for(let i=0;i<cells.length;i++){
     const c = cells[i];
     if(c.b !== FACT) continue;
-    if(c.out){                                   // готовое ждёт отгрузки
-      const t = ahead(i, c.dir);
-      if(canAccept(t, c.out)){ give(t, c.out); c.out = null; }
-    }
+    if(c.out && pushOut(i, c.out)) c.out = null;   // готовое ждёт отгрузки
     if(c.craft > 0){ c.craft -= TICK; if(c.craft < 0) c.craft = 0; }
     // готовое ждёт своей очереди, пока выход занят, и НЕ теряется:
     // раньше следующий рецепт затирал уже собранную деталь
@@ -316,10 +341,7 @@ function stepTick(){
   for(let i=0;i<cells.length;i++){
     const c = cells[i];
     if(c.b !== MINER || !c.ore) continue;
-    if(c.out){
-      const t = ahead(i, c.dir);
-      if(canAccept(t, c.out)){ give(t, c.out); c.out = null; }
-    }
+    if(c.out && pushOut(i, c.out)) c.out = null;
     if(!c.out){ c.craft += TICK; if(c.craft >= MINE_TIME){ c.craft = 0; c.out = c.ore; } }
   }
 
@@ -328,7 +350,7 @@ function stepTick(){
   for(let i=0;i<cells.length;i++){
     const c = cells[i];
     const stuck = (c.item && !canAccept(destOf(i), c.item.t)) ||
-                  ((c.b === MINER || c.b === FACT) && c.out && !canAccept(ahead(i, c.dir), c.out));
+                  ((c.b === MINER || c.b === FACT) && c.out && !canPushOut(i, c.out));
     if(stuck){ c.jam = Math.min(1, c.jam + 0.35); jamCount++; } else c.jam = Math.max(0, c.jam - 0.25);
   }
 }
@@ -339,9 +361,9 @@ function reset(){
   genMap();
   money = START_MONEY; tickAcc = 0; tickN = 0; sel = BELT; dir = 0; delMode = false;
   speed = 1; paused = false; over = false; cause = '';
-  contract = newContract(0); delivered = 0; jamCount = 0; madeTotal = 0;
+  contract = newContract(0); delivered = 0; jamCount = 0; madeTotal = 0; pops = []; income = 0;
   drag = null; hover = -1;
-  message('Поставь ⛏ на руду, протяни ➡ к 📦 и следи за заторами');
+  message('Деньги — за сдачу в 📦: вези туда хоть сырую руду (2 кр. за штуку)');
   updateButtons();
 }
 function endGame(why){
@@ -354,6 +376,8 @@ function endGame(why){
 function update(dt){
   anim += dt;
   if(msgT > 0) msgT -= dt;
+  for(const p of pops) p.t += dt;
+  pops = pops.filter(p => p.t < 1.1);
   if(over || paused) return;
   const sdt = dt * speed;
 
@@ -467,7 +491,7 @@ function drawHUD(){
   ctx.font = 'bold 15px Consolas, monospace'; ctx.fillStyle = '#f2b134';
   ctx.fillText('💰 ' + Math.floor(money), 8, 19);
   ctx.font = '10px Segoe UI'; ctx.fillStyle = '#98a2ae';
-  ctx.fillText('сдано ' + delivered + ' · собрано ' + madeTotal, 8, 33);
+  ctx.fillText('сдано ' + delivered + ' · заработано ' + income, 8, 33);
 
   if(contract){
     const c = contract;
@@ -537,6 +561,15 @@ function render(){
   ctx.fillStyle = '#0e1015'; ctx.fillRect(0,0,CW,CH);
   if(!cells) return;
   for(let i=0;i<cells.length;i++) drawCell(i);
+
+  // всплывающие «+N» над приёмником: сразу видно, что сдача платит
+  for(const p of pops){
+    const r = cellRect(p.i);
+    ctx.globalAlpha = clamp(1 - p.t/1.1, 0, 1);
+    ctx.fillStyle = '#f2b134'; ctx.font = 'bold 11px Segoe UI'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(p.txt, r.x + T/2, r.y + T/2 - 6 - p.t*16);
+    ctx.globalAlpha = 1;
+  }
 
   // курсор-призрак
   if(hover >= 0 && !over){
@@ -658,6 +691,8 @@ onBtn('pause', ()=>{ if(!over){ paused = !paused; updateButtons(); } });
 onBtn('restart', ()=>reset());
 function updateButtons(){ const b = document.getElementById('pause'); if(b) b.textContent = paused ? '▶ Продолжить' : '⏸ Пауза'; }
 
+window.__fsFail = function(why){ message('⛶ Полный экран не открылся: ' + why); };
+
 reset();
 requestAnimationFrame(frame);
 
@@ -693,9 +728,16 @@ if(typeof globalThis !== 'undefined') globalThis.__F = {
   function upd(){ if(btn){ var on=!!isFs(); btn.textContent=on?"⛶ Выйти":"⛶ Во весь экран"; btn.classList.toggle("on",on); } requestAnimationFrame(fit); }
   function toggle(){
     try{
-      if(!isFs()){ (root.requestFullscreen||root.webkitRequestFullscreen).call(root); }
+      if(!isFs()){
+        var req = root.requestFullscreen||root.webkitRequestFullscreen;
+        if(!req){ if(window.__fsFail) window.__fsFail('браузер не умеет полный экран'); return; }
+        var p = req.call(root);
+        // отказ приходит промисом и в try/catch не попадает — ловим отдельно,
+        // иначе кнопка молча ничего не делает и непонятно почему
+        if(p && p.catch) p.catch(function(e){ if(window.__fsFail) window.__fsFail(e && e.message ? e.message : 'отказано'); });
+      }
       else { (document.exitFullscreen||document.webkitExitFullscreen).call(document); }
-    }catch(e){}
+    }catch(e){ if(window.__fsFail) window.__fsFail(e && e.message ? e.message : 'ошибка'); }
   }
   if(btn){ btn.addEventListener("click",function(){ btn.blur(); toggle(); }); var nav=btn.closest&&btn.closest(".controls"); if(nav) nav.classList.add("fs-hide"); }
   document.addEventListener("fullscreenchange",upd);
