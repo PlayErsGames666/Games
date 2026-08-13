@@ -257,7 +257,7 @@ function fenceYard(x0,y0,w,h){
 
 function makeLot(x0,y0,w,h){
   fenceYard(x0,y0,w,h);
-  const bw = Math.min(w-4, 8+rnd(6)), bh = Math.min(h-4, 8+rnd(6));
+  const bw = Math.min(w-4, 9+rnd(5)), bh = Math.min(h-4, 9+rnd(5));
   if(bw<7||bh<7) return;
   const bx = x0 + 2 + rnd(Math.max(1,w-4-bw+1));
   const by = y0 + 2 + rnd(Math.max(1,h-4-bh+1));
@@ -296,8 +296,8 @@ function genMap(){
     const w = bx[1]-bx[0]+1, h = by[1]-by[0]+1;
     if(w<9 || h<9){ makePark(bx[0],by[0],w,h); continue; }
     const r = Math.random();
-    if(r<0.70) makeLot(bx[0],by[0],w,h);
-    else if(r<0.86) makePark(bx[0],by[0],w,h);
+    if(r<0.82) makeLot(bx[0],by[0],w,h);
+    else if(r<0.92) makePark(bx[0],by[0],w,h);
     else makeParking(bx[0],by[0],w,h);
   }
   // край карты — глухая лесополоса
@@ -439,15 +439,15 @@ function makeNoise(x, y, radius, color, tag){
     if(d > radius) continue;
     if(z.state==='chase' && tag==='player') continue;      // уже гонится — цель важнее
     z.tx = x; z.ty = y; z.repath = 0;
-    if(z.state==='idle'){
-      z.state = 'hunt';
-      if(Math.random()<0.30) setTimeout2(z);                // цепная реакция: рычит и зовёт остальных
-    } else z.state = 'hunt';
+    // цепная реакция: услышал громкое — может подхватить рык и позвать соседей.
+    // шанс намеренно низкий, иначе одна пробежка поднимает весь квартал
+    if(z.state==='idle' && radius>=8 && z.groanCd<=0 && Math.random()<0.12) queueGroan(z);
+    z.state = 'hunt';
     z.lost = 0;
   }
 }
 // отложенный рык зомби (без setTimeout — через таймер самого зомби)
-function setTimeout2(z){ z.groan = 0.25 + Math.random()*0.5; }
+function queueGroan(z){ z.groan = 0.25 + Math.random()*0.5; z.groanCd = 9; }
 
 /* =====================  ЗОМБИ И A*  ===================== */
 
@@ -508,7 +508,7 @@ function rebuild(gi){
 
 function makeZombie(x,y){
   return { x:x+0.5, y:y+0.5, face:Math.random()*6.28, hp:Z_HP, state:'idle', tx:null, ty:null,
-           path:null, pi:0, repath:0, atk:0, lost:0, wander:0, groan:0, dead:false,
+           path:null, pi:0, repath:0, atk:0, lost:0, wander:0, groan:0, groanCd:0, dead:false,
            climb:null, hitT:0, stagger:0, bob:Math.random()*6.28 };
 }
 
@@ -553,6 +553,7 @@ function damageObstacle(z, tx, ty){
 function updateZombie(z, dt){
   if(z.dead) return;
   if(z.hitT>0) z.hitT -= dt;
+  if(z.groanCd>0) z.groanCd -= dt;
   if(z.stagger>0){ z.stagger -= dt; return; }
 
   // перелезание
@@ -567,7 +568,8 @@ function updateZombie(z, dt){
 
   const sees = zombieSees(z);
   if(sees){
-    if(z.state!=='chase'){ z.state='chase'; if(Math.random()<0.55) z.groan = 0.1; }
+    // увидел — рычит и зовёт ближних: так один замеченный превращается в толпу
+    if(z.state!=='chase'){ z.state='chase'; if(z.groanCd<=0 && Math.random()<0.6) queueGroan(z); }
     z.tx = player.x; z.ty = player.y; z.lost = 0;
   } else if(z.state==='chase'){
     z.lost += dt;
@@ -576,7 +578,7 @@ function updateZombie(z, dt){
 
   if(z.groan>0){
     z.groan -= dt;
-    if(z.groan<=0){ makeNoise(z.x,z.y,9,'#c05a5a','z'); }
+    if(z.groan<=0){ makeNoise(z.x,z.y,6.5,'#c05a5a','z'); }
   }
 
   // блуждание без цели
@@ -589,7 +591,8 @@ function updateZombie(z, dt){
         z.tx = clamp(z.x+Math.cos(a)*r,1,MAPW-2); z.ty = clamp(z.y+Math.sin(a)*r,1,MAPH-2);
         z.repath = 0;
       } else { z.tx = null; }
-      if(Math.random()<0.10) z.groan = 0.1;
+      // бормотание «в пустоту»: игрок слышит (кольцо), но других зомби не поднимает
+      if(Math.random()<0.14) rings.push({ x:z.x, y:z.y, r:0.6, max:5.5, t:0, life:0.9, color:'#8a5a5a' });
     }
   }
 
@@ -772,14 +775,14 @@ function attack(){
   if(!target){
     // может, бьём дверь/окно
     const f = frontTile(), t = tAt(f.x,f.y);
-    if(t===DOOR || t===WIN || t===SHELF){
+    if(t===DOOR || t===WIN){
       const i = idx(f.x,f.y);
       const base = t===WIN?WINDOW_HP:DOOR_HP;
       const dmg = w.breach ? 2 : 1;
       const hp = (doorHp.get(i)!=null ? doorHp.get(i) : base) - dmg;
       doorHp.set(i,hp);
       makeNoise(f.x+0.5,f.y+0.5,15,'#ff9f1c','player');
-      if(hp<=0){ tiles[i] = (t===WIN)?BWIN:(t===SHELF?FLOOR:ODOOR); locked.delete(i); doorHp.delete(i);
+      if(hp<=0){ tiles[i] = (t===WIN)?BWIN:ODOOR; locked.delete(i); doorHp.delete(i);
         logMsg(t===WIN?'🪟 Окно выбито':'🚪 Дверь выбита — тебя слышал весь квартал'); }
       else logMsg('💥 БАМ! Слышно далеко…');
       return;
@@ -1022,7 +1025,7 @@ function update(dt){
     const stepLen = crouch?1.6:(wantRun?0.85:1.15);
     if(stepAcc >= stepLen){
       stepAcc = 0;
-      const nr = crouch ? 1.6 : (wantRun ? 9 : 4);
+      const nr = crouch ? 1.5 : (wantRun ? 9 : 3);
       makeNoise(player.x, player.y, nr, wantRun?'#ffb4a2':'#8d99ae', 'player');
     }
   } else stepAcc = Math.max(0, stepAcc - wdt);
@@ -1115,8 +1118,8 @@ let camX = 0, camY = 0;
 function worldToScreen(x,y){ return { x:x*T-camX, y:y*T-camY }; }
 
 const TILE_COLOR = [];
-TILE_COLOR[ROAD]='#31343a'; TILE_COLOR[GRASS]='#2b3a2c'; TILE_COLOR[FLOOR]='#493f35';
-TILE_COLOR[WALL]='#6a6355'; TILE_COLOR[DOOR]='#8a6236'; TILE_COLOR[ODOOR]='#3d352c';
+TILE_COLOR[ROAD]='#3a3e45'; TILE_COLOR[GRASS]='#33452f'; TILE_COLOR[FLOOR]='#59493a';
+TILE_COLOR[WALL]='#847a68'; TILE_COLOR[DOOR]='#966b39'; TILE_COLOR[ODOOR]='#463c30';
 TILE_COLOR[WIN]='#5d7f8c'; TILE_COLOR[FENCE]='#6f6552'; TILE_COLOR[SHELF]='#7a5c34';
 TILE_COLOR[TREE]='#2c4c30'; TILE_COLOR[CAR]='#8c3140'; TILE_COLOR[BWIN]='#3c4a50';
 
@@ -1127,7 +1130,7 @@ function drawTile(x,y,sx,sy,t,bright){
   ctx.fillRect(sx,sy,T,T);
 
   if(t===WALL){
-    ctx.fillStyle = '#7d7566'; ctx.fillRect(sx,sy,T,4);
+    ctx.fillStyle = '#9a8f7b'; ctx.fillRect(sx,sy,T,4);
     ctx.strokeStyle = 'rgba(0,0,0,.30)'; ctx.lineWidth = 1; ctx.strokeRect(sx+0.5,sy+0.5,T-1,T-1);
   } else if(t===DOOR){
     ctx.fillStyle = '#6d4c26'; ctx.fillRect(sx+2,sy+2,T-4,T-4);
@@ -1415,7 +1418,7 @@ function drawHUD(){
 }
 
 function drawInvPanel(){
-  const w = 420, h = 400, x = (CW-w)/2, y = (CH-h)/2 - 10;
+  const w = 420, h = 446, x = (CW-w)/2, y = (CH-h)/2 - 10;
   ctx.fillStyle = 'rgba(8,11,15,.95)'; ctx.fillRect(x,y,w,h);
   ctx.strokeStyle = '#8ab547'; ctx.lineWidth = 2; ctx.strokeRect(x+1,y+1,w-2,h-2);
   ctx.fillStyle = '#e6ebef'; ctx.font = 'bold 15px Segoe UI'; ctx.textAlign='left'; ctx.textBaseline='alphabetic';
@@ -1426,21 +1429,21 @@ function drawInvPanel(){
   ctx.fillStyle = '#7f8a94'; ctx.font='10px Segoe UI';
   ctx.fillText('мир вокруг движется медленно, но движется · Esc / I — закрыть', x+14, y+h-12);
 
-  let ry = y+56;
+  let ry = y+54;
   if(!inv.length){ ctx.fillStyle='#7f8a94'; ctx.font='12px Segoe UI'; ctx.fillText('Пусто. Обыскивай шкафы (E)', x+14, ry+14); }
   for(const it of inv){
-    if(ry > y+h-46) break;
+    if(ry > y+h-40) break;
     const I = ITEMS[it.id];
-    ctx.fillStyle = 'rgba(255,255,255,.04)'; ctx.fillRect(x+10, ry, w-20, 26);
-    ctx.font = '14px serif'; ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillStyle='#e6ebef';
-    ctx.fillText(I.ico, x+18, ry+13);
+    ctx.fillStyle = 'rgba(255,255,255,.04)'; ctx.fillRect(x+10, ry, w-20, 22);
+    ctx.font = '13px serif'; ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillStyle='#e6ebef';
+    ctx.fillText(I.ico, x+18, ry+11);
     ctx.font = '12px Segoe UI';
-    ctx.fillText(I.name + (it.n>1?' ×'+it.n:''), x+40, ry+13);
+    ctx.fillText(I.name + (it.n>1?' ×'+it.n:''), x+40, ry+11);
     ctx.fillStyle = '#8f98a1'; ctx.font = '11px Segoe UI'; ctx.textAlign='right';
-    ctx.fillText((I.w*it.n).toFixed(2)+' кг', x+w-136, ry+13);
-    uiBtn(x+w-128, ry+3, 62, 20, 'Использовать', ()=>useItem(it.id), 'rgba(70,94,60,.9)', true);
-    uiBtn(x+w-62,  ry+3, 52, 20, 'Выбросить',   ()=>dropItem(it.id), 'rgba(94,60,60,.9)', true);
-    ry += 30;
+    ctx.fillText((I.w*it.n).toFixed(2)+' кг', x+w-136, ry+11);
+    uiBtn(x+w-128, ry+2, 62, 18, 'Использовать', ()=>useItem(it.id), 'rgba(70,94,60,.9)', true);
+    uiBtn(x+w-62,  ry+2, 52, 18, 'Выбросить',   ()=>dropItem(it.id), 'rgba(94,60,60,.9)', true);
+    ry += 25;
   }
 }
 
@@ -1450,8 +1453,9 @@ function drawMedPanel(){
   ctx.strokeStyle = '#c8402f'; ctx.lineWidth = 2; ctx.strokeRect(x+1,y+1,w-2,h-2);
   ctx.fillStyle = '#e6ebef'; ctx.font = 'bold 15px Segoe UI'; ctx.textAlign='left'; ctx.textBaseline='alphabetic';
   ctx.fillText('🩹 МЕДКАРТА', x+14, y+24);
-  ctx.font = '11px Segoe UI'; ctx.fillStyle = '#a9b3bd';
-  ctx.fillText('🩹'+countItem('bandage')+'  🧴'+countItem('antiseptic')+'  🦯'+countItem('splint')+'  💉'+countItem('antibio')+'  💊'+countItem('pills'), x+120, y+24);
+  ctx.font = '11px Segoe UI'; ctx.fillStyle = '#a9b3bd'; ctx.textAlign = 'right';
+  ctx.fillText('🩹'+countItem('bandage')+'   🧴'+countItem('antiseptic')+'   🦯'+countItem('splint')+'   💉'+countItem('antibio')+'   💊'+countItem('pills'), x+w-14, y+24);
+  ctx.textAlign = 'left';
   ctx.fillText('Кровь '+Math.floor(player.blood)+'%   Боль '+Math.floor(painLevel()), x+14, y+41);
   if(player.virusOn){ ctx.fillStyle='#ff4d5e'; ctx.fillText('☣ ЗАРАЖЕНИЕ ОТ УКУСА '+Math.floor(player.virus)+'% — не лечится', x+180, y+41); }
   ctx.fillStyle = '#7f8a94'; ctx.font='10px Segoe UI';
@@ -1521,8 +1525,8 @@ function render(){
     let bright;
     if(v===2){
       const d = dist(x+0.5,y+0.5,player.x,player.y);
-      bright = clamp(1 - d/(FOV_R*1.35), 0.42, 1);
-    } else bright = 0.20;
+      bright = clamp(1 - d/(FOV_R*1.9), 0.55, 1);   // что видно сейчас — заметно светлее
+    } else bright = 0.17;                            // что помнишь — почти силуэт
     drawTile(x,y,sx,sy,tiles[idx(x,y)],bright);
   }
 
@@ -1680,7 +1684,7 @@ requestAnimationFrame(frame);
 
 // хук для отладки/тестов
 if(typeof globalThis!=='undefined') globalThis.__Z = {
-  reset, update, interact, attack, shoot, reload, treat, wound, makeNoise, astar, computeVis, useItem, dropItem,
+  reset, update, render, interact, attack, shoot, reload, treat, wound, makeNoise, astar, computeVis, useItem, dropItem,
   addItem, removeItem, countItem, weight, encum, killZombie, quickBandage, selectWeapon, doSearch, endGame,
   getPlayer:()=>player, getBody:()=>body, getInv:()=>inv, getZombies:()=>zombies, getTiles:()=>tiles,
   getVis:()=>vis, getContainers:()=>containers, getExit:()=>exitPos, getOver:()=>over, getWin:()=>win,
