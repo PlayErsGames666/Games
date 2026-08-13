@@ -90,6 +90,8 @@
   :fullscreen footer, :fullscreen .sub { display:none !important; }
   :fullscreen .stage { gap:0; align-items:center; justify-content:center; min-height:100vh; }
   :fullscreen .game-col { justify-content:center; }
+  /* растянутый канвас не должен размываться интерполяцией */
+  :fullscreen canvas { image-rendering:pixelated; max-width:none; }
   /* на компьютере (мышь) экранный D-pad и дублирующие кнопки не нужны —
      без них игра занимает почти весь экран; на тачскрине они остаются */
   @media (hover:hover) and (pointer:fine){
@@ -425,14 +427,28 @@ loop();
   /* в полный экран растягиваем игровой блок под размер экрана, сохраняя пропорции.
      transform не меняет вёрстку, а getBoundingClientRect отдаёт УЖЕ масштабированный
      прямоугольник — поэтому попадания мыши/тача остаются точными */
+  var CV=document.querySelector(".game-col canvas");     // логический размер — ДО любых правок
+  if(CV){ CV.__logW=CV.width; CV.__logH=CV.height; }
   function fit(){
     var col=document.querySelector(".game-col"); if(!col) return;
     col.style.transform=""; col.style.transformOrigin="";
+    if(CV){ CV.style.width=""; CV.style.height=""; }
     if(!isFs()) return;
+    if(CV){
+      /* канвас растягиваем ЕГО СОБСТВЕННЫМ css-размером, а не transform колонки:
+         так композитор не размывает картинку, а игра может отрисоваться
+         в реальном разрешении экрана */
+      var lw=CV.__logW, lh=CV.__logH;
+      var extra=col.getBoundingClientRect().height - CV.getBoundingClientRect().height;
+      var availH=Math.max(140, window.innerHeight-extra-10), availW=window.innerWidth-10;
+      var k=Math.min(availW/lw, availH/lh);
+      if(k>1.01){ CV.style.width=Math.round(lw*k)+"px"; CV.style.height=Math.round(lh*k)+"px"; }
+      return;
+    }
     var r=col.getBoundingClientRect(), w=r.width, h=r.height;
     if(!w||!h) return;
-    var k=Math.min(window.innerWidth/w, window.innerHeight/h)*0.98;
-    if(k>1.01){ col.style.transformOrigin="center center"; col.style.transform="scale("+k.toFixed(3)+")"; }
+    var k2=Math.min(window.innerWidth/w, window.innerHeight/h)*0.98;
+    if(k2>1.01){ col.style.transformOrigin="center center"; col.style.transform="scale("+k2.toFixed(3)+")"; }
   }
   function upd(){ if(btn){ var on=!!isFs(); btn.textContent=on?"⛶ Выйти":"⛶ Во весь экран"; btn.classList.toggle("on",on); } requestAnimationFrame(fit); }
   function toggle(){
