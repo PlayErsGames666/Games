@@ -94,7 +94,7 @@
     <button id="eatBtn">🍓 Быстро съесть (G)</button>
   </div>
 
-  <div class="hint">Показатели, ресурсы, хотбар и рюкзак — прямо на игровом экране · WASD — ходить (в стену/моба — поворот на месте) · Ctrl — к врагу · Space/E — бить/собирать · 🎒 Рюкзак (I) → клик по ячейке хотбара · 1-9 выбор · Q — поставить · G — съесть · F — полный экран · P/Esc — пауза</div>
+  <div class="hint">Показатели, ресурсы, хотбар и рюкзак — прямо на игровом экране · WASD — ходить (в стену/моба — поворот на месте) · Ctrl — к врагу · Space/E — бить/собирать · 🎒 Рюкзак (I) → клик по ячейке хотбара · 1-9 выбор (та же цифра или клик по ячейке ещё раз — применить) · Q — применить · G — съесть · F — полный экран · P/Esc — пауза</div>
 </div>
 <aside class="guide-panel">
   <h2>🎛 Как играть</h2>
@@ -622,6 +622,8 @@ function drawHUD(dk) {
     ctx.strokeRect(r.x + .5, r.y + .5, r.w - 1, r.h - 1);
     ctx.textAlign = 'left'; ctx.font = '9px Segoe UI, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,.5)';
     ctx.fillText(String(i + 1), r.x + 3, r.y + 7);
+    // на выбранной ячейке подсказываем, чем применить: Q или повторный клик
+    if (sel && it) { ctx.textAlign = 'right'; ctx.fillStyle = '#06d6a0'; ctx.font = 'bold 9px Segoe UI, sans-serif'; ctx.fillText('Q', r.x + r.w - 3, r.y + 7); }
     if (it) {
       ctx.globalAlpha = itemUsable(id) ? 1 : .4;
       ctx.textAlign = 'center'; ctx.font = '19px Segoe UI Emoji, sans-serif'; ctx.fillStyle = '#fff';
@@ -640,7 +642,10 @@ function punch(x, y, r) { const g = nctx.createRadialGradient(x, y, r * 0.25, x,
 function costStr(cost) { return cost ? Object.keys(cost).map(k => cost[k] + ({ wood: '🪵', stone: '🪨', berries: '🍓' })[k]).join('') : ''; }
 function itemUsable(id) { const it = ITEMS[id]; if (!it) return false; if (it.kind === 'food') return (it.food === 'meat' ? inv.meat : inv.berries) > 0; return canAfford(it.cost); }
 function onHotClick(i) {
-  if (invOpen) { hot[i] = selItem || null; selItem = null; }
+  if (invOpen) { hot[i] = selItem || null; selItem = null; return; }
+  // первый клик выбирает ячейку, повторный — ИСПОЛЬЗУЕТ предмет.
+  // без этого мышью предмет было не применить: кнопка «Использовать» в полный экран скрыта
+  if (i === selSlot && hot[i]) doUse();
   else selSlot = i;
 }
 // клик по канвасу: попал в ячейку хотбара — выбрать/положить предмет
@@ -759,7 +764,8 @@ document.addEventListener('keydown', (e) => {
   if (e.repeat) return;
   if (e.code === 'KeyQ') doUse();
   else if (e.code === 'KeyG') doEat();   // F отдана полному экрану
-  else if (e.code.startsWith('Digit')) { const n = parseInt(e.code.slice(5)); if (n >= 1 && n <= 9) { selSlot = n - 1; } }
+  // цифра выбирает ячейку; нажатие той же цифры ещё раз — использует предмет
+  else if (e.code.startsWith('Digit')) { const n = parseInt(e.code.slice(5)); if (n >= 1 && n <= 9) { const i = n - 1; if (i === selSlot && hot[i]) doUse(); else selSlot = i; } }
 });
 document.addEventListener('keyup', (e) => { const dir = KEYDIR[e.code]; if (dir) { held[dir] = false; dirOrder = dirOrder.filter(d => d !== dir); } if (e.code === 'Space' || e.code === 'KeyE') held.gather = false; });
 
