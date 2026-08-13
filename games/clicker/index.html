@@ -158,12 +158,10 @@
   :fullscreen footer, :fullscreen .sub { display:none !important; }
   :fullscreen .stage { gap:0; align-items:center; justify-content:center; min-height:100vh; }
   :fullscreen .game-col { justify-content:center; }
-  /* элементы с этим классом остаются — без них в игру не сыграть */
-  :fullscreen .fs-keep { display:flex !important; }
   /* на компьютере (мышь) экранный D-pad и дублирующие кнопки не нужны —
      без них игра занимает почти весь экран; на тачскрине они остаются */
   @media (hover:hover) and (pointer:fine){
-    :fullscreen .pad, :fullscreen .actions { display:none !important; }
+    :fullscreen .pad, :fullscreen .fs-touch { display:none !important; }
   }
 </style>
 </head>
