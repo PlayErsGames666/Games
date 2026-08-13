@@ -16,7 +16,10 @@
   button:disabled { opacity:.4; cursor:not-allowed; }
 
   /* показатели, рюкзак, медкарта и мини-карта рисуются ВНУТРИ канваса (см. drawHUD) */
-  canvas { border-radius:10px; display:block; box-shadow:0 8px 28px rgba(0,0,0,.6); max-width:100%; height:auto; cursor:crosshair; background:#05070a; touch-action:none; }
+  /* ВАЖНО: css-ширина зафиксирована. syncRes() растит битмап канваса под DPI,
+     и без фиксированной ширины элемент раздувался бы от собственного битмапа
+     каждый кадр — окно расползалось на весь экран */
+  canvas { border-radius:10px; display:block; box-shadow:0 8px 28px rgba(0,0,0,.6); width:520px; max-width:100%; height:auto; cursor:crosshair; background:#05070a; touch-action:none; }
 
   .pad { margin-top:12px; display:grid; grid-template-columns:repeat(3,48px); grid-gap:6px; justify-content:center; }
   .pad button { padding:0; height:48px; font-size:20px; }
