@@ -111,8 +111,8 @@
 <script>
 const T = 28, MAPW = 44, MAPH = 44;
 const GRASS = 0, WATER = 1, TREE = 2, ROCK = 3, BUSH = 4, WALL = 5, TABLE = 6, FARM = 7;
-const CYCLE = 80;
-const FIRE_R = 3, TORCH_TIME = 25, FIRE_FUEL = 45, HUNGER_RATE = 0.5;
+const CYCLE = 150;   // сутки длиннее: светлый день ~96с вместо 44с
+const FIRE_R = 3, TORCH_TIME = 40, FIRE_FUEL = 75, HUNGER_RATE = 0.3;   // факел/костёр/голод — под длинные сутки
 const WALL_HP = 5, CROP_STAGE_TIME = 16, CROP_MAX = 3;   // 3 стадии роста ~48с
 const MOB_CAP = 6, MOB_HP = 3, MOB_DMG = 8, MOB_SPEED = 4;
 const SLIME_CAP = 5, SLIME_HP = 2, SLIME_DMG = 4, SLIME_SPEED = 3, SLIME_REST = 0.75;
@@ -246,7 +246,7 @@ function eatFood(kind) {
   message(inv.berries <= 0 ? 'Нет ягод' : 'Голод полон'); return false;
 }
 function eat() { return eatFood('berry'); }
-function craftFire(p) { p = p || players[0]; const f = fires.find(f => f.tx === p.tx && f.ty === p.ty); if (f) { if (inv.wood >= 1) { inv.wood--; f.fuel += 30; message('🔥 Подкинул дров'); return 'refuel'; } message('Нет дров'); return 'nowood'; } if (inv.wood >= 2 && inv.stone >= 1) { inv.wood -= 2; inv.stone -= 1; fires.push({ tx: p.tx, ty: p.ty, fuel: FIRE_FUEL }); message('🔥 Костёр разведён!'); return 'built'; } message('Нужно 2🪵 и 1🪨'); return 'nores'; }
+function craftFire(p) { p = p || players[0]; const f = fires.find(f => f.tx === p.tx && f.ty === p.ty); if (f) { if (inv.wood >= 1) { inv.wood--; f.fuel += 45; message('🔥 Подкинул дров'); return 'refuel'; } message('Нет дров'); return 'nowood'; } if (inv.wood >= 2 && inv.stone >= 1) { inv.wood -= 2; inv.stone -= 1; fires.push({ tx: p.tx, ty: p.ty, fuel: FIRE_FUEL }); message('🔥 Костёр разведён!'); return 'built'; } message('Нужно 2🪵 и 1🪨'); return 'nores'; }
 function craftTorch(p) { p = p || players[0]; if (inv.wood >= 1) { inv.wood--; p.torch = TORCH_TIME; message('🕯️ Факел зажжён'); return true; } message('Нужна 1🪵'); return false; }
 
 function canAfford(cost) { for (const k in cost) if ((inv[k] || 0) < cost[k]) return false; return true; }
@@ -267,7 +267,7 @@ function applyItem(p, it) {
   if (it.kind === 'place') {
     if (it.needTable && !nearTable(p)) { message('Нужен верстак рядом'); return; }
     if (it.tile === -1) { // костёр
-      if (inb(tx, ty) && tiles[ty][tx] === GRASS) { const f = fires.find(f => f.tx === tx && f.ty === ty); if (f) { if (inv.wood >= 1) { inv.wood--; f.fuel += 30; message('🔥 Дрова добавлены'); } else message('Нет дров'); } else if (canAfford(it.cost)) { pay(it.cost); fires.push({ tx, ty, fuel: FIRE_FUEL }); message('🔥 Костёр поставлен'); } else message('Нужно 2🪵 и 1🪨'); }
+      if (inb(tx, ty) && tiles[ty][tx] === GRASS) { const f = fires.find(f => f.tx === tx && f.ty === ty); if (f) { if (inv.wood >= 1) { inv.wood--; f.fuel += 45; message('🔥 Дрова добавлены'); } else message('Нет дров'); } else if (canAfford(it.cost)) { pay(it.cost); fires.push({ tx, ty, fuel: FIRE_FUEL }); message('🔥 Костёр поставлен'); } else message('Нужно 2🪵 и 1🪨'); }
       else message('Ставь на траву перед собой');
       return;
     }
@@ -284,8 +284,8 @@ function doFace() { const p = players[me] || players[0]; const d = nearMobDir(p)
 
 // --- день/ночь ---
 function tnorm() { return (clock % CYCLE) / CYCLE; }
-function isNight() { const t = tnorm(); return t > 0.60 && t < 0.95; }
-function darkness() { const t = tnorm(); if (t < 0.55) return 0; if (t < 0.65) return (t - 0.55) / 0.10 * 0.94; if (t < 0.90) return 0.94; if (t < 1.0) return (1.0 - t) / 0.10 * 0.94; return 0; }
+function isNight() { const t = tnorm(); return t > 0.70 && t < 0.95; }   // ночь заняла меньшую долю суток
+function darkness() { const t = tnorm(); if (t < 0.64) return 0; if (t < 0.72) return (t - 0.64) / 0.08 * 0.94; if (t < 0.92) return 0.94; if (t < 1.0) return (1.0 - t) / 0.08 * 0.94; return 0; }
 function nearWarmth(p) { p = p || players[0]; if (p.torch > 0) return true; return fires.some(f => Math.abs(f.tx - p.tx) <= FIRE_R && Math.abs(f.ty - p.ty) <= FIRE_R); }
 function dayNum() { return Math.floor(clock / CYCLE) + 1; }
 
@@ -696,9 +696,17 @@ function frame(now) { if (lastFrame === null) lastFrame = now; let dt = (now - l
 // --- ввод ---
 const KEYDIR = { ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down', ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right' };
 document.addEventListener('keydown', (e) => {
+  // Esc работает ВСЕГДА, даже когда курсор стоит в поле ввода кода комнаты:
+  // оттуда он просто снимает фокус, иначе закрывает рюкзак / ставит паузу
+  if (e.code === 'Escape' && !e.repeat) {
+    const inInput = e.target && e.target.tagName === 'INPUT';
+    if (inInput) e.target.blur();                       // из поля ввода — сначала снимаем фокус
+    if (invOpen) toggleInv(false);                      // рюкзак закрывается одним Esc в любом случае
+    else if (!inInput && !over) { paused = !paused; updatePauseBtn(); }
+    e.preventDefault(); return;
+  }
   if (e.target && e.target.tagName === 'INPUT') return;
   if (over) { if (e.code === 'Enter') reset(); return; }
-  if (e.code === 'Escape') { if (!e.repeat) { if (invOpen) toggleInv(false); else { paused = !paused; updatePauseBtn(); } } e.preventDefault(); return; }
   if (e.code === 'KeyP') { if (!e.repeat) { paused = !paused; updatePauseBtn(); } e.preventDefault(); return; }
   if (e.code === 'KeyI') { if (!e.repeat) toggleInv(); e.preventDefault(); return; }
   if (paused) return;
