@@ -71,11 +71,11 @@
   <div class="actions fs-touch">
     <button id="dockBtn">📦 Док / сдать (E)</button>
     <button id="fineBtn">🎯 Точный импульс (Shift)</button>
-    <button id="subBtn">🧊 Сжечь лёд (R)</button>
+    <button id="subBtn">🔥 Расщепить в газ (R)</button>
     <button id="dumpBtn">🗑 Сбросить груз (Q)</button>
   </div>
 
-  <div class="hint">WASD — импульсы ранца (это ускорение, а не скорость!) · Shift — точный импульс, вдвое экономнее · мышь — куда бурить · ЛКМ/Space — бурить · E — док: сдать руду, дозаправка, ремонт, старт · R — сжечь лёд в ранце · Q — аварийный сброс груза · P/Esc — пауза</div>
+  <div class="hint">WASD — импульсы ранца (это ускорение, а не скорость!) · Shift — точный импульс, вдвое экономнее · мышь — куда бурить · ЛКМ/Space — бурить · E — док: сдать руду, дозаправка, ремонт, старт · R — расщепить ресурс в газ (лёд, щебень, в крайнем случае руду) · Q — аварийный сброс груза · P/Esc — пауза</div>
 </div>
 
 <aside class="guide-panel">
@@ -84,7 +84,8 @@
   <div class="row2"><b>Инерция.</b> Двигатель даёт ускорение, а не скорость. Разогнался — тормози заранее и тем же топливом.</div>
   <div class="row2"><b>Масса.</b> Каждый кусок руды — это килограммы. Полный рюкзак разгоняется и тормозит вдвое дольше и жрёт вдвое больше газа.</div>
   <div class="sep"></div>
-  <div class="row2">🧊 <b>Лёд</b> — это топливо, но только после переработки в доке. В поле его можно сжечь напрямую (R) — вдвое хуже, зато живым.</div>
+  <div class="row2">⛽ <b>Газ гонят из всего:</b> 🧊 лёд 22, 🪨 щебень 5, а излишки руды сверх нормы модуля расщепитель дока сам пускает на топливо (⚙️9 · 🔩14 · 💎45).</div>
+  <div class="row2">🔥 <b>R</b> — расщепить прямо в ранце: вдвое хуже дока, зато живым. Руду, нужную модулю, жжёт только по второму нажатию.</div>
   <div class="row2">💥 <b>Газовый карман</b> взрывается от бура: отбрасывает и рвёт скафандр.</div>
   <div class="row2">🚀 <b>Пунктирное кольцо</b> — граница притяжения. За ней астероид тебя уже не удержит, утащит в пустоту.</div>
   <div class="note">Удар о породу на скорости рвёт скафандр. Внутри тоннелей тормозить нечем — только двигателем.</div>
@@ -105,13 +106,14 @@ const WCX = GW*T/2, WCY = GH*T/2;                     // центр астеро
 // --- типы породы ---
 const EMPTY=0, ROCK=1, ICE=2, IRON=3, TITAN=4, CRYST=5, GAS=6, HARD=7, PAD=8;
 const HARDNESS = [0, 0.50, 0.42, 0.72, 1.00, 1.25, 0.30, 1.90, 999];   // секунд бурения
-const ORE_OF   = [null,null,'ice','iron','titan','cryst',null,null,null];
+const ORE_OF   = [null,'rego','ice','iron','titan','cryst',null,'rego',null];
+const REGO_CHANCE = 0.35;              // не каждый камень даёт щебень — иначе рюкзак забит всегда
 
 // --- баланс ---
 const TOTAL_TIME = 420;                 // реальных секунд на забег = 60 «условных минут»
 const FUEL_MAX = 100, BURN = 7.5, BURN_FINE = 3.2, FINE_K = 0.42;
 const ACC = 150;                        // ускорение ранца при пустом рюкзаке, px/с²
-const MASS_BASE = 100, MASS_PER = 9, CARGO_CAP = 14;
+const MASS_BASE = 100, MASS_PER = 9, MASS_REGO = 4, CARGO_CAP = 14;
 const R_SURF = 25*T, R_GRAV = 58*T, R_LOST = 92*T;    // поверхность / край притяжения / потерян
 // у поверхности притяжение сильнее тяги ранца — короткий подскок всегда вернёт.
 // Уйти насовсем можно только осознанным долгим разгоном «от камня»
@@ -119,11 +121,17 @@ const G_SURF = 46, STAR_A = 26;
 const PR = 5;                           // радиус скафандра, px
 const HIT_SPEED = 74, HIT_DMG = 0.42, BOUNCE = 0.28;
 const DRILL_REACH = 2.7*T, RECOIL = 13;
-const ICE_TO_FUEL = 22, ICE_BURN = 11, RESERVE_MAX = 220;
+// расщепитель: во что превращается ресурс. В доке установка выжимает вдвое
+// больше, чем горелка ранца в поле — за это и стоит возвращаться
+const DOCK_FUEL  = { rego:5,   ice:22, iron:9, titan:14, cryst:45 };
+const FIELD_FUEL = { rego:2.5, ice:11, iron:4, titan:6,  cryst:20 };
+const BURN_ORDER = ['rego','ice','iron','titan','cryst'];   // жжём от бесполезного к ценному
+const RESERVE_MAX = 220;
 const DOCK_R = 2.4*T, REFUEL_RATE = 26, REPAIR_RATE = 9;
 const NEED = { iron:9, titan:5, cryst:2 }, NEED_FUEL = 50;
 
 const ORE = {
+  rego:  { ico:'🪨', name:'Щебень',   col:'#8f8f99' },
   ice:   { ico:'🧊', name:'Лёд',      col:'#7fc7e8' },
   iron:  { ico:'⚙️', name:'Железо',   col:'#c08050' },
   titan: { ico:'🔩', name:'Титан',    col:'#c3ccd6' },
@@ -220,11 +228,17 @@ function genAsteroid(){
 /* =====================  МАССА, ТОПЛИВО, ГРУЗ  ===================== */
 
 function cargoCount(){ let n=0; for(const k in cargo) n += cargo[k]; return n; }
-function mass(){ return MASS_BASE + MASS_PER*cargoCount(); }
+function mass(){
+  let m = MASS_BASE;
+  for(const k in cargo) m += (k==='rego' ? MASS_REGO : MASS_PER) * cargo[k];
+  return m;
+}
 function accel(){ return ACC * (MASS_BASE/mass()); }
 function docked(){ return len(player.x-padX, player.y-padY) < DOCK_R; }
 
 function addOre(kind){
+  // щебень не выгребает место под руду: берём его, только пока рюкзак свободен
+  if(kind==='rego' && cargoCount() >= CARGO_CAP*0.7) return false;
   if(cargoCount() >= CARGO_CAP){ message('Рюкзак полон — руда потеряна'); return false; }
   cargo[kind] = (cargo[kind]||0) + 1;
   return true;
@@ -294,7 +308,8 @@ function breakTile(tx,ty){
     return;
   }
   const ore = ORE_OF[t];
-  if(ore){ if(addOre(ore)) message(ORE[ore].ico+' +1 '+ORE[ore].name); }
+  if(ore==='rego'){ if(Math.random()<REGO_CHANCE) addOre('rego'); }   // тихо, без сообщения
+  else if(ore){ if(addOre(ore)) message(ORE[ore].ico+' +1 '+ORE[ore].name); }
   for(let i=0;i<7;i++) sparks(cx, cy, t===ICE?'#bfe8ff':'#c9a37a');
 }
 
@@ -307,10 +322,29 @@ function doDock(){
   if(over) return;
   if(!docked()){ message('Док далеко — вернись на площадку'); return; }
   if(moduleReady() && cargoCount()===0){ launching = true; launchT = 0; message('🚀 ЗАПУСК!'); return; }
-  let any = 0, iceN = cargo.ice||0;
-  if(iceN){ reserve = Math.min(RESERVE_MAX, reserve + iceN*ICE_TO_FUEL); any += iceN; cargo.ice = 0; }
-  for(const k of ['iron','titan','cryst']){ if(cargo[k]){ built[k] += cargo[k]; any += cargo[k]; cargo[k] = 0; } }
-  if(any) message('📦 Сдано '+any+' ед. — модуль растёт');
+  let any = 0, fuelGot = 0;
+  // лёд и щебень целиком уходят в топливо
+  for(const k of ['ice','rego']){
+    if(!cargo[k]) continue;
+    const add = cargo[k]*DOCK_FUEL[k];
+    reserve = Math.min(RESERVE_MAX, reserve + add);
+    fuelGot += add; any += cargo[k]; cargo[k] = 0;
+  }
+  // руда — сначала в модуль до нормы, ИЗЛИШКИ расщепитель пускает на газ
+  for(const k of ['iron','titan','cryst']){
+    if(!cargo[k]) continue;
+    const need = Math.max(0, NEED[k]-built[k]);
+    const toModule = Math.min(need, cargo[k]);
+    built[k] += toModule;
+    const extra = cargo[k]-toModule;
+    if(extra){
+      const add = extra*DOCK_FUEL[k];
+      reserve = Math.min(RESERVE_MAX, reserve + add);
+      fuelGot += add;
+    }
+    any += cargo[k]; cargo[k] = 0;
+  }
+  if(any) message('📦 Сдано '+any+' ед.'+(fuelGot?' · расщепитель дал +'+Math.round(fuelGot)+' газа':''));
   else if(moduleReady()) message('🚀 Модуль готов. Жми E ещё раз — старт!');
   else message('Нужно ещё: '+needStr());
 }
@@ -322,16 +356,37 @@ function needStr(){
   if(reserve<NEED_FUEL) p.push('⛽'+Math.ceil(NEED_FUEL-reserve));
   return p.join(' ');
 }
-function burnIce(){
-  if(!(cargo.ice>0)){ message('Льда в рюкзаке нет'); return; }
-  cargo.ice--; player.fuel = Math.min(FUEL_MAX, player.fuel + ICE_BURN);
-  message('🧊 Лёд сожжён напрямую: +'+ICE_BURN+' газа (в доке было бы '+ICE_TO_FUEL+')');
-  for(let i=0;i<10;i++) sparks(player.x, player.y, '#bfe8ff');
+// сжечь ресурс в ранце. Порядок — от бесполезного к ценному; на руду,
+// нужную модулю, спрашиваем подтверждение вторым нажатием
+let burnAsk = 0, burnAskKind = null;
+function burnFuel(){
+  const table = docked() ? DOCK_FUEL : FIELD_FUEL;
+  let kind = null;
+  for(const k of BURN_ORDER) if(cargo[k]>0){ kind = k; break; }
+  if(!kind){ message('Жечь нечего — рюкзак пуст'); return; }
+
+  const forModule = (kind==='iron'||kind==='titan'||kind==='cryst') && built[kind] < NEED[kind];
+  if(forModule && !(burnAsk>0 && burnAskKind===kind)){
+    burnAsk = 2.5; burnAskKind = kind;
+    message('⚠️ '+ORE[kind].ico+' '+ORE[kind].name+' нужен модулю! Жать ещё раз — сжечь');
+    return;
+  }
+  burnAsk = 0; burnAskKind = null;
+  cargo[kind]--;
+  const got = table[kind];
+  if(docked()){
+    reserve = Math.min(RESERVE_MAX, reserve + got);
+    message('🔥 '+ORE[kind].ico+' → +'+got+' на склад (установка дока)');
+  } else {
+    player.fuel = Math.min(FUEL_MAX, player.fuel + got);
+    message('🔥 '+ORE[kind].ico+' сожжён в ранце: +'+got+' газа (в доке было бы '+DOCK_FUEL[kind]+')');
+  }
+  for(let i=0;i<10;i++) sparks(player.x, player.y, ORE[kind].col);
 }
 function dumpCargo(){
   const n = cargoCount();
   if(!n){ message('Рюкзак и так пуст'); return; }
-  cargo = { ice:0, iron:0, titan:0, cryst:0 };
+  cargo = { rego:0, ice:0, iron:0, titan:0, cryst:0 };
   message('🗑 Сброшено '+n+' ед. — стал легче, но руда потеряна');
   for(let i=0;i<14;i++) sparks(player.x, player.y, '#8f98a1');
 }
@@ -347,11 +402,12 @@ function sparks(x,y,col){
 
 function reset(){
   genAsteroid();
-  cargo = { ice:0, iron:0, titan:0, cryst:0 };
+  cargo = { rego:0, ice:0, iron:0, titan:0, cryst:0 };
   built = { iron:0, titan:0, cryst:0 };
   reserve = 34; timeLeft = TOTAL_TIME;
   player = { x:padX, y:padY, vx:0, vy:0, fuel:FUEL_MAX, hull:100, hurt:0, thr:{x:0,y:0} };
   parts = []; drillT = 0; drillTile = null; aimA = -1.57; shake = 0;
+  burnAsk = 0; burnAskKind = null;
   over = false; win = false; cause = ''; paused = false; lostT = 0; dug = 0;
   launching = false; launchT = 0; mouseAim = false;
   for(const k in held) held[k] = false;
@@ -380,6 +436,7 @@ function update(dt){
   for(const p of parts){ p.t += dt; p.x += p.vx*dt; p.y += p.vy*dt; }
   parts = parts.filter(p=>p.t < p.life);
   if(msgT>0) msgT -= dt;
+  if(burnAsk>0){ burnAsk -= dt; if(burnAsk<=0) burnAskKind = null; }   // окно подтверждения на сжигание руды
 
   if(launching){
     launchT += dt;
@@ -409,7 +466,7 @@ function update(dt){
     for(let i=0;i<2;i++) if(Math.random()<0.6)
       parts.push({ x:player.x-tx*7, y:player.y-ty*7, vx:-tx*90+(Math.random()-0.5)*30, vy:-ty*90+(Math.random()-0.5)*30,
                    life:0.16+Math.random()*0.2, t:0, col: fine?'#7fd0ff':'#ffb454' });
-    if(player.fuel<=0) message('⛽ ГАЗ КОНЧИЛСЯ! R — сжечь лёд');
+    if(player.fuel<=0) message('⛽ ГАЗ КОНЧИЛСЯ! R — расщепить что есть в рюкзаке');
   }
 
   // --- гравитация ---
@@ -608,7 +665,7 @@ function drawHUD(){
   // груз по видам
   ctx.textAlign='left'; ctx.font='11px Segoe UI';
   let bx = 8, by = 66;
-  for(const k of ['ice','iron','titan','cryst']){
+  for(const k of ['rego','ice','iron','titan','cryst']){
     if(!cargo[k]) continue;
     ctx.fillStyle = 'rgba(8,11,18,.7)'; ctx.fillRect(bx-4, by-11, 42, 15);
     ctx.fillStyle = ORE[k].col; ctx.fillText(ORE[k].ico+' '+cargo[k], bx, by);
@@ -643,7 +700,7 @@ function drawHUD(){
   ctx.fillStyle = 'rgba(8,11,18,.85)'; ctx.fillRect(0,CH-40,CW,40);
   ctx.textAlign='left'; ctx.font='11px Segoe UI'; ctx.fillStyle='#9aa4ae';
   ctx.fillText('WASD — импульс · Shift — точный · ЛКМ/Space — бур · E — док', 10, CH-24);
-  ctx.fillText('R — сжечь лёд · Q — сбросить груз · P — пауза', 10, CH-9);
+  ctx.fillText('R — расщепить ресурс в газ · Q — сбросить груз · P — пауза', 10, CH-9);
   ctx.textAlign='right'; ctx.fillStyle = docked() ? '#8ef0a0' : '#6d7681';
   ctx.font='bold 12px Segoe UI';
   ctx.fillText(docked()?'🛰 В ДОКЕ':'в поле', CW-10, CH-24);
@@ -817,7 +874,7 @@ document.addEventListener('keydown', e=>{
   if(e.code==='Space'){ drilling = true; e.preventDefault(); return; }
   if(e.repeat) return;
   if(e.code==='KeyE'){ doDock(); return; }
-  if(e.code==='KeyR'){ burnIce(); return; }
+  if(e.code==='KeyR'){ burnFuel(); return; }
   if(e.code==='KeyQ'){ dumpCargo(); return; }
 });
 document.addEventListener('keyup', e=>{
@@ -854,7 +911,7 @@ function onBtn(id, fn){
 }
 onBtn('dockBtn', ()=>{ if(!over&&!paused) doDock(); });
 onBtn('fineBtn', ()=>{ fine = !fine; });
-onBtn('subBtn', ()=>{ if(!over&&!paused) burnIce(); });
+onBtn('subBtn', ()=>{ if(!over&&!paused) burnFuel(); });
 onBtn('dumpBtn', ()=>{ if(!over&&!paused) dumpCargo(); });
 onBtn('pause', ()=>{ if(!over){ paused = !paused; updateButtons(); } });
 onBtn('restart', ()=>reset());
@@ -869,7 +926,7 @@ requestAnimationFrame(frame);
 
 // хук для отладки/тестов
 if(typeof globalThis!=='undefined') globalThis.__A = {
-  reset, update, render, doDock, burnIce, dumpCargo, breakTile, aimTarget, gravityAt, blockedAt, endGame, addOre,
+  reset, update, render, doDock, burnFuel, dumpCargo, breakTile, aimTarget, gravityAt, blockedAt, endGame, addOre,
   getPlayer:()=>player, getCargo:()=>cargo, getBuilt:()=>built, getTiles:()=>tiles, getReserve:()=>reserve,
   setReserve:v=>{reserve=v;}, getTime:()=>timeLeft, setTime:v=>{timeLeft=v;}, getOver:()=>over, getWin:()=>win,
   getCause:()=>cause, getHeld:()=>held, setFine:v=>{fine=v;}, setDrill:v=>{drilling=v;}, setAim:v=>{aimA=v;},
