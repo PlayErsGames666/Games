@@ -91,10 +91,10 @@
     <button id="faceBtn">🎯 К врагу (Ctrl)</button>
     <button id="bagBtn">🎒 Рюкзак (I)</button>
     <button id="useBtn">🛠️ Использовать (Q)</button>
-    <button id="eatBtn">🍓 Быстро съесть (F)</button>
+    <button id="eatBtn">🍓 Быстро съесть (G)</button>
   </div>
 
-  <div class="hint">Показатели, ресурсы, хотбар и рюкзак — прямо на игровом экране · WASD — ходить (в стену/моба — поворот на месте) · Ctrl — к врагу · Space/E — бить/собирать · 🎒 Рюкзак (I) → клик по ячейке хотбара · 1-9 выбор · Q — поставить · P/Esc — пауза</div>
+  <div class="hint">Показатели, ресурсы, хотбар и рюкзак — прямо на игровом экране · WASD — ходить (в стену/моба — поворот на месте) · Ctrl — к врагу · Space/E — бить/собирать · 🎒 Рюкзак (I) → клик по ячейке хотбара · 1-9 выбор · Q — поставить · G — съесть · F — полный экран · P/Esc — пауза</div>
 </div>
 <aside class="guide-panel">
   <h2>🎛 Как играть</h2>
@@ -116,6 +116,9 @@ const FIRE_R = 3, TORCH_TIME = 40, FIRE_FUEL = 75, HUNGER_RATE = 0.3;   // фа�
 const WALL_HP = 5, CROP_STAGE_TIME = 16, CROP_MAX = 3;   // 3 стадии роста ~48с
 const MOB_CAP = 6, MOB_HP = 3, MOB_DMG = 8, MOB_SPEED = 4;
 const SLIME_CAP = 5, SLIME_HP = 2, SLIME_DMG = 4, SLIME_SPEED = 3, SLIME_REST = 0.75;
+// урон — только вплотную; SPAWN_GRACE — передышка после появления,
+// BITE_WINDUP — сколько моб должен простоять рядом до первого укуса
+const BITE_RANGE = 1.15, BITE_WINDUP = 0.45, SPAWN_GRACE = 1.5;
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -155,7 +158,7 @@ const inb = (x, y) => x >= 0 && x < MAPW && y >= 0 && y < MAPH;
 const ckey = (x, y) => x + ',' + y;
 
 function makePlayer(tx, ty) { return { tx, ty, px: (tx + 0.5) * T, py: (ty + 0.5) * T, dir: { x: 0, y: 1 }, moving: false, ox: 0, oy: 0, fx: 0, fy: 0, mt: 0, chop: 0, gcd: 0, torch: 0, npx: null, npy: null }; }
-function makeMob(tx, ty, type) { type = type || 'zombie'; return { type, tx, ty, px: (tx + 0.5) * T, py: (ty + 0.5) * T, moving: false, ox: 0, oy: 0, fx: 0, fy: 0, mt: 0, hp: type === 'slime' ? SLIME_HP : MOB_HP, cd: 0, hopCd: rnd(2) * 0.3, npx: null, npy: null }; }
+function makeMob(tx, ty, type) { type = type || 'zombie'; return { type, tx, ty, px: (tx + 0.5) * T, py: (ty + 0.5) * T, moving: false, ox: 0, oy: 0, fx: 0, fy: 0, mt: 0, hp: type === 'slime' ? SLIME_HP : MOB_HP, cd: SPAWN_GRACE, touch: 0, hopCd: rnd(2) * 0.3, npx: null, npy: null }; }
 
 function genMap() {
   tiles = []; res = [];
@@ -309,6 +312,18 @@ function freeForMob(x, y, self) { return passable(x, y) && !mobAt(x, y, self) &&
 function hurt(dmg) { health = Math.max(0, health - dmg); hurtT = 0.35; }
 // повернуться к ближайшему мобу в радиусе 3 клеток (без движения)
 function nearMobDir(p) { let best = null, bd = 1e9; for (const m of (mobs || [])) { const d = Math.max(Math.abs(m.tx - p.tx), Math.abs(m.ty - p.ty)); if (d >= 1 && d <= 3 && d < bd) { bd = d; best = m; } } if (!best) return null; const dx = best.tx - p.tx, dy = best.ty - p.ty; return Math.abs(dx) >= Math.abs(dy) ? { x: Math.sign(dx), y: 0 } : { x: 0, y: Math.sign(dy) }; }
+// «в притык»: только соседняя клетка по прямой (без диагоналей) И реальная близость в пикселях
+function adjacent(m, p) {
+  if (Math.abs(p.tx - m.tx) + Math.abs(p.ty - m.ty) > 1) return false;
+  const dx = p.px - m.px, dy = p.py - m.py;
+  return dx * dx + dy * dy <= (T * BITE_RANGE) * (T * BITE_RANGE);
+}
+function tryBite(m, dt, dmg) {
+  const p = nearestPlayer(m.tx, m.ty);
+  if (!p || !adjacent(m, p)) { m.touch = 0; return; }   // отошёл — замах сбрасывается
+  m.touch = (m.touch || 0) + dt;
+  if (m.touch >= BITE_WINDUP && m.cd <= 0) { hurt(dmg); m.cd = 1; m.touch = 0; }
+}
 function stepMob(m, dt) {
   if (m.type === 'slime') { stepSlime(m, dt); return; }
   if (!m.moving) {
@@ -321,8 +336,7 @@ function stepMob(m, dt) {
   }
   moveEntity(m, dt, MOB_SPEED);
   m.cd -= dt;
-  const p = nearestPlayer(m.tx, m.ty);
-  if (p && Math.abs(p.tx - m.tx) <= 1 && Math.abs(p.ty - m.ty) <= 1 && m.cd <= 0) { hurt(MOB_DMG); m.cd = 1; }
+  tryBite(m, dt, MOB_DMG);
   if (!isNight()) m.hp -= dt * 3; // зомби днём сгорают
 }
 // слайм: прыгает по одной клетке, отдыхает между прыжками, днём НЕ горит
@@ -346,8 +360,7 @@ function stepSlime(m, dt) {
     }
   }
   moveEntity(m, dt, SLIME_SPEED);
-  const p = nearestPlayer(m.tx, m.ty);
-  if (p && Math.abs(p.tx - m.tx) <= 1 && Math.abs(p.ty - m.ty) <= 1 && m.cd <= 0) { hurt(SLIME_DMG); m.cd = 1; }
+  tryBite(m, dt, SLIME_DMG);
 }
 function spawnMob() {
   const p = players[rnd(players.length)];
@@ -745,7 +758,7 @@ document.addEventListener('keydown', (e) => {
   if (e.code === 'ControlLeft' || e.code === 'ControlRight') { if (!e.repeat) doFace(); e.preventDefault(); return; }
   if (e.repeat) return;
   if (e.code === 'KeyQ') doUse();
-  else if (e.code === 'KeyF') doEat();
+  else if (e.code === 'KeyG') doEat();   // F отдана полному экрану
   else if (e.code.startsWith('Digit')) { const n = parseInt(e.code.slice(5)); if (n >= 1 && n <= 9) { selSlot = n - 1; } }
 });
 document.addEventListener('keyup', (e) => { const dir = KEYDIR[e.code]; if (dir) { held[dir] = false; dirOrder = dirOrder.filter(d => d !== dir); } if (e.code === 'Space' || e.code === 'KeyE') held.gather = false; });
@@ -829,7 +842,7 @@ requestAnimationFrame(frame);
   document.addEventListener("fullscreenchange",upd);
   document.addEventListener("webkitfullscreenchange",upd);
   window.addEventListener("resize",function(){ if(isFs()) requestAnimationFrame(fit); });
-  /* F занята быстрой едой — только кнопка */
+  document.addEventListener("keydown",function(e){ if(e.target&&e.target.tagName==="INPUT")return; if(e.code==="KeyF"&&!e.repeat&&!e.ctrlKey&&!e.altKey&&!e.metaKey){ toggle(); } });
   window.__toggleFullscreen=toggle; window.__fsFit=fit; upd();
 })();
 </script>
