@@ -689,19 +689,27 @@ function drawBackpack() {
 // его не получает. Пока открыт рюкзак — просим отдавать Esc нам (Keyboard Lock):
 // тогда первый Esc закрывает рюкзак, а следующий уже выходит из полного экрана.
 function inFullscreen() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
-function escLock(on) {
+let escUnlockTimer = null;
+function escLock(on, defer) {
   try {
     const kb = navigator.keyboard;
     if (!kb || !kb.lock) return;                       // Firefox/Safari — просто нет такой возможности
-    if (on && inFullscreen()) { const p = kb.lock(['Escape']); if (p && p.catch) p.catch(() => {}); }
-    else kb.unlock();
+    if (escUnlockTimer) { clearTimeout(escUnlockTimer); escUnlockTimer = null; }
+    if (on && inFullscreen()) { const p = kb.lock(['Escape']); if (p && p.catch) p.catch(() => {}); return; }
+    const release = () => { try { kb.unlock(); } catch (_) {} };
+    if (!defer) { release(); return; }
+    // ВАЖНО: если снять захват прямо в обработчике Esc, браузер обработает
+    // ЭТО ЖЕ нажатие как выход из полного экрана. Ждём отпускания клавиши.
+    const onUp = (ev) => { if (ev.code === 'Escape') { document.removeEventListener('keyup', onUp, true); release(); } };
+    document.addEventListener('keyup', onUp, true);
+    escUnlockTimer = setTimeout(() => { document.removeEventListener('keyup', onUp, true); release(); }, 800);
   } catch (_) {}
 }
-function toggleInv(v) {
+function toggleInv(v, byEsc) {
   invOpen = (v === undefined) ? !invOpen : v;
   const btn = document.getElementById('bagBtn'); if (btn) btn.classList.toggle('on', invOpen);
   if (!invOpen) selItem = null;
-  escLock(invOpen);
+  escLock(invOpen, !!byEsc);
 }
 // выход из полного экрана: снимаем захват и закрываем рюкзак — иначе в браузерах
 // без Keyboard Lock он остался бы висеть открытым после нажатия Esc
@@ -722,7 +730,7 @@ document.addEventListener('keydown', (e) => {
   if (e.code === 'Escape' && !e.repeat) {
     const inInput = e.target && e.target.tagName === 'INPUT';
     if (inInput) e.target.blur();                       // из поля ввода — сначала снимаем фокус
-    if (invOpen) toggleInv(false);                      // рюкзак закрывается одним Esc в любом случае
+    if (invOpen) toggleInv(false, true);                // закрываем рюкзак, захват Esc снимем на keyup
     else if (!inInput && !over) { paused = !paused; updatePauseBtn(); }
     e.preventDefault(); return;
   }
