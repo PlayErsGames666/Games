@@ -38,17 +38,6 @@
   .slot .key { position:absolute; top:1px; left:4px; font-size:9px; opacity:.55; }
   .slot.assign { border-color:#ffd166; box-shadow:0 0 0 2px rgba(255,209,102,.35); cursor:copy; }
 
-  .invpanel { margin-top:10px; background:var(--panel); border:2px solid var(--accent); border-radius:10px; padding:12px; text-align:left; }
-  .invhead { font-size:13px; font-weight:bold; margin-bottom:8px; }
-  .invhead #invhint { font-weight:normal; opacity:.7; }
-  .invres { font-size:15px; margin-bottom:10px; }
-  .invgrid { display:flex; gap:6px; flex-wrap:wrap; }
-  .invcard { width:66px; height:66px; background:var(--panel2); border:2px solid transparent; border-radius:8px; display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; }
-  .invcard.sel { border-color:#ffd166; box-shadow:0 0 0 2px rgba(255,209,102,.35); }
-  .invcard.dim { opacity:.4; }
-  .invcard .si { font-size:22px; line-height:1; }
-  .invcard .sn { font-size:10px; margin-top:2px; }
-  .invcard .sc { font-size:10px; font-weight:bold; color:#ffd166; margin-top:1px; }
   #bagBtn.on { background:var(--accent); color:#08251c; }
 
   .pad { margin-top:12px; display:grid; grid-template-columns:repeat(3,48px); grid-gap:6px; justify-content:center; }
@@ -108,12 +97,6 @@
   <!-- показатели, ресурсы и хотбар рисуются ВНУТРИ канваса (см. drawHUD) -->
   <canvas id="game" width="512" height="384"></canvas>
 
-  <div class="invpanel" id="invpanel" hidden>
-    <div class="invhead">🎒 Рюкзак — <span id="invhint">Клик по предмету, затем клик по ячейке хотбара на игровом экране</span></div>
-    <div class="invres">Ресурсы: <span id="invres"></span></div>
-    <div class="invgrid" id="invgrid"></div>
-  </div>
-
   <div class="pad">
     <span></span><button data-dir="up">▲</button><span></span>
     <button data-dir="left">◀</button><button id="gatherBtn">🤚</button><button data-dir="right">▶</button>
@@ -126,7 +109,7 @@
     <button id="eatBtn">🍓 Быстро съесть (F)</button>
   </div>
 
-  <div class="hint">Показатели, ресурсы и хотбар — прямо на игровом экране · WASD — ходить (в стену/моба — поворот на месте) · Ctrl — к врагу · Space/E — бить/собирать · 🎒 Рюкзак (I) → клик по ячейке хотбара · 1-9 выбор · Q — поставить · P/Esc — пауза</div>
+  <div class="hint">Показатели, ресурсы, хотбар и рюкзак — прямо на игровом экране · WASD — ходить (в стену/моба — поворот на месте) · Ctrl — к врагу · Space/E — бить/собирать · 🎒 Рюкзак (I) → клик по ячейке хотбара · 1-9 выбор · Q — поставить · P/Esc — пауза</div>
 </div>
 <aside class="guide-panel">
   <h2>🎛 Как играть</h2>
@@ -571,7 +554,6 @@ function render() {
   }
 
   drawHUD(dk);
-  if (invOpen) updateInv();
 }
 
 // ─── HUD прямо в игровой камере (как в майнкрафте) ───
@@ -619,6 +601,8 @@ function drawHUD(dk) {
     ctx.fillStyle = '#ffd166'; ctx.fillText(msgText, CW / 2, my);
   }
 
+  if (invOpen) drawBackpack();
+
   // хотбар
   for (let i = 0; i < 9; i++) {
     const r = hotbarRect(i), id = hot[i], it = id ? ITEMS[id] : null;
@@ -648,7 +632,7 @@ function costStr(cost) { return cost ? Object.keys(cost).map(k => cost[k] + ({ w
 function itemUsable(id) { const it = ITEMS[id]; if (!it) return false; if (it.kind === 'food') return (it.food === 'meat' ? inv.meat : inv.berries) > 0; return canAfford(it.cost); }
 function updateHotbar() { /* хотбар рисуется в канвасе (drawHUD) — обновлять DOM не нужно */ }
 function onHotClick(i) {
-  if (invOpen) { hot[i] = selItem || null; updateInv(); }
+  if (invOpen) { hot[i] = selItem || null; selItem = null; }
   else selSlot = i;
 }
 // клик по канвасу: попал в ячейку хотбара — выбрать/положить предмет
@@ -658,32 +642,58 @@ function hotSlotAt(cx, cy) {
 }
 
 // --- рюкзак / инвентарь (отдельный мини-блок как в майнкрафте) ---
-const invCards = {};
-function buildInv() {
-  const grid = document.getElementById('invgrid'); if (!grid) return;
-  grid.innerHTML = '';
-  for (const id of ASSIGNABLE) {
-    const it = ITEMS[id];
-    const c = document.createElement('div'); c.className = 'invcard';
-    c.innerHTML = '<span class="si">' + it.ico + '</span><span class="sn">' + it.name + '</span><span class="sc">' + costStr(it.cost) + '</span>';
-    c.addEventListener('click', () => { selItem = (selItem === id) ? null : id; updateInv(); updateHotbar(); });
-    grid.appendChild(c); invCards[id] = c;
-  }
+// рюкзак рисуется ПОВЕРХ игры внутри канваса (как хотбар), панель — не DOM
+const BAG = { w: 448, h: 208, cw: 100, ch: 60, gap: 9, cols: 4 };
+function bagRect() { return { x: Math.round((CW - BAG.w) / 2), y: 62, w: BAG.w, h: BAG.h }; }
+function bagCardRect(i) {
+  const p = bagRect(), tw = BAG.cols * BAG.cw + (BAG.cols - 1) * BAG.gap;
+  const x0 = p.x + Math.round((p.w - tw) / 2), y0 = p.y + 58;
+  return { x: x0 + (i % BAG.cols) * (BAG.cw + BAG.gap), y: y0 + Math.floor(i / BAG.cols) * (BAG.ch + BAG.gap), w: BAG.cw, h: BAG.ch };
 }
-function updateInv() {
-  const rs = document.getElementById('invres'); if (rs) rs.textContent = '🪵' + inv.wood + '   🪨' + inv.stone + '   💎' + inv.ore + '   🍖' + inv.meat + '   🍓' + inv.berries + '   🟢' + (inv.slime || 0);
-  for (const id of ASSIGNABLE) { const c = invCards[id]; if (!c) continue; c.classList.toggle('dim', !itemUsable(id)); c.classList.toggle('sel', selItem === id); }
-  const hint = document.getElementById('invhint');
-  if (hint) hint.textContent = selItem
-    ? ('Выбрано «' + ITEMS[selItem].name + '» — кликни ячейку хотбара на игровом экране (клик по ячейке без выбора — очистить)')
-    : 'Клик по предмету, затем клик по ячейке хотбара на игровом экране';
+function bagItemAt(cx, cy) {
+  for (let i = 0; i < ASSIGNABLE.length; i++) { const r = bagCardRect(i); if (cx >= r.x && cx <= r.x + r.w && cy >= r.y && cy <= r.y + r.h) return ASSIGNABLE[i]; }
+  return null;
+}
+function inBag(cx, cy) { const p = bagRect(); return cx >= p.x && cx <= p.x + p.w && cy >= p.y && cy <= p.y + p.h; }
+function drawBackpack() {
+  const p = bagRect();
+  ctx.save();
+  ctx.fillStyle = 'rgba(6,8,18,.58)'; ctx.fillRect(0, 0, CW, CH);          // затемняем мир
+  ctx.fillStyle = 'rgba(26,30,52,.97)'; ctx.fillRect(p.x, p.y, p.w, p.h);  // панель
+  ctx.strokeStyle = '#06d6a0'; ctx.lineWidth = 2; ctx.strokeRect(p.x + 1, p.y + 1, p.w - 2, p.h - 2);
+
+  ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+  ctx.fillStyle = '#edf2f4'; ctx.font = 'bold 13px Segoe UI, sans-serif';
+  ctx.fillText('🎒 РЮКЗАК', p.x + 12, p.y + 16);
+  ctx.font = '11px Segoe UI, sans-serif'; ctx.fillStyle = 'rgba(237,242,244,.72)';
+  ctx.fillText(selItem ? ('Выбрано «' + ITEMS[selItem].name + '» — кликни ячейку хотбара') : 'Предмет → затем ячейка хотбара (I — закрыть)', p.x + 90, p.y + 16);
+  ctx.font = 'bold 13px Segoe UI, sans-serif'; ctx.fillStyle = '#ffd166';
+  ctx.fillText('🪵' + inv.wood + '  🪨' + inv.stone + '  💎' + inv.ore + '  🍖' + inv.meat + '  🍓' + inv.berries + '  🟢' + (inv.slime || 0), p.x + 12, p.y + 40);
+
+  ASSIGNABLE.forEach((id, i) => {
+    const r = bagCardRect(i), it = ITEMS[id], can = itemUsable(id);
+    ctx.globalAlpha = can ? 1 : .42;
+    ctx.fillStyle = 'rgba(58,61,92,.95)'; ctx.fillRect(r.x, r.y, r.w, r.h);
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = selItem === id ? '#ffd166' : 'rgba(255,255,255,.12)';
+    ctx.lineWidth = selItem === id ? 2 : 1;
+    ctx.strokeRect(r.x + .5, r.y + .5, r.w - 1, r.h - 1);
+    ctx.globalAlpha = can ? 1 : .42;
+    ctx.textAlign = 'center';
+    ctx.font = '18px Segoe UI Emoji, sans-serif'; ctx.fillStyle = '#fff';
+    ctx.fillText(it.ico, r.x + r.w / 2, r.y + 17);
+    ctx.font = '10px Segoe UI, sans-serif'; ctx.fillStyle = '#edf2f4';
+    ctx.fillText(it.name, r.x + r.w / 2, r.y + 34);
+    ctx.font = 'bold 10px Segoe UI, sans-serif'; ctx.fillStyle = '#ffd166';
+    ctx.fillText(it.kind === 'food' ? ('есть: ' + (it.food === 'meat' ? inv.meat : inv.berries)) : costStr(it.cost), r.x + r.w / 2, r.y + 49);
+    ctx.globalAlpha = 1;
+  });
+  ctx.restore();
 }
 function toggleInv(v) {
   invOpen = (v === undefined) ? !invOpen : v;
-  const panel = document.getElementById('invpanel'); if (panel) panel.hidden = !invOpen;
   const btn = document.getElementById('bagBtn'); if (btn) btn.classList.toggle('on', invOpen);
   if (!invOpen) selItem = null;
-  updateInv(); updateHotbar();
 }
 
 function frame(now) { if (lastFrame === null) lastFrame = now; let dt = (now - lastFrame) / 1000; lastFrame = now; if (dt > 0.05) dt = 0.05; update(dt); render(); requestAnimationFrame(frame); }
@@ -718,7 +728,13 @@ canvas.addEventListener('pointerdown', (e) => {
   const r = canvas.getBoundingClientRect();
   const cx = (e.clientX - r.left) * (CW / r.width), cy = (e.clientY - r.top) * (CH / r.height);
   const s = hotSlotAt(cx, cy);
-  if (s >= 0) { onHotClick(s); e.preventDefault(); }
+  if (s >= 0) { onHotClick(s); e.preventDefault(); return; }   // ячейка хотбара — всегда доступна
+  if (invOpen) {
+    e.preventDefault();
+    const id = bagItemAt(cx, cy);
+    if (id) { selItem = (selItem === id) ? null : id; return; }
+    if (!inBag(cx, cy)) toggleInv(false);                      // клик мимо панели — закрыть рюкзак
+  }
 });
 document.getElementById('useBtn').addEventListener('click', doUse);
 document.getElementById('eatBtn').addEventListener('click', doEat);
@@ -733,7 +749,6 @@ const rci = document.getElementById('roomCodeInput'); rci.addEventListener('clic
 if (typeof location !== 'undefined' && location.protocol === 'file:') netStatus('⚠️ Онлайн работает только по ссылке http(s), не через file://');
 
 document.getElementById('bagBtn').addEventListener('click', () => toggleInv());
-buildInv();
 reset();
 toggleInv(false);
 lastFrame = null;
