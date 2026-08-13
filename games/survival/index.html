@@ -104,7 +104,7 @@
   <div class="row2"><b>Фермерство:</b> поставь грядку → «Посадить» (🌰, 1🍓) → вырастет → собери Space.</div>
   <div class="row2"><b>Строительство:</b> 🧱 стена (2🪨) блокирует мобов.</div>
   <div class="sep"></div>
-  <div class="note">Ночью появляются мобы 👾 — они идут к тебе и бьют. Бей их Space/E (падает 🍖 мясо, ешь для голода). Днём мобы сгорают. Онлайн-кооп есть; мобы/грядки синхронизируются от хоста. Рекорд по дням сохраняется.</div>
+  <div class="note">Ночью появляются мобы 👾 — они идут к тебе и бьют. Бей их Space/E (падает 🍖 мясо, ешь для голода). Днём мобы сгорают. Онлайн-кооп до 4 игроков: комната по коду, подключаться можно на ходу; мир и мобы считаются у хоста. Рекорд по дням сохраняется.</div>
 </aside>
 </div>
 
@@ -131,8 +131,14 @@ let msgText = 'Собирай ресурсы, к ночи разведи кос�
 let tiles, res, players, mobs, crops, inv, health, hunger, warmth, fires, clock, over, best, anim, msgTimer, lastFrame;
 let paused, particles, hitFx, lastHarvest, selSlot = 0, mobSpawnAcc = 0, slimeSpawnAcc = 0, hurtT = 0;
 let deathT = 0, deathShown = false, deathCause = '', deathDay = 0;
-let role = 'solo', peer = null, conn = null, connected = false, me = 0, netAcc = 0;
-let remoteHeld = { up: false, down: false, left: false, right: false, gather: false };
+const MAXP = 4;                       // хост + до трёх гостей
+let role = 'solo', peer = null, conn = null, conns = [], connected = false, me = 0, netAcc = 0;
+let sessionStarted = false;
+// ввод гостей по их слотам: remoteHeld[2] — это то, что жмёт игрок из слота 2
+let remoteHeld = [];
+let inAcc = 0, lastIn = '';
+function blankHeld() { return { up: false, down: false, left: false, right: false, gather: false }; }
+function activePlayers() { return (players || []).filter(p => p && !p.gone); }
 const held = { up: false, down: false, left: false, right: false, gather: false };
 let dirOrder = [];
 const DIRS = { up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 }, right: { x: 1, y: 0 } };
@@ -198,7 +204,8 @@ function spawnDeathBurst() {
 function triggerDeath() { deathShown = true; deathT = 0; spawnDeathBurst(); }
 function reset() {
   if (role === 'join') { message('Только хост может начать заново'); return; }
-  startWorld(role === 'solo' ? 1 : 2);
+  if (role === 'solo') startWorld(1);
+  else { hostWorld(); for (const c of conns) if (c.slot) seatPlayer(c.slot); }
   updatePauseBtn();
   message('Собирай ресурсы, к ночи разведи костёр — ночью выходят мобы!');
   if (role === 'host' && connected) { netSend({ t: 'map', tiles, res }); broadcastState(); }
@@ -304,9 +311,9 @@ function stepEntity(p, h, order, dt) {
   if (h.gather && p.gcd <= 0) { const ok = actionFront(p); p.gcd = ok ? 0.28 : 0.12; }
 }
 
-function nearestPlayer(mx, my) { let best = null, bd = 1e9; for (const p of players) { const d = Math.abs(p.tx - mx) + Math.abs(p.ty - my); if (d < bd) { bd = d; best = p; } } return best; }
+function nearestPlayer(mx, my) { let best = null, bd = 1e9; for (const p of activePlayers()) { const d = Math.abs(p.tx - mx) + Math.abs(p.ty - my); if (d < bd) { bd = d; best = p; } } return best; }
 function mobAt(x, y, except) { for (const m of mobs) { if (m === except) continue; if (m.tx === x && m.ty === y) return m; } return null; }
-function playerAt(x, y) { for (const p of players) if (p.tx === x && p.ty === y) return p; return null; }
+function playerAt(x, y) { for (const p of activePlayers()) if (p.tx === x && p.ty === y) return p; return null; }
 function freeForPlayer(x, y) { return passable(x, y) && !mobAt(x, y); }         // мобы «твёрдые» — сквозь них не пройти
 function freeForMob(x, y, self) { return passable(x, y) && !mobAt(x, y, self) && !playerAt(x, y); } // мобы не залезают друг на друга и на игрока
 function hurt(dmg) { health = Math.max(0, health - dmg); hurtT = 0.35; }
@@ -363,11 +370,13 @@ function stepSlime(m, dt) {
   tryBite(m, dt, SLIME_DMG);
 }
 function spawnMob() {
-  const p = players[rnd(players.length)];
+  const act = activePlayers(); if (!act.length) return;
+  const p = act[rnd(act.length)];
   for (let a = 0; a < 20; a++) { const ang = Math.random() * 7, dist = 7 + rnd(5); const mx = p.tx + Math.round(Math.cos(ang) * dist), my = p.ty + Math.round(Math.sin(ang) * dist); if (passable(mx, my)) { mobs.push(makeMob(mx, my)); return; } }
 }
 function spawnSlime() {
-  const p = players[rnd(players.length)];
+  const act = activePlayers(); if (!act.length) return;
+  const p = act[rnd(act.length)];
   for (let a = 0; a < 20; a++) { const ang = Math.random() * 7, dist = 6 + rnd(6); const mx = p.tx + Math.round(Math.cos(ang) * dist), my = p.ty + Math.round(Math.sin(ang) * dist); if (passable(mx, my)) { mobs.push(makeMob(mx, my, 'slime')); return; } }
 }
 
@@ -382,14 +391,24 @@ function update(dt) {
   if (over || paused) return;
 
   if (role === 'join') {
-    netSend({ t: 'in', h: { up: held.up, down: held.down, left: held.left, right: held.right, gather: held.gather } });
+    // шлём ввод при ИЗМЕНЕНИИ и раз в полсекунды на всякий случай: при четверых
+    // 60 пакетов в секунду с каждого — это 180 пакетов хосту на ровном месте
+    const h = { up: held.up, down: held.down, left: held.left, right: held.right, gather: held.gather };
+    const sig = h.up + '' + h.down + h.left + h.right + h.gather;
+    inAcc += dt;
+    if (sig !== lastIn || inAcc >= 0.5) { lastIn = sig; inAcc = 0; netSend({ t: 'in', h }); }
     if (players) for (const p of players) if (p.npx != null) { p.px += (p.npx - p.px) * Math.min(1, dt * 12); p.py += (p.npy - p.py) * Math.min(1, dt * 12); }
     if (mobs) for (const m of mobs) if (m.npx != null) { m.px += (m.npx - m.px) * Math.min(1, dt * 12); m.py += (m.npy - m.py) * Math.min(1, dt * 12); }
     return;
   }
 
   stepEntity(players[0], held, dirOrder, dt);
-  if (role === 'host' && players[1]) stepEntity(players[1], remoteHeld, null, dt);
+  if (role === 'host') {
+    for (let i = 1; i < players.length; i++) {
+      const p = players[i];
+      if (p && !p.gone) stepEntity(p, remoteHeld[i] || blankHeld(), null, dt);
+    }
+  }
 
   // мобы
   const zc = mobs.filter(m => m.type !== 'slime').length, sc = mobs.length - zc;
@@ -403,7 +422,7 @@ function update(dt) {
 
   clock += dt;
   hunger = Math.max(0, hunger - HUNGER_RATE * dt);
-  const warm = !isNight() || players.every(p => nearWarmth(p));
+  const warm = !isNight() || activePlayers().every(p => nearWarmth(p));
   warmth = warm ? Math.min(100, warmth + 18 * dt) : Math.max(0, warmth - 9 * dt);
   let dmg = 0; if (hunger <= 0) dmg += 3 * dt; if (warmth <= 0) dmg += 4 * dt;
   if (dmg > 0) health = Math.max(0, health - dmg); else if (hunger > 60 && warmth > 60) health = Math.min(100, health + 1.5 * dt);
@@ -426,8 +445,55 @@ function endGame() {
 function netStatus(t) { document.getElementById('netStatus').textContent = t; }
 function showCode(code) { const inp = document.getElementById('roomCodeInput'); inp.value = code; inp.hidden = false; document.getElementById('copyBtn').hidden = false; document.getElementById('hostBtn').disabled = true; document.getElementById('joinCode').hidden = true; document.getElementById('joinBtn').hidden = true; }
 async function copyCode() { const inp = document.getElementById('roomCodeInput'), code = inp.value; if (!code) return; try { await navigator.clipboard.writeText(code); netStatus('✅ Код скопирован: ' + code + ' — отправь другу'); } catch (e) { inp.hidden = false; inp.focus(); inp.select(); try { document.execCommand('copy'); netStatus('✅ Код скопирован: ' + code); } catch (_) { netStatus('Выдели код вручную: ' + code); } } }
-function netSend(o) { try { if (conn && connected) conn.send(o); } catch (e) {} }
-function setupConn() { conn.on('data', onData); conn.on('close', () => { connected = false; netStatus('Друг отключился'); }); }
+// хост шлёт всем гостям сразу, гость — только хосту
+function netSend(o) {
+  try {
+    if (role === 'host') { for (const c of conns) { try { if (c.open) c.send(o); } catch (e) {} } }
+    else if (conn && connected) conn.send(o);
+  } catch (e) {}
+}
+function netSendTo(c, o) { try { if (c && c.open) c.send(o); } catch (e) {} }
+// Полная уборка перед новой попыткой: раньше «Войти» после неудачи создавало
+// ЕЩЁ один Peer, старый висел живым, и повторные попытки уже не проходили
+function netReset() {
+  try { if (conn) conn.close(); } catch (e) {}
+  for (const c of conns) { try { c.close(); } catch (e) {} }
+  try { if (peer) peer.destroy(); } catch (e) {}
+  conn = null; peer = null; conns = []; connected = false; remoteHeld = [];
+}
+function setupConn() { conn.on('data', onData); conn.on('close', () => { connected = false; netStatus('Хост отключился'); }); }
+
+// --- слоты игроков (только у хоста) ---
+function freeSlot() { for (let i = 1; i < MAXP; i++) if (!players || !players[i] || players[i].gone) return i; return 0; }
+function playersOnline() { return 1 + conns.length; }
+function hostStatus(code) {
+  netStatus(playersOnline() > 1
+    ? '✅ Игроков: ' + playersOnline() + '/' + MAXP + ' · код ' + code
+    : 'Готово! Ждём друзей. Код: ' + code);
+}
+// свободная клетка рядом с хостом — там появится подключившийся
+function spawnNear(p) {
+  for (let r = 1; r < 9; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+    const x = p.tx + dx, y = p.ty + dy;
+    if (freeForPlayer(x, y) && !playerAt(x, y)) return { x, y };
+  }
+  return { tx: p.tx, ty: p.ty, x: p.tx, y: p.ty };
+}
+// мир всегда на MAXP слотов; те, за кем никого нет, помечены ушедшими
+function hostWorld() {
+  startWorld(MAXP);
+  const busy = new Set(conns.map(c => c.slot));
+  for (let i = 1; i < MAXP; i++) players[i].gone = !busy.has(i);
+  sessionStarted = true;
+}
+function seatPlayer(slot) {
+  const p = players[slot];
+  const s = spawnNear(players[0]);
+  p.gone = false; p.moving = false; p.mt = 1; p.torch = 0;
+  p.tx = s.x; p.ty = s.y; p.px = (s.x + 0.5) * T; p.py = (s.y + 0.5) * T;
+  p.npx = null; p.npy = null;
+  remoteHeld[slot] = blankHeld();
+}
 function randCode() { const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s = ''; for (let i = 0; i < 4; i++) s += A[rnd(A.length)]; return s; }
 /* Свой брокер сигналинга вместо общего 0.peerjs.com: тот перегружен, режет
    по лимитам и теряет зарегистрированные комнаты при перезапуске.
@@ -451,40 +517,75 @@ function peerErrMsg(type) { return ({ 'peer-unavailable': 'Комната не �
 let hostTries = 0;
 function hostRoom() {
   if (typeof Peer === 'undefined') { netStatus('PeerJS не загрузился — интернет/https'); return; }
-  const code = randCode(); peer = new Peer('dslite-' + code, PEER_OPTS); role = 'host'; me = 0; showCode(code); netStatus('Регистрирую комнату…');
+  netReset(); const code = randCode(); sessionStarted = false; peer = new Peer('dslite-' + code, PEER_OPTS); role = 'host'; me = 0; showCode(code); netStatus('Регистрирую комнату…');
   peer.on('open', () => netStatus('Готово! Ждём друга. Код: ' + code));
   peer.on('error', e => { if (e.type === 'unavailable-id' && hostTries < 5) { hostTries++; try { peer.destroy(); } catch (_) {} hostRoom(); return; } netStatus(peerErrMsg(e.type)); });
-  peer.on('connection', c => { conn = c; setupConn(); c.on('open', () => { connected = true; startWorld(2); netSend({ t: 'map', tiles, res }); broadcastState(); netStatus('✅ Друг подключён! Код: ' + code); message('Играем вдвоём!'); render(); }); });
+  peer.on('connection', c => {
+    c.on('data', d => onData(d, c));
+    c.on('open', () => {
+      // первый гость начинает сессию, остальные ПОДСАЖИВАЮТСЯ в живой мир:
+      // раньше каждое новое соединение пересоздавало мир и роняло предыдущих
+      if (!sessionStarted || !players || players.length < MAXP) hostWorld();
+      const slot = freeSlot();
+      if (!slot) { netSendTo(c, { t: 'full' }); setTimeout(() => { try { c.close(); } catch (e) {} }, 400); message('Комната полная — четвёртого не пустили'); return; }
+      c.slot = slot; conns.push(c); connected = true;
+      seatPlayer(slot);
+      netSendTo(c, { t: 'welcome', slot });
+      netSendTo(c, { t: 'map', tiles, res });
+      broadcastState();
+      hostStatus(code); message('Игрок ' + (slot + 1) + ' в игре! Всего: ' + playersOnline());
+      render();
+    });
+    const drop = () => {
+      const i = conns.indexOf(c); if (i >= 0) conns.splice(i, 1);
+      if (c.slot && players && players[c.slot]) { players[c.slot].gone = true; remoteHeld[c.slot] = blankHeld(); }
+      connected = conns.length > 0;
+      broadcastState(); hostStatus(code);
+      if (c.slot) message('Игрок ' + (c.slot + 1) + ' отключился');
+    };
+    c.on('close', drop);
+    c.on('error', drop);
+  });
 }
 function joinRoom() {
   const code = (document.getElementById('joinCode').value || '').trim().toUpperCase();
   if (!code) { netStatus('Введи код комнаты'); return; }
   if (typeof Peer === 'undefined') { netStatus('PeerJS не загрузился — интернет/https'); return; }
-  peer = new Peer(undefined, PEER_OPTS); role = 'join'; me = 1; netStatus('Подключение к ' + code + '…');
+  netReset(); peer = new Peer(undefined, PEER_OPTS); role = 'join'; me = 1; netStatus('Подключение к ' + code + '…');
   peer.on('error', e => netStatus(peerErrMsg(e.type)));
   peer.on('open', () => { conn = peer.connect('dslite-' + code, { reliable: true }); setupConn(); conn.on('open', () => { connected = true; netStatus('✅ Подключено к ' + code); message('Ожидание карты…'); }); setTimeout(() => { if (!connected) netStatus('Не удалось подключиться к ' + code + ' — код/хост/NAT'); }, 15000); });
 }
 function broadcastState() {
   netSend({ t: 'state', clock, health, hunger, warmth, over, dc: over ? deathCause : '', inv, fires,
-    p: players.map(p => ({ tx: p.tx, ty: p.ty, px: p.px, py: p.py, dir: p.dir, chop: p.chop, torch: p.torch, moving: p.moving })),
+    p: players.map(p => ({ tx: p.tx, ty: p.ty, px: p.px, py: p.py, dir: p.dir, chop: p.chop, torch: p.torch, moving: p.moving, g: !!p.gone })),
     m: mobs.map(m => ({ tx: m.tx, ty: m.ty, px: m.px, py: m.py, hp: m.hp, ty2: m.type })),
     cr: Object.keys(crops).map(k => ({ k, s: crops[k].stage })) });
 }
-function onData(msg) {
-  if (msg.t === 'map') { tiles = msg.tiles; res = msg.res; if (!players || players.length < 2) { const cx = MAPW >> 1, cy = MAPH >> 1; players = [makePlayer(cx, cy), makePlayer(cx + 1, cy)]; } mobs = mobs || []; crops = crops || {}; inv = inv || { wood: 0, stone: 0, berries: 0, ore: 0, meat: 0, slime: 0 }; fires = fires || []; particles = particles || []; hitFx = hitFx || {}; over = false; }
+// from — соединение, из которого пришёл пакет (только у хоста): по нему
+// понимаем, ЧЕЙ это ввод, иначе четверо игроков управляли бы одним телом
+function onData(msg, from) {
+  if (msg.t === 'welcome') { me = msg.slot; netStatus('✅ Ты игрок ' + (me + 1) + ' из ' + MAXP); return; }
+  if (msg.t === 'full') { netStatus('Комната полная — уже ' + MAXP + ' игрока'); message('Комната полная'); return; }
+  if (msg.t === 'map') { tiles = msg.tiles; res = msg.res; if (!players || players.length < MAXP) { const cx = MAPW >> 1, cy = MAPH >> 1; players = []; for (let i = 0; i < MAXP; i++) players.push(makePlayer(cx + i, cy)); } mobs = mobs || []; crops = crops || {}; inv = inv || { wood: 0, stone: 0, berries: 0, ore: 0, meat: 0, slime: 0 }; fires = fires || []; particles = particles || []; hitFx = hitFx || {}; over = false; }
   else if (msg.t === 'state') {
     if (typeof health === 'number' && msg.health < health) hurtT = 0.35; // вспышка урона на стороне джойнера
     clock = msg.clock; health = msg.health; hunger = msg.hunger; warmth = msg.warmth; over = msg.over; inv = msg.inv; fires = msg.fires;
     if (msg.over) { deathCause = msg.dc || 'Колония погибла'; deathDay = Math.floor(msg.clock / CYCLE) + 1; }
     if (!players) players = [];
-    for (let i = 0; i < msg.p.length; i++) { let p = players[i] || (players[i] = makePlayer(msg.p[i].tx, msg.p[i].ty)); const s = msg.p[i]; p.tx = s.tx; p.ty = s.ty; p.dir = s.dir; p.chop = s.chop; p.torch = s.torch; p.moving = s.moving; p.npx = s.px; p.npy = s.py; if (p.px == null) { p.px = s.px; p.py = s.py; } }
+    for (let i = 0; i < msg.p.length; i++) { let p = players[i] || (players[i] = makePlayer(msg.p[i].tx, msg.p[i].ty)); const s = msg.p[i]; p.tx = s.tx; p.ty = s.ty; p.dir = s.dir; p.chop = s.chop; p.torch = s.torch; p.moving = s.moving; p.gone = !!s.g; p.npx = s.px; p.npy = s.py; if (p.px == null) { p.px = s.px; p.py = s.py; } }
     players.length = msg.p.length;
     mobs = (msg.m || []).map(s => { const m = makeMob(s.tx, s.ty, s.ty2); m.hp = s.hp; m.npx = s.px; m.npy = s.py; m.px = s.px; m.py = s.py; return m; });
     crops = {}; for (const c of (msg.cr || [])) crops[c.k] = { stage: c.s, timer: 0 };
   }
   else if (msg.t === 'tile') { if (inb(msg.x, msg.y)) tiles[msg.y][msg.x] = msg.tt; }
-  else if (msg.t === 'in') { remoteHeld = msg.h; }
-  else if (msg.t === 'act' && players && players[1]) { if (msg.a === 'eat') eat(); else if (msg.a === 'use') useById(players[1], msg.id); else if (msg.a === 'face') players[1].dir = { x: msg.dx, y: msg.dy }; }
+  else if (msg.t === 'in') { const s = from && from.slot; if (s) remoteHeld[s] = msg.h; }
+  else if (msg.t === 'act') {
+    const s = from && from.slot; const p = s && players && players[s];
+    if (!p || p.gone) return;
+    if (msg.a === 'eat') eat();
+    else if (msg.a === 'use') useById(p, msg.id);
+    else if (msg.a === 'face') p.dir = { x: msg.dx, y: msg.dy };
+  }
 }
 
 // --- отрисовка ---
@@ -547,7 +648,7 @@ function render() {
   }
 
   // игроки (после смерти не рисуем — их «разбросало» частицами)
-  if (!over) for (let i = 0; i < players.length; i++) { const p = players[i]; let lx = 0, ly = 0, reach = 0; if (p.chop > 0) { const l = Math.sin((1 - p.chop / 0.18) * Math.PI); lx = p.dir.x * l * 5; ly = p.dir.y * l * 5; reach = 8 + l * 9; } const px = p.px - camX + lx, py = p.py - camY + ly; ctx.fillStyle = '#0d0e1a'; ctx.beginPath(); ctx.ellipse(p.px - camX, p.py - camY + 10, 8, 3, 0, 0, 7); ctx.fill(); if (reach > 0) { ctx.strokeStyle = '#c9a227'; ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + p.dir.x * reach, py + p.dir.y * reach); ctx.stroke(); } ctx.fillStyle = (i === me) ? '#ffd166' : '#4cc9f0'; ctx.beginPath(); ctx.arc(px, py, 9, 0, 7); ctx.fill(); ctx.fillStyle = '#0d0e1a'; ctx.beginPath(); ctx.arc(px + p.dir.x * 3, py + p.dir.y * 3 - 1, 2.4, 0, 7); ctx.fill(); if (p.torch > 0) { ctx.fillStyle = '#ff9f1c'; ctx.beginPath(); ctx.arc(px + p.dir.x * 12, py + p.dir.y * 12, 3, 0, 7); ctx.fill(); } }
+  if (!over) for (let i = 0; i < players.length; i++) { const p = players[i]; if (!p || p.gone) continue; let lx = 0, ly = 0, reach = 0; if (p.chop > 0) { const l = Math.sin((1 - p.chop / 0.18) * Math.PI); lx = p.dir.x * l * 5; ly = p.dir.y * l * 5; reach = 8 + l * 9; } const px = p.px - camX + lx, py = p.py - camY + ly; ctx.fillStyle = '#0d0e1a'; ctx.beginPath(); ctx.ellipse(p.px - camX, p.py - camY + 10, 8, 3, 0, 0, 7); ctx.fill(); if (reach > 0) { ctx.strokeStyle = '#c9a227'; ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + p.dir.x * reach, py + p.dir.y * reach); ctx.stroke(); } ctx.fillStyle = (i === me) ? '#ffd166' : '#4cc9f0'; ctx.beginPath(); ctx.arc(px, py, 9, 0, 7); ctx.fill(); ctx.fillStyle = '#0d0e1a'; ctx.beginPath(); ctx.arc(px + p.dir.x * 3, py + p.dir.y * 3 - 1, 2.4, 0, 7); ctx.fill(); if (p.torch > 0) { ctx.fillStyle = '#ff9f1c'; ctx.beginPath(); ctx.arc(px + p.dir.x * 12, py + p.dir.y * 12, 3, 0, 7); ctx.fill(); } }
 
   for (const p of particles) { ctx.globalAlpha = Math.max(0, p.life / p.max); ctx.fillStyle = p.color; ctx.fillRect(p.x - camX - p.size / 2, p.y - camY - p.size / 2, p.size, p.size); } ctx.globalAlpha = 1;
 
