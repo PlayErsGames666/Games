@@ -70,9 +70,9 @@
   <h2>🏭 Как это работает</h2>
   <div class="row2"><b>Цель:</b> выполнять контракты приёмника 📦 — довезти до него нужное число деталей раньше, чем кончится время.</div>
   <div class="row2">💰 <b>Деньги</b> берутся ТОЛЬКО со сдачи в 📦. Платят за что угодно: руда 2, слиток 5, шестерня 14, схема 34. Первым делом протяни ленту от бура прямо к приёмнику — это стартовый доход.</div>
-  <div class="row2">⛏ <b>Добытчик</b> ставится ТОЛЬКО на пятно руды и отдаёт добычу в ЛЮБУЮ соседнюю ленту — стрелка лишь задаёт, куда пробовать первым.</div>
+  <div class="row2">⛏ <b>Добытчик</b> ставится ТОЛЬКО на пятно руды. Отдаёт ВПЕРЁД, куда смотрит стрелка; занято — ждёт, а не сваливает вбок. Если впереди пусто — сам найдёт ленту с любой стороны.</div>
   <div class="row2">➡ <b>Конвейер</b> тянет предмет на клетку вперёд за такт. Уперся — встал, и вся линия за ним тоже.</div>
-  <div class="row2">🏭 <b>Завод</b> принимает с любой стороны и готовое тоже отдаёт в любую сторону, где есть место.</div>
+  <div class="row2">🏭 <b>Завод</b> принимает с любой стороны, а отдаёт по тому же правилу, что и бур.</div>
   <div class="sep"></div>
   <div class="row2">⑂ <b>Разделитель</b> раскидывает поток по очереди во все стороны, куда влезает.</div>
   <div class="row2">🔻 <b>Сортировщик</b> пропускает вперёд ТОЛЬКО свой ресурс, остальное сбрасывает вбок. Клик по нему меняет фильтр.</div>
@@ -259,22 +259,38 @@ function give(i, item){
    сначала туда, куда смотрит стрелка, дальше по кругу в остальные стороны.
    Раньше выход был только «вперёд», и это сбивало с толку: поставил бур,
    лента рядом — а из него ничего не выходит, потому что стрелка не туда. */
-function outDirs(c){ const o = []; for(let k=0;k<4;k++) o.push((c.dir + ((c.rr + k) % 4)) % 4); return o; }
 // на ленту, которая ведёт ОБРАТНО в нас, не отдаём: иначе завод выкидывает
 // готовое в свою же входящую ленту, оно возвращается — и линия сама себя душит
 function feedsMe(t, i){ return t >= 0 && cells[t].b === BELT && ahead(t, cells[t].dir) === i; }
-function outOk(i, t, item){ return canAccept(t, item) && !feedsMe(t, i); }
+// «приёмник в принципе»: сюда вообще имеет смысл отдавать
+function isSink(i, t){
+  if(t < 0 || feedsMe(t, i)) return false;
+  const b = cells[t].b;
+  return b === BELT || b === SPLIT || b === SORT || b === FACT || b === HUB;
+}
+/* Правило выдачи бура и завода:
+   1) если ВПЕРЁД (куда смотрит стрелка) стоит приёмник — отдаём только туда,
+      даже если он сейчас занят: ждём. Так линия предсказуема и бур не гадит
+      рудой в чужие транзитные ленты, проходящие мимо;
+   2) если впереди пусто или стена — ищем любую другую сторону. Это спасает
+      от «поставил бур, лента сбоку, а он молчит». */
+function outTargets(i){
+  const c = cells[i], fwd = ahead(i, c.dir);
+  if(isSink(i, fwd)) return [fwd];
+  const list = [];
+  for(let k=1;k<4;k++){ const t = ahead(i, (c.dir + k) % 4); if(isSink(i, t)) list.push(t); }
+  return list;
+}
 function canPushOut(i, item){
-  const c = cells[i];
-  for(const d of outDirs(c)) if(outOk(i, ahead(i,d), item)) return true;
+  for(const t of outTargets(i)) if(canAccept(t, item)) return true;
   return false;
 }
 function pushOut(i, item){
-  const c = cells[i];
-  const dirs = outDirs(c);
-  for(let k=0;k<4;k++){
-    const t = ahead(i, dirs[k]);
-    if(outOk(i, t, item)){ c.rr = (c.rr + k + 1) % 4; give(t, item); return true; }
+  const c = cells[i], list = outTargets(i);
+  if(!list.length) return false;
+  for(let k=0;k<list.length;k++){
+    const t = list[(c.rr + k) % list.length];
+    if(canAccept(t, item)){ c.rr = (c.rr + k + 1) % list.length; give(t, item); return true; }
   }
   return false;
 }
