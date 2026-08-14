@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Дрейфующий астероид</title>
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="../../shared/net.js"></script>
+<link rel="stylesheet" href="../../shared/net.css">
 <style>
   :root { --bg:#05060c; --panel:#171c26; --panel2:#222a38; --text:#e7ecf3; --accent:#ff9f1c; }
   * { box-sizing:border-box; margin:0; padding:0; }
@@ -59,6 +62,8 @@
     <button id="pause">⏸ Пауза</button>
     <button id="restart">🔄 Заново</button>
   </div>
+
+  <div id="netbar" class="fs-hide"></div>
 
   <canvas id="game" width="520" height="600"></canvas>
 
@@ -139,7 +144,17 @@ const ORE = {
 };
 
 // --- состояние ---
-let tiles, player, cargo, built, reserve, timeLeft, over, win, cause, paused;
+let tiles, player, players, cargo, built, reserve, timeLeft, over, win, cause, paused;
+const MAXP = 4;                       // хозяин экспедиции + трое напарников
+var net = null, netAcc = 0;
+function isNet(){ return net && net.isOnline(); }
+function meSeat(){ return isNet() ? net.me : 0; }
+function amHost(){ return !isNet() || net.isHost(); }
+function mkMiner(gone){
+  return { x:0, y:0, vx:0, vy:0, fuel:FUEL_MAX, hull:100, hurt:0, thr:{x:0,y:0},
+           aimA:-1.57, drillT:0, fine:false, drilling:false,
+           held:{up:false,down:false,left:false,right:false}, gone:!!gone };
+}
 let padX, padY, drillT, drillTile, aimA, parts, stars, shake, msg, msgT;
 let lostT, launching, launchT, dug, best;
 let lastFrame = null, anim = 0;
@@ -292,6 +307,7 @@ function aimTarget(){
 function breakTile(tx,ty){
   const t = tiles[gi(tx,ty)];
   tiles[gi(tx,ty)] = EMPTY; dug++;
+  tileChanged(gi(tx,ty));
   const cx = (tx+0.5)*T, cy = (ty+0.5)*T;
   if(t===GAS){
     // карман под давлением: рвёт породу вокруг и швыряет бурильщика
@@ -301,7 +317,7 @@ function breakTile(tx,ty){
     player.hull = Math.max(0, player.hull - 22); player.hurt = 0.5; shake = 12;
     for(let oy=-1;oy<=1;oy++) for(let ox=-1;ox<=1;ox++){
       const nx=tx+ox, ny=ty+oy;
-      if(inb(nx,ny) && tiles[gi(nx,ny)]!==PAD && tiles[gi(nx,ny)]!==HARD && Math.random()<0.7) tiles[gi(nx,ny)] = EMPTY;
+      if(inb(nx,ny) && tiles[gi(nx,ny)]!==PAD && tiles[gi(nx,ny)]!==HARD && Math.random()<0.7){ tiles[gi(nx,ny)] = EMPTY; tileChanged(gi(nx,ny)); }
     }
     for(let i=0;i<26;i++) sparks(cx, cy, '#8ef0a0');
     message('💥 ГАЗОВЫЙ КАРМАН! Скафандр −22');
@@ -405,7 +421,10 @@ function reset(){
   cargo = { rego:0, ice:0, iron:0, titan:0, cryst:0 };
   built = { iron:0, titan:0, cryst:0 };
   reserve = 34; timeLeft = TOTAL_TIME;
-  player = { x:padX, y:padY, vx:0, vy:0, fuel:FUEL_MAX, hull:100, hurt:0, thr:{x:0,y:0} };
+  players = [];
+  for(let i=0;i<MAXP;i++){ const m = mkMiner(i!==0); m.x = padX + (i-1.5)*10; m.y = padY; players.push(m); }
+  if(isNet() && net.isHost()) for(const sl of net.slots()) players[sl].gone = false;
+  player = players[meSeat()]; player.gone = false;
   parts = []; drillT = 0; drillTile = null; aimA = -1.57; shake = 0;
   burnAsk = 0; burnAskKind = null;
   over = false; win = false; cause = ''; paused = false; lostT = 0; dug = 0;
@@ -451,6 +470,61 @@ function update(dt){
   timeLeft -= dt;
   if(timeLeft <= 0){ timeLeft = 0; endGame(false, 'Астероид вошёл в корону звезды'); return; }
 
+  // ввод: свой пишем в своё тело; гость дополнительно шлёт его хозяину
+  syncMyInput();
+  if(!amHost()) return;                 // гость мир не считает — он его получает
+
+  /* Симуляция по очереди для каждого шахтёра. Глобальные player/held/aimA
+     на время расчёта указывают на того, кого считаем: так весь прежний код
+     бурения, дока и ударов работает без переписывания. */
+  for(const m of players){
+    if(m.gone) continue;
+    bind(m); simulateOne(dt); unbind(m);
+  }
+  bind(players[meSeat()]);              // глобальные — обратно на своё тело
+  drillTile = players[meSeat()].drillTile;
+  if(isNet()){ netAcc += dt; if(netAcc >= 1/15){ netAcc = 0; broadcast(); } }
+}
+
+function bind(m){
+  player = m;
+  held.up = m.held.up; held.down = m.held.down; held.left = m.held.left; held.right = m.held.right;
+  fine = m.fine; drilling = m.drilling; aimA = m.aimA; drillT = m.drillT;
+}
+function unbind(m){ m.drillT = drillT; m.aimA = aimA; m.drillTile = drillTile; }
+
+let lastSig = -1, lastAim = 999;
+function syncMyInput(){
+  const m = players[meSeat()]; if(!m) return;
+  m.held.up = held.up; m.held.down = held.down; m.held.left = held.left; m.held.right = held.right;
+  m.fine = fine; m.drilling = drilling; m.aimA = aimA;
+  if(isNet() && !net.isHost()){
+    // шлём только когда ввод ИЗМЕНИЛСЯ: держать W — это один пакет, а не 60 в секунду
+    const sig = (held.up?1:0)|(held.down?2:0)|(held.left?4:0)|(held.right?8:0)|(fine?16:0)|(drilling?64:0);
+    const ai = Math.round(aimA*20);
+    if(sig !== lastSig || ai !== lastAim){ lastSig = sig; lastAim = ai; net.send({ t:'in', h:sig, a:aimA }); }
+  }
+}
+
+/* В одиночку порванный скафандр и уход в пустоту — конец забега. В команде
+   это было бы наказанием для всех за чужую ошибку, поэтому напарника
+   возвращает на площадку, а платит за это общий склад газа. */
+function suitTorn(){
+  if(!isNet()){ endGame(false, 'Скафандр разорван'); return; }
+  respawn('🩹 Скафандр порван — аварийная эвакуация на площадку (−25 газа со склада)');
+}
+function lostForever(){
+  if(!isNet()){ endGame(false, 'Потерян в пустоте — астероид ушёл без тебя'); return; }
+  respawn('🛰 Унесло в пустоту — трос дотянул до площадки (−25 газа со склада)');
+}
+function respawn(why){
+  player.x = padX; player.y = padY; player.vx = 0; player.vy = 0;
+  player.hull = 55; player.fuel = Math.max(player.fuel, 25); player.hurt = 0.5;
+  reserve = Math.max(0, reserve - 25);
+  shake = 10; message(why);
+}
+
+function simulateOne(dt){
   // --- тяга ранца ---
   let tx = 0, ty = 0;
   if(held.left) tx -= 1; if(held.right) tx += 1;
@@ -501,7 +575,7 @@ function update(dt){
   } else drillT = 0;
 
   // --- гибель проверяем ДО ремонта в доке: разорванный скафандр не чинится ---
-  if(player.hull <= 0){ endGame(false, 'Скафандр разорван'); return; }
+  if(player.hull <= 0){ suitTorn(); return; }
 
   // --- док: дозаправка и ремонт ---
   if(docked()){
@@ -516,8 +590,9 @@ function update(dt){
   const d = len(player.x-WCX, player.y-WCY);
   if(d > R_GRAV){ lostT += dt; if(lostT>0.9 && Math.random()<0.02) message('⚠️ Тебя сносит от астероида!'); }
   else lostT = 0;
-  if(d > R_LOST) endGame(false, 'Потерян в пустоте — астероид ушёл без тебя');
+  if(d > R_LOST) lostForever();
 }
+
 
 /* =====================  ОТРИСОВКА  ===================== */
 
@@ -578,23 +653,25 @@ function drawModule(){
   ctx.fillRect(p.x-13, p.y+9, 26, 2);
 }
 
-function drawPlayer(){
-  const p = { x:player.x-camX, y:player.y-camY };
+const SUITS = ['#e7ecf3', '#7fd0ff', '#8ef0a0', '#ffb0c0'];   // свой белый, напарники цветные
+function drawPlayer(m, mine){
+  m = m || player; if(m.gone) return;
+  const p = { x:m.x-camX, y:m.y-camY };
   // факел ранца
-  if(player.thr.x || player.thr.y){
+  if(m.thr.x || m.thr.y){
     const f = 10+Math.random()*7;
-    ctx.fillStyle = fine ? 'rgba(127,208,255,.85)' : 'rgba(255,180,84,.9)';
+    ctx.fillStyle = m.fine ? 'rgba(127,208,255,.85)' : 'rgba(255,180,84,.9)';
     ctx.beginPath();
-    ctx.moveTo(p.x - player.thr.x*4 - player.thr.y*3, p.y - player.thr.y*4 + player.thr.x*3);
-    ctx.lineTo(p.x - player.thr.x*4 + player.thr.y*3, p.y - player.thr.y*4 - player.thr.x*3);
-    ctx.lineTo(p.x - player.thr.x*f, p.y - player.thr.y*f);
+    ctx.moveTo(p.x - m.thr.x*4 - m.thr.y*3, p.y - m.thr.y*4 + m.thr.x*3);
+    ctx.lineTo(p.x - m.thr.x*4 + m.thr.y*3, p.y - m.thr.y*4 - m.thr.x*3);
+    ctx.lineTo(p.x - m.thr.x*f, p.y - m.thr.y*f);
     ctx.closePath(); ctx.fill();
   }
   // скафандр
-  ctx.fillStyle = '#e7ecf3';
+  ctx.fillStyle = SUITS[(players ? players.indexOf(m) : 0) % SUITS.length] || '#e7ecf3';
   ctx.beginPath(); ctx.arc(p.x, p.y, PR+1, 0, 6.3); ctx.fill();
   ctx.fillStyle = '#2b3a4a';
-  ctx.beginPath(); ctx.arc(p.x+Math.cos(aimA)*1.6, p.y+Math.sin(aimA)*1.6, PR-2, 0, 6.3); ctx.fill();
+  ctx.beginPath(); ctx.arc(p.x+Math.cos(m.aimA)*1.6, p.y+Math.sin(m.aimA)*1.6, PR-2, 0, 6.3); ctx.fill();
   // ранец-груз: чем больше руды, тем толще
   const c = cargoCount();
   if(c){ ctx.fillStyle='#8a6a3a'; ctx.fillRect(p.x-4, p.y+PR-1, 8, 1.5+Math.min(4, c*0.32)); }
@@ -788,7 +865,9 @@ function render(){
   }
   ctx.globalAlpha = 1;
 
-  drawPlayer();
+  // сначала напарники, своё тело — поверх, чтобы не потерять себя в куче
+  if(players) for(const m of players) if(m !== player) drawPlayer(m, false);
+  drawPlayer(player, true);
   drawPadArrow();
 
   // краснота от удара
@@ -861,8 +940,9 @@ canvas.addEventListener('contextmenu', e=>e.preventDefault());
 const KEYDIR = { KeyW:'up', ArrowUp:'up', KeyS:'down', ArrowDown:'down', KeyA:'left', ArrowLeft:'left', KeyD:'right', ArrowRight:'right' };
 document.addEventListener('keydown', e=>{
   if(e.target && e.target.tagName==='INPUT') return;
-  if(over){ if(e.code==='Enter') reset(); return; }
-  if(e.code==='KeyP' || e.code==='Escape'){ paused = !paused; updateButtons(); e.preventDefault(); return; }
+  if(over){ if(e.code==='Enter'){ if(amHost()) reset(); else net.send({ t:'again' }); } return; }
+  if(e.code==='Escape' && document.fullscreenElement) return;   // в полном экране Esc только выходит
+  if(e.code==='KeyP' || e.code==='Escape'){ myPause(); e.preventDefault(); return; }
   if(paused) return;
   if(KEYDIR[e.code]){
     held[KEYDIR[e.code]] = true;
@@ -873,9 +953,9 @@ document.addEventListener('keydown', e=>{
   if(e.code==='ShiftLeft'||e.code==='ShiftRight'){ fine = true; return; }
   if(e.code==='Space'){ drilling = true; e.preventDefault(); return; }
   if(e.repeat) return;
-  if(e.code==='KeyE'){ doDock(); return; }
-  if(e.code==='KeyR'){ burnFuel(); return; }
-  if(e.code==='KeyQ'){ dumpCargo(); return; }
+  if(e.code==='KeyE'){ myAct('dock'); return; }
+  if(e.code==='KeyR'){ myAct('burn'); return; }
+  if(e.code==='KeyQ'){ myAct('dump'); return; }
 });
 document.addEventListener('keyup', e=>{
   if(KEYDIR[e.code]) held[KEYDIR[e.code]] = false;
@@ -909,17 +989,95 @@ function onBtn(id, fn){
   const b = document.getElementById(id); if(!b) return;
   b.addEventListener('click', ()=>{ b.blur(); fn(); });
 }
-onBtn('dockBtn', ()=>{ if(!over&&!paused) doDock(); });
+onBtn('dockBtn', ()=>{ if(!over&&!paused) myAct('dock'); });
 onBtn('fineBtn', ()=>{ fine = !fine; });
-onBtn('subBtn', ()=>{ if(!over&&!paused) burnFuel(); });
-onBtn('dumpBtn', ()=>{ if(!over&&!paused) dumpCargo(); });
-onBtn('pause', ()=>{ if(!over){ paused = !paused; updateButtons(); } });
-onBtn('restart', ()=>reset());
+onBtn('subBtn', ()=>{ if(!over&&!paused) myAct('burn'); });
+onBtn('dumpBtn', ()=>{ if(!over&&!paused) myAct('dump'); });
+onBtn('pause', ()=>{ if(!over) myPause(); });
+onBtn('restart', ()=>{ if(amHost()) reset(); else net.send({ t:'again' }); });
 
 function updateButtons(){
   const b = document.getElementById('pause');
   if(b) b.textContent = paused ? '▶ Продолжить' : '⏸ Пауза';
 }
+
+
+/* =====================  ОНЛАЙН: ОДНА ЭКСПЕДИЦИЯ  =====================
+   Астероид, часы, склад газа и собираемый модуль — общие: это одна
+   команда, спасающаяся на одном челноке. Личное у каждого только тело,
+   ранец, скафандр и бур.
+
+   Астероид — это 4000+ клеток, слать их 15 раз в секунду бессмысленно.
+   Поэтому породу шлём ЦЕЛИКОМ один раз при входе, а дальше — только
+   номера клеток, которые выбурили. */
+function myAct(a){
+  if(amHost()){
+    if(a==='dock') doDock(); else if(a==='burn') burnFuel(); else if(a==='dump') dumpCargo();
+  } else net.send({ t:'act', a:a });
+}
+function myPause(){
+  if(amHost()){ paused = !paused; updateButtons(); if(isNet()) broadcast(); }
+  else net.send({ t:'pause' });
+}
+let dirtyTiles = [];
+function tileChanged(i){ if(isNet() && net.isHost()) dirtyTiles.push(i); }
+
+function broadcast(){
+  const pack = {
+    t:'st', tl:timeLeft, cg:cargo, bt:built, rs:reserve,
+    ov:over, wn:win, cs:cause, pa:paused, lg:launching, dg:dug,
+    p: players.map(m=>({ x:m.x, y:m.y, vx:m.vx, vy:m.vy, f:m.fuel, hl:m.hull,
+                         tx:m.thr.x, ty:m.thr.y, a:m.aimA, fn:m.fine, g:m.gone }))
+  };
+  if(dirtyTiles.length){ pack.dt = dirtyTiles; dirtyTiles = []; }
+  net.send(pack);
+}
+function sendWorld(slot){
+  // порода целиком — обычный массив, чтобы прошёл через JSON без сюрпризов
+  net.sendTo(slot, { t:'world', tiles: Array.from(tiles), px:padX, py:padY });
+  broadcast();
+}
+
+net = NET.create({
+  prefix:'asteroid', max:MAXP,
+  onOpen: ()=>{ reset(); },
+  onJoin: (slot)=>{ if(players[slot]){ const m = mkMiner(false); m.x = padX; m.y = padY; players[slot] = m; } message('👨‍🚀 Напарник ' + (slot+1) + ' на астероиде'); sendWorld(slot); },
+  onLeave: (slot)=>{ if(players[slot]) players[slot].gone = true; message('Напарник ' + (slot+1) + ' отключился'); broadcast(); },
+  onWelcome: ()=>{ player = players[net.me]; message('Ждём карту астероида…'); },
+  onClose: ()=>{ message('Хозяин экспедиции вышел'); },
+  onData: (m, slot)=>{
+    if(net.isHost()){
+      const mm = players[slot]; if(!mm) return;
+      if(m.t==='in'){
+        mm.held.up = !!(m.h&1); mm.held.down = !!(m.h&2); mm.held.left = !!(m.h&4); mm.held.right = !!(m.h&8);
+        mm.fine = !!(m.h&16); mm.drilling = !!(m.h&64); mm.aimA = m.a;
+      } else if(m.t==='act'){
+        // действие выполняем ОТ ЛИЦА напарника: док, горелка и сброс смотрят на player
+        const save = player; player = mm;
+        if(m.a==='dock') doDock(); else if(m.a==='burn') burnFuel(); else if(m.a==='dump') dumpCargo();
+        player = save; broadcast();
+      } else if(m.t==='pause'){ paused = !paused; updateButtons(); broadcast(); }
+      else if(m.t==='again'){ reset(); for(const sl of net.slots()) sendWorld(sl); }
+      return;
+    }
+    if(m.t==='world'){ tiles = m.tiles; padX = m.px; padY = m.py; return; }
+    if(m.t!=='st') return;
+    timeLeft = m.tl; cargo = m.cg; built = m.bt; reserve = m.rs;
+    over = m.ov; win = m.wn; cause = m.cs; paused = m.pa; launching = m.lg; dug = m.dg;
+    if(m.dt) for(const i of m.dt) tiles[i] = EMPTY;
+    for(let i=0;i<players.length;i++){
+      const s = m.p[i]; if(!s) continue;
+      const q = players[i];
+      q.gone = s.g; q.fuel = s.f; q.hull = s.hl; q.thr.x = s.tx; q.thr.y = s.ty; q.fine = s.fn;
+      // своё тело не дёргаем чужими координатами каждый пакет — только чужие
+      if(i !== net.me){ q.x = s.x; q.y = s.y; q.vx = s.vx; q.vy = s.vy; q.aimA = s.a; }
+      else { q.x = s.x; q.y = s.y; q.vx = s.vx; q.vy = s.vy; }
+    }
+    player = players[net.me];
+    updateButtons();
+  }
+});
+NET.lobby(document.getElementById('netbar'), net);
 
 reset();
 requestAnimationFrame(frame);
