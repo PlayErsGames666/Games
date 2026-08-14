@@ -144,7 +144,7 @@ try { best = +JSON.parse(localStorage.getItem('defense_best') || '0'); } catch(e
 
 /* =====================  КАРТА  ===================== */
 
-function blank(){ return { b:EMPTY, dir:2, item:null, ore:null, buf:{}, craft:0, out:null, ammo:0, wat:0, cd:0, hp:0, net:-1, aim:0 }; }
+function blank(){ return { b:EMPTY, dir:2, item:null, ore:null, buf:{}, craft:0, made:null, out:null, ammo:0, wat:0, cd:0, hp:0, net:-1, aim:0, rr:0 }; }
 
 function genMap(){
   cells = []; for(let i=0;i<GW*GH;i++) cells.push(blank());
@@ -286,6 +286,41 @@ function canAccept(i, it){
   if(b === CORE) return it === 'copper';           // ядро принимает только медь-валюту
   return false;
 }
+/* Куда бур и завод отдают готовое.
+   Правило то же, что в «Конвейере»: если ВПЕРЁД стоит тот, кому этот груз
+   в принципе нужен — отдаём только туда и ждём, когда он занят (линия
+   предсказуема, бур не сыплет руду в чужие транзитные ленты). Если впереди
+   пусто, стена или тот, кто этот груз не примет НИКОГДА, — ищем другую
+   сторону: иначе «поставил бур, лента сбоку, а он молчит». */
+function everAccepts(t, it){
+  const b = cells[t].b;
+  if(b === BELT) return true;
+  if(b === SMELT) return usedByRecipe(it);
+  if(b === GUN || b === FLAME) return it === B[b].ammo;
+  if(b === LASER) return it === 'water';
+  if(b === GEN) return it === 'coal';
+  if(b === CORE) return it === 'copper';
+  return false;
+}
+// на ленту, которая ведёт ОБРАТНО в нас, не отдаём: завод душил бы сам себя
+function feedsMe(t, i){ return t >= 0 && cells[t].b === BELT && ahead(t, cells[t].dir) === i; }
+function isSink(i, t, it){ return t >= 0 && !feedsMe(t, i) && everAccepts(t, it); }
+function outTargets(i, it){
+  const c = cells[i], fwd = ahead(i, c.dir);
+  if(isSink(i, fwd, it)) return [fwd];
+  const list = [];
+  for(let k=1;k<4;k++){ const t = ahead(i, (c.dir+k)%4); if(isSink(i, t, it)) list.push(t); }
+  return list;
+}
+function pushOut(i, it){
+  const c = cells[i], list = outTargets(i, it);
+  for(let k=0;k<list.length;k++){
+    const t = list[(c.rr + k) % list.length];
+    if(canAccept(t, it)){ c.rr = (c.rr + k + 1) % list.length; give(t, it); return true; }
+  }
+  return false;
+}
+
 function give(i, it){
   const c = cells[i], b = c.b;
   if(b === CORE){ money += COPPER_PAY; return; }
@@ -314,14 +349,14 @@ function stepTick(){
   for(let i=0;i<cells.length;i++){
     const c = cells[i];
     if(c.b !== DRILL || !c.ore) continue;
-    if(c.out){ const t = ahead(i, c.dir); if(canAccept(t, c.out)){ give(t, c.out); c.out = null; } }
+    if(c.out && pushOut(i, c.out)) c.out = null;
     if(!c.out){ c.craft += TICK; if(c.craft >= DRILL_TIME){ c.craft = 0; c.out = c.ore; } }
   }
   // заводы
   for(let i=0;i<cells.length;i++){
     const c = cells[i];
     if(c.b !== SMELT) continue;
-    if(c.out){ const t = ahead(i, c.dir); if(canAccept(t, c.out)){ give(t, c.out); c.out = null; } }
+    if(c.out && pushOut(i, c.out)) c.out = null;
     if(c.craft > 0){ c.craft -= TICK; if(c.craft < 0) c.craft = 0; }
     if(c.craft <= 0 && c.made && !c.out){ c.out = c.made; c.made = null; }
     if(c.craft <= 0 && !c.made && !c.out){
@@ -735,6 +770,8 @@ canvas.addEventListener('contextmenu', e => e.preventDefault());
 document.addEventListener('keydown', e => {
   if(e.target && e.target.tagName === 'INPUT') return;
   if(over){ if(e.code === 'Enter') reset(); return; }
+  // в полном экране Esc — «выйти из полного экрана», а не «пауза»
+  if(e.code === 'Escape' && (document.fullscreenElement || document.webkitFullscreenElement)) return;
   if(e.code === 'KeyP' || e.code === 'Escape'){ paused = !paused; updateButtons(); e.preventDefault(); return; }
   if(e.repeat) return;
   if(e.code === 'KeyR'){ dir = (dir+1)%4; return; }
@@ -749,6 +786,8 @@ onBtn('waveBtn', ()=>{ if(!spawnQ.length && !enemies.length){ money += 20 + wave
 onBtn('pause', ()=>{ if(!over){ paused = !paused; updateButtons(); } });
 onBtn('restart', ()=>reset());
 function updateButtons(){ const b = document.getElementById('pause'); if(b) b.textContent = paused ? '▶ Продолжить' : '⏸ Пауза'; }
+
+window.__fsFail = function(why){ message('⛶ Полный экран не открылся: ' + why); };
 
 reset();
 requestAnimationFrame(frame);
@@ -783,9 +822,18 @@ if(typeof globalThis !== 'undefined') globalThis.__D = {
     }
   }
   function upd(){ if(btn){ var on=!!isFs(); btn.textContent=on?"⛶ Выйти":"⛶ Во весь экран"; btn.classList.toggle("on",on); } requestAnimationFrame(fit); }
+  function fail(w){ if(window.__fsFail) window.__fsFail(w); }
   function toggle(){
-    try{ if(!isFs()){ (root.requestFullscreen||root.webkitRequestFullscreen).call(root); }
-      else { (document.exitFullscreen||document.webkitExitFullscreen).call(document); } }catch(e){}
+    try{
+      if(!isFs()){
+        var req = root.requestFullscreen||root.webkitRequestFullscreen;
+        if(!req){ fail('браузер не умеет полный экран'); return; }
+        var p = req.call(root);
+        // отказ приходит промисом и мимо try/catch — иначе кнопка молча не работает
+        if(p && p.catch) p.catch(function(e){ fail(e && e.message ? e.message : 'отказано'); });
+      }
+      else { (document.exitFullscreen||document.webkitExitFullscreen).call(document); }
+    }catch(e){ fail(e && e.message ? e.message : 'ошибка'); }
   }
   if(btn){ btn.addEventListener("click",function(){ btn.blur(); toggle(); }); var nav=btn.closest&&btn.closest(".controls"); if(nav) nav.classList.add("fs-hide"); }
   document.addEventListener("fullscreenchange",upd);

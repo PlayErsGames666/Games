@@ -63,7 +63,7 @@
     <button id="speedBtn">⏩ Скорость (T)</button>
   </div>
 
-  <div class="hint">Клик — поставить · ПРОТЯНИ мышь — конвейер уложится дорожкой · ПКМ — снести · R — поворот · X — режим сноса · 1-6 — выбор здания · клик по сортировщику — сменить фильтр · T — скорость · P/Esc — пауза</div>
+  <div class="hint">Клик — поставить · ПРОТЯНИ мышь — конвейер уложится дорожкой · ПКМ (тоже тянется) — снести · R — поворот · X — режим сноса · 1-5 — выбор здания · клик по сортировщику (когда он выбран) — сменить фильтр · T — скорость · P/Esc — пауза</div>
 </div>
 
 <aside class="guide-panel">
@@ -74,8 +74,8 @@
   <div class="row2">➡ <b>Конвейер</b> тянет предмет на клетку вперёд за такт. Уперся — встал, и вся линия за ним тоже.</div>
   <div class="row2">🏭 <b>Завод</b> принимает с любой стороны, а отдаёт по тому же правилу, что и бур.</div>
   <div class="sep"></div>
-  <div class="row2">⑂ <b>Разделитель</b> раскидывает поток по очереди во все стороны, куда влезает.</div>
-  <div class="row2">🔻 <b>Сортировщик</b> пропускает вперёд ТОЛЬКО свой ресурс, остальное сбрасывает вбок. Клик по нему меняет фильтр.</div>
+  <div class="row2">⑂ <b>Разделитель</b> раскидывает поток по очереди во все стороны, куда влезает: две ветки — поровну, три — на три равные части.</div>
+  <div class="row2">🔻 <b>Сортировщик</b> пропускает вперёд ТОЛЬКО свой ресурс, остальное сбрасывает вбок. Выбери его в панели и кликни — сменится фильтр.</div>
   <div class="note">Смешал два ресурса на одной ленте — рано или поздно встанет всё. Заводу нужно ровно то, что в рецепте: лишнее он не берёт, и оно намертво затыкает ленту. Красная клетка — затор.</div>
 </aside>
 </div>
@@ -263,10 +263,13 @@ function give(i, item){
 // готовое в свою же входящую ленту, оно возвращается — и линия сама себя душит
 function feedsMe(t, i){ return t >= 0 && cells[t].b === BELT && ahead(t, cells[t].dir) === i; }
 // «приёмник в принципе»: сюда вообще имеет смысл отдавать
-function isSink(i, t){
+function isSink(i, t, item){
   if(t < 0 || feedsMe(t, i)) return false;
   const b = cells[t].b;
-  return b === BELT || b === SPLIT || b === SORT || b === FACT || b === HUB;
+  // завод, которому этот предмет не нужен НИ ПО ОДНОМУ рецепту, — глухая стена,
+  // а не «занятый приёмник»: ждать его бессмысленно, ищем другую сторону
+  if(b === FACT) return usedByRecipe(item);
+  return b === BELT || b === SPLIT || b === SORT || b === HUB;
 }
 /* Правило выдачи бура и завода:
    1) если ВПЕРЁД (куда смотрит стрелка) стоит приёмник — отдаём только туда,
@@ -274,19 +277,19 @@ function isSink(i, t){
       рудой в чужие транзитные ленты, проходящие мимо;
    2) если впереди пусто или стена — ищем любую другую сторону. Это спасает
       от «поставил бур, лента сбоку, а он молчит». */
-function outTargets(i){
+function outTargets(i, item){
   const c = cells[i], fwd = ahead(i, c.dir);
-  if(isSink(i, fwd)) return [fwd];
+  if(isSink(i, fwd, item)) return [fwd];
   const list = [];
-  for(let k=1;k<4;k++){ const t = ahead(i, (c.dir + k) % 4); if(isSink(i, t)) list.push(t); }
+  for(let k=1;k<4;k++){ const t = ahead(i, (c.dir + k) % 4); if(isSink(i, t, item)) list.push(t); }
   return list;
 }
 function canPushOut(i, item){
-  for(const t of outTargets(i)) if(canAccept(t, item)) return true;
+  for(const t of outTargets(i, item)) if(canAccept(t, item)) return true;
   return false;
 }
 function pushOut(i, item){
-  const c = cells[i], list = outTargets(i);
+  const c = cells[i], list = outTargets(i, item);
   if(!list.length) return false;
   for(let k=0;k<list.length;k++){
     const t = list[(c.rr + k) % list.length];
@@ -295,17 +298,28 @@ function pushOut(i, item){
   return false;
 }
 
-// куда клетка хочет отдать предмет
-function destOf(i){
+/* Куда клетка хочет отдать предмет.
+   commit=false — это ТОЛЬКО вопрос (проверка затора), очередь разделителя
+   трогать нельзя. Раньше проверка заторов дёргала ту же функцию и крутила
+   счётчик впустую: разделитель с двумя выходами из трёх переставал
+   чередовать и гнал всё в одну сторону — вторая ветка стояла голодная. */
+function destOf(i, commit){
   const c = cells[i];
   if(c.b === BELT) return ahead(i, c.dir);
-  if(c.b === SORT) return ahead(i, c.item && c.item.t === c.filter ? c.dir : (c.dir+1)%4);
+  if(c.b === SORT){
+    const side = c.item && c.item.t === c.filter ? c.dir : (c.dir+1)%4;
+    const t = ahead(i, side);
+    // вбок сбрасываем куда угодно, кроме ленты, которая кормит сам сортировщик:
+    // иначе предмет катается по кругу и занимает место на линии
+    return feedsMe(t, i) ? -1 : t;
+  }
   if(c.b === SPLIT){
     const order = [c.dir, (c.dir+1)%4, (c.dir+3)%4];
     for(let k=0;k<3;k++){
       const d = order[(c.rr + k) % 3];
       const t = ahead(i, d);
-      if(canAccept(t, c.item.t)) { c.rr = (c.rr + k + 1) % 3; return t; }
+      if(feedsMe(t, i)) continue;                   // не отдаём назад тому, кто нас кормит
+      if(canAccept(t, c.item.t)) { if(commit) c.rr = (c.rr + k + 1) % 3; return t; }
     }
     return -1;
   }
@@ -328,7 +342,7 @@ function stepTick(){
       const c = cells[i];
       if(!c.item || moved.has(i)) continue;
       if(c.b !== BELT && c.b !== SPLIT && c.b !== SORT) continue;
-      const t = destOf(i);
+      const t = destOf(i, true);
       if(t >= 0 && canAccept(t, c.item.t)){
         const it = c.item; c.item = null;
         give(t, it.t);
@@ -365,7 +379,7 @@ function stepTick(){
   jamCount = 0;
   for(let i=0;i<cells.length;i++){
     const c = cells[i];
-    const stuck = (c.item && !canAccept(destOf(i), c.item.t)) ||
+    const stuck = (c.item && !canAccept(destOf(i, false), c.item.t)) ||
                   ((c.b === MINER || c.b === FACT) && c.out && !canPushOut(i, c.out));
     if(stuck){ c.jam = Math.min(1, c.jam + 0.35); jamCount++; } else c.jam = Math.max(0, c.jam - 0.25);
   }
@@ -652,7 +666,13 @@ canvas.addEventListener('pointerdown', e => {
     if(p.x>=b.x && p.x<=b.x+b.w && p.y>=b.y && p.y<=b.y+b.h){ b.fn(); return; }
   }
   const c = cellAt(p); if(!c) return;
-  if(e.button === 2){ demolish(c.x, c.y); return; }
+  // ПКМ тоже тянется: сносить дорожку по одной клетке — мучение
+  if(e.button === 2){
+    demolish(c.x, c.y);
+    drag = { last:c, btn:2 };
+    canvas.setPointerCapture && canvas.setPointerCapture(e.pointerId);
+    return;
+  }
   // клик по сортировщику меняет фильтр — так его настраивают
   const cell = cells[c.i];
   if(cell.b === SORT && sel === SORT && !delMode){
@@ -688,6 +708,9 @@ canvas.addEventListener('contextmenu', e => e.preventDefault());
 document.addEventListener('keydown', e => {
   if(e.target && e.target.tagName === 'INPUT') return;
   if(over){ if(e.code === 'Enter') reset(); return; }
+  // в полном экране Esc — это «выйти из полного экрана», а не «пауза»:
+  // иначе выходишь и обнаруживаешь игру внезапно поставленной на паузу
+  if(e.code === 'Escape' && (document.fullscreenElement || document.webkitFullscreenElement)) return;
   if(e.code === 'KeyP' || e.code === 'Escape'){ paused = !paused; updateButtons(); e.preventDefault(); return; }
   if(e.repeat) return;
   if(e.code === 'KeyR'){ dir = (dir+1)%4; return; }
