@@ -115,6 +115,7 @@ let P, foes, drops, shots, parts, obst, inv, gold, contract, ci, phase, over, ca
 let killsLeft, msg, msgT, panel, uiHit = [], anim = 0, lastFrame = null, paused = false;
 let keys = {}, mouse = { x: CW / 2, y: 300, down: false }, best = 0;
 let floaties = [];
+let bagScroll = 0, benchScroll = 0;      // прокрутка списков в сумке и на верстаке
 
 try { best = +localStorage.getItem('witcher_best') || 0; } catch (e) { best = 0; }
 
@@ -958,14 +959,36 @@ function drawEquipRow(y) {
   return y + 42;
 }
 
+/* Прокрутка списка.
+   Раньше сумка показывала первые тринадцать строк и дописывала «…и ещё N» —
+   до этих N было уже не добраться: ни надеть, ни выпить, ни выбросить.
+   Считаем, сколько строк реально влезает, и катаем окно по списку. */
+function listView(total, top, bottom, rowH, scroll) {
+  const vis = Math.max(1, Math.floor((bottom - top) / rowH));
+  const max = Math.max(0, total - vis);
+  return { total, vis, max, from: clamp(scroll, 0, max) };
+}
+function scrollBtns(y, v, get, set) {
+  if (v.max <= 0) return;
+  txt('показаны ' + (v.from + 1) + '–' + Math.min(v.total, v.from + v.vis) + ' из ' + v.total + ' · колесо мыши или ↑ ↓',
+      CW / 2 - 10, y, 9, '#98a2ae', 'center');
+  btn(CW - 78, y - 8, 25, 17, '▲', () => set(get() - 1), null, v.from <= 0);
+  btn(CW - 50, y - 8, 25, 17, '▼', () => set(get() + 1), null, v.from >= v.max);
+}
+
 function drawBag() {
   panelBox('🎒 СУМКА');
   let y = drawEquipRow(70);
   if (P.armor) txt(ARMOR[P.armor.type].bon, 24, y - 6, 9, '#7fd6a0');
   y += 6;
-  txt('В сумке:', 24, y, 10, '#e8d9a8'); y += 14;
+  const top = y + 14, bottom = CH - 56;
+  const v = listView(inv.length, top, bottom, 24, bagScroll);
+  bagScroll = v.from;
+  txt('В сумке: ' + inv.length, 24, y, 10, '#e8d9a8');
+  scrollBtns(y, v, () => bagScroll, n => { bagScroll = clamp(n, 0, v.max); });
+  y = top;
   if (!inv.length) txt('пусто', 24, y + 6, 10, '#5a616b');
-  for (const it of inv.slice(0, 13)) {
+  for (const it of inv.slice(v.from, v.from + v.vis)) {
     const rowY = y;
     ctx.fillStyle = 'rgba(20,18,15,.75)'; ctx.fillRect(24, rowY, CW - 48, 22);
     txt(itemIco(it) + '  ' + fullName(it), 30, rowY + 11, 10, it.k === 'stack' ? '#e6ebf2' : TIERS[it.tier].c);
@@ -975,7 +998,14 @@ function drawBag() {
     btn(CW - 86, rowY + 3, 58, 16, 'выбросить', () => dropItem(it), 'rgba(70,40,40,.9)');
     y += 24;
   }
-  if (inv.length > 13) txt('…и ещё ' + (inv.length - 13), 24, y + 8, 9, '#6c7683');
+  // полоска сбоку: сразу видно, что список длиннее окна
+  if (v.max > 0) {
+    const trackH = v.vis * 24;
+    ctx.fillStyle = 'rgba(255,255,255,.06)'; ctx.fillRect(CW - 22, top, 4, trackH);
+    const thumb = Math.max(14, trackH * v.vis / inv.length);
+    ctx.fillStyle = 'rgba(201,162,39,.6)';
+    ctx.fillRect(CW - 22, top + (trackH - thumb) * (v.from / v.max), 4, thumb);
+  }
   txt('I или ✕ — закрыть · надетое в сумке не лежит, но вес считается', CW / 2, CH - 44, 9, '#6c7683', 'center');
 }
 
@@ -986,7 +1016,12 @@ function drawBench() {
   y += 8;
 
   const gear = [P.steel, P.silver, P.armor].concat(inv.filter(i => i.k !== 'stack')).filter(Boolean);
-  for (const it of gear.slice(0, 6)) {
+  // список железа тоже катается: раньше показывались первые шесть, и седьмой
+  // меч нельзя было ни улучшить, ни продать — он просто не отображался
+  const v = listView(gear.length, y, CH - 160, 28, benchScroll);
+  benchScroll = v.from;
+  scrollBtns(y - 12, v, () => benchScroll, n => { benchScroll = clamp(n, 0, v.max); });
+  for (const it of gear.slice(v.from, v.from + v.vis)) {
     ctx.fillStyle = 'rgba(20,18,15,.75)'; ctx.fillRect(24, y, CW - 48, 26);
     txt(itemIco(it) + ' ' + fullName(it), 30, y + 9, 10, TIERS[it.tier].c);
     const c = upCost(it);
@@ -1082,6 +1117,13 @@ canvas.addEventListener('pointerdown', e => {
   if (e.button === 2) { shootBolt(); return; }
   mouse.down = true; swing();
 });
+// колесо катает список в открытой панели; страницу при этом не дёргаем
+canvas.addEventListener('wheel', e => {
+  if (!panel) return;
+  e.preventDefault();
+  const d = e.deltaY > 0 ? 1 : -1;
+  if (panel === 'bag') bagScroll += d; else if (panel === 'bench') benchScroll += d;
+}, { passive: false });
 canvas.addEventListener('pointerup', () => { mouse.down = false; });
 canvas.addEventListener('pointerleave', () => { mouse.down = false; });
 canvas.addEventListener('contextmenu', e => e.preventDefault());
@@ -1108,12 +1150,21 @@ document.addEventListener('keydown', e => {
     e.preventDefault(); return;
   }
   if (e.repeat) return;
-  if (e.code === 'KeyI') { panel = panel === 'bag' ? null : 'bag'; return; }
+  if (e.code === 'KeyI') { panel = panel === 'bag' ? null : 'bag'; bagScroll = 0; return; }
   if (e.code === 'KeyU') {
     if (phase !== 'CAMP') { message('Верстак остался в лагере'); return; }
-    panel = panel === 'bench' ? null : 'bench'; return;
+    panel = panel === 'bench' ? null : 'bench'; benchScroll = 0; return;
   }
-  if (panel || paused) return;
+  // в открытой панели стрелки катают список, а не героя
+  if (panel) {
+    if (e.code === 'ArrowUp' || e.code === 'ArrowDown') {
+      const d = e.code === 'ArrowDown' ? 1 : -1;
+      if (panel === 'bag') bagScroll += d; else benchScroll += d;
+      e.preventDefault();
+    }
+    return;
+  }
+  if (paused) return;
   if (e.code === 'KeyQ') { P.hand = P.hand === 'steel' ? 'silver' : 'steel'; message(P.hand === 'silver' ? '⚔ Серебро — против нечисти' : '🗡 Сталь — против людей и зверья'); return; }
   if (e.code === 'KeyR') { toggleMutation(); return; }
   if (e.code === 'KeyE') { interact(); return; }
@@ -1135,7 +1186,7 @@ document.addEventListener('keyup', e => { keys[e.code] = false; });
 
 function onBtn(id, fn) { const b = document.getElementById(id); if (b) b.addEventListener('click', () => { b.blur(); fn(); }); }
 onBtn('swapBtn', () => { P.hand = P.hand === 'steel' ? 'silver' : 'steel'; });
-onBtn('bagBtn', () => { panel = panel === 'bag' ? null : 'bag'; });
+onBtn('bagBtn', () => { panel = panel === 'bag' ? null : 'bag'; bagScroll = 0; });
 onBtn('mutBtn', () => toggleMutation());
 onBtn('pause', () => { if (!over) { paused = !paused; updateButtons(); } });
 onBtn('restart', () => reset());
@@ -1157,4 +1208,7 @@ if (typeof globalThis !== 'undefined') globalThis.__W = {
   getPhase: () => phase, setPhase: v => { phase = v; }, getOver: () => over, getCi: () => ci, setCi: v => { ci = v; },
   getKillsLeft: () => killsLeft, setPanel: v => { panel = v; }, setMouse: (x, y) => { mouse.x = x; mouse.y = y; },
   swing, shootBolt, SWORD, ARMOR, TIERS, FOES, POTIONS, STUFF, RUNES, ENCH, WX0, WY0, WX1, WY1,
+  getScroll: () => ({ bag: bagScroll, bench: benchScroll }),
+  setScroll: (b, n) => { if (b === 'bag') bagScroll = n; else benchScroll = n; },
+  getHits: () => uiHit,
 };
