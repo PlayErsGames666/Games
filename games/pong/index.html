@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Pong</title>
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="../../shared/net.js"></script>
+<link rel="stylesheet" href="../../shared/net.css">
 <style>
   :root {
     --bg: #2b2d42;
@@ -115,9 +118,11 @@
     <button id="restart">🔄 Заново</button>
   </div>
 
+  <div id="netbar" class="fs-hide"></div>
+
   <canvas id="game" width="700" height="440"></canvas>
 
-  <div class="hint">Ракетка: мышь, стрелки ↑ ↓ или W / S · Пробел — пауза · играем до 7 очков</div>
+  <div class="hint">Ракетка: мышь, стрелки ↑ ↓ или W / S · Пробел — пауза · играем до 7 очков · онлайн: хост слева, гость справа</div>
 </div>
 <aside class="guide-panel">
   <h2>🎛 Справочник</h2>
@@ -147,7 +152,8 @@ const SERVE_FRAMES = 180;  // пауза-отсчёт перед подачей 
 let player, ai, ball;
 let scoreP, scoreAI;
 let aiSpeed;          // «реакция» компьютера (0..1) — выбирается сложностью
-let running, gameOver, winner;
+let running, gameOver, winSide;
+let remoteY = null, netAcc = 0;    // ракетка гостя и счётчик рассылки
 let paused;           // пауза по пробелу
 let serveTimer;       // >0 — мяч ждёт подачи в центре, идёт обратный отсчёт
 let shake;            // сила тряски экрана после удара
@@ -156,13 +162,15 @@ let trail;            // след за мячом (последние позиц
 function reset() {
   aiSpeed = parseFloat(document.getElementById('difficulty').value);
   scoreP = 0; scoreAI = 0;
-  gameOver = false; winner = null; running = true;
+  gameOver = false; winSide = null; running = true;
   paused = false;
   shake = 0;
   trail = [];
+  remoteY = null; netAcc = 0;
   player = { y: H / 2 - PADDLE_H / 2, flash: 0 };
   ai = { y: H / 2 - PADDLE_H / 2, flash: 0 };
   resetBall(Math.random() < 0.5 ? 1 : -1);
+  if (isNet() && net.isHost()) broadcast();
 }
 
 function resetBall(dir) {
@@ -179,19 +187,25 @@ function resetBall(dir) {
   serveTimer = SERVE_FRAMES; // мяч замирает в центре и ждёт отсчёта
 }
 
+/* Онлайн: хост играет ЛЕВОЙ ракеткой, гость — правой (той, что офлайн
+   занимает компьютер). Поэтому «моя ракетка» — не всегда player. */
+function isNet() { return net && net.isOnline(); }
+function iAmLeft() { return !isNet() || net.isHost(); }
+function myPad() { return iAmLeft() ? player : ai; }
+
 // --- управление игрока ---
 let mouseControl = false;
 canvas.addEventListener('mousemove', (e) => {
   const rect = canvas.getBoundingClientRect();
   const y = (e.clientY - rect.top) * (H / rect.height);
-  player.y = y - PADDLE_H / 2;
+  myPad().y = y - PADDLE_H / 2;
   mouseControl = true;
 });
 canvas.addEventListener('touchmove', (e) => {
   e.preventDefault();
   const rect = canvas.getBoundingClientRect();
   const y = (e.touches[0].clientY - rect.top) * (H / rect.height);
-  player.y = y - PADDLE_H / 2;
+  myPad().y = y - PADDLE_H / 2;
 }, { passive: false });
 
 const keys = {};
@@ -199,15 +213,18 @@ document.addEventListener('keydown', (e) => {
   if (['ArrowUp','ArrowDown','w','s','W','S'].includes(e.key)) { keys[e.key] = true; mouseControl = false; e.preventDefault(); }
   if (e.key === ' ' || e.code === 'Space') {
     e.preventDefault();
-    if (!gameOver) paused = !paused; // пробел — пауза/продолжить
+    if (gameOver) return;
+    // онлайн паузу держит хост, иначе экраны разъедутся; гость просит
+    if (isNet() && !net.isHost()) { net.send({ t: 'pause' }); return; }
+    paused = !paused; syncNow();
   }
 });
 document.addEventListener('keyup', (e) => { keys[e.key] = false; });
 
 function movePlayerByKeys() {
-  const step = 7;
-  if (keys['ArrowUp'] || keys['w'] || keys['W']) player.y -= step;
-  if (keys['ArrowDown'] || keys['s'] || keys['S']) player.y += step;
+  const step = 7, p = myPad();
+  if (keys['ArrowUp'] || keys['w'] || keys['W']) p.y -= step;
+  if (keys['ArrowDown'] || keys['s'] || keys['S']) p.y += step;
 }
 
 function clampPaddles() {
@@ -225,12 +242,31 @@ function update() {
 
   if (!mouseControl) movePlayerByKeys();
 
+  if (isNet()) {
+    clampPaddles();
+    if (net.isHost()) {
+      if (remoteY != null) ai.y = remoteY;      // правая ракетка — это гость
+      clampPaddles();
+      physics();
+      // 30 пакетов в секунду: мяч летит плавно, а канал не забит
+      if (++netAcc >= 2) { netAcc = 0; broadcast(); }
+    } else {
+      // гость физику не считает: он рисует присланное и шлёт свою ракетку
+      if (++netAcc >= 2) { netAcc = 0; net.send({ t: 'p', y: ai.y }); }
+      if (serveTimer > 0) serveTimer--;
+      else { trail.push({ x: ball.x, y: ball.y }); if (trail.length > 14) trail.shift(); }
+    }
+    return;
+  }
+
   // компьютер следит за мячом с ограниченной скоростью
   const aiCenter = ai.y + PADDLE_H / 2;
   ai.y += (ball.y - aiCenter) * aiSpeed;
-
   clampPaddles();
+  physics();
+}
 
+function physics() {
   // пауза-подача: мяч стоит в центре, идёт обратный отсчёт
   if (serveTimer > 0) {
     serveTimer--;
@@ -292,10 +328,22 @@ function afterGoal(dir) {
   if (scoreP >= WIN_SCORE || scoreAI >= WIN_SCORE) {
     running = false;
     gameOver = true;
-    winner = scoreP >= WIN_SCORE ? 'Ты победил! 🎉' : 'Победил компьютер 🤖';
+    winSide = scoreP >= WIN_SCORE ? 0 : 1;      // 0 — левый, 1 — правый
   } else {
     resetBall(dir);
   }
+  syncNow();
+}
+/* Пакеты идут только пока идёт игра. Значит про КОНЕЦ матча и про паузу
+   надо сообщить отдельно — иначе у гостя навсегда остался бы счёт 6:4
+   и живой мяч, хотя у хоста уже экран победы. */
+function syncNow() { if (isNet() && net.isHost()) broadcast(); }
+// текст победы каждый считает про себя: онлайн у соперника он зеркальный
+function winnerText() {
+  if (winSide == null) return '';
+  const iWon = winSide === (iAmLeft() ? 0 : 1);
+  if (!isNet()) return winSide === 0 ? 'Ты победил! 🎉' : 'Победил компьютер 🤖';
+  return iWon ? 'Ты победил! 🎉' : 'Победил соперник 😔';
 }
 
 function draw() {
@@ -382,7 +430,7 @@ function draw() {
     ctx.fillStyle = '#edf2f4';
     ctx.font = 'bold 40px Segoe UI, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(winner, W / 2, H / 2 - 10);
+    ctx.fillText(winnerText(), W / 2, H / 2 - 10);
     ctx.font = '18px Segoe UI, sans-serif';
     ctx.fillText('Нажми «Заново», чтобы сыграть ещё', W / 2, H / 2 + 30);
   }
@@ -412,8 +460,46 @@ function loop() {
   requestAnimationFrame(loop);
 }
 
-document.getElementById('restart').addEventListener('click', reset);
-document.getElementById('difficulty').addEventListener('change', reset);
+document.getElementById('restart').addEventListener('click', () => {
+  if (isNet() && !net.isHost()) { net.send({ t: 'new' }); return; }   // онлайн партию перезапускает хост
+  reset();
+});
+document.getElementById('difficulty').addEventListener('change', () => { if (!isNet()) reset(); });
+
+/* =====================  ОНЛАЙН  =====================
+   Хост считает мяч и рассылает состояние 30 раз в секунду. Гость шлёт
+   только Y своей ракетки и рисует присланное — но СВОЮ ракетку рисует
+   по-своему, не дожидаясь ответа, иначе она заметно тормозит за курсором. */
+function broadcast() {
+  net.send({
+    t: 's', bx: ball.x, by: ball.y, vx: ball.vx, vy: ball.vy, bd: ball.dir,
+    py: player.y, sp: scoreP, sa: scoreAI, st: serveTimer,
+    go: gameOver, ws: winSide, run: running, pa: paused
+  });
+}
+
+const net = NET.create({
+  prefix: 'pong', max: 2,
+  onOpen: () => { document.getElementById('difficulty').disabled = true; reset(); },
+  onJoin: () => { reset(); },
+  onLeave: () => { remoteY = null; paused = true; },        // соперник вышел — мяч замирает
+  onWelcome: () => { document.getElementById('difficulty').disabled = true; },
+  onClose: () => { paused = true; },
+  onData: (m) => {
+    if (net.isHost()) {
+      if (m.t === 'p') remoteY = m.y;
+      else if (m.t === 'new') reset();
+      else if (m.t === 'pause') { if (!gameOver) { paused = !paused; syncNow(); } }
+      return;
+    }
+    if (m.t !== 's') return;
+    ball.x = m.bx; ball.y = m.by; ball.vx = m.vx; ball.vy = m.vy; ball.dir = m.bd;
+    player.y = m.py;                       // левая ракетка — хостовая
+    scoreP = m.sp; scoreAI = m.sa; serveTimer = m.st;
+    gameOver = m.go; winSide = m.ws; running = m.run; paused = m.pa;
+  }
+});
+NET.lobby(document.getElementById('netbar'), net);
 
 reset();
 loop();

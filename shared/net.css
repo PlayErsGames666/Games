@@ -1,0 +1,42 @@
+/* Панель онлайн-комнаты. Один вид во всех играх.
+   Цвета берутся из переменных игры, чтобы панель не выбивалась из её палитры;
+   значения после запятой — запасные, если игра таких переменных не заводила. */
+.netbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+}
+.netbar button {
+  background: var(--panel, #3a3d5c);
+  color: var(--text, #edf2f4);
+  border: none;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background .15s, opacity .15s;
+}
+.netbar button:hover:not(:disabled) { background: var(--panel2, #4a4e73); }
+.netbar button:disabled { opacity: .45; cursor: default; }
+.netbar input.code {
+  background: var(--panel, #3a3d5c);
+  color: var(--text, #edf2f4);
+  border: 1px solid rgba(255, 255, 255, .16);
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-family: 'Consolas', monospace;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  text-align: center;
+  width: 108px;
+}
+.netbar input.code::placeholder { letter-spacing: 1px; opacity: .5; }
+.netbar .net-status { font-size: 13px; opacity: .85; }
+
+/* в полном экране панель комнаты не нужна — она про подготовку, не про игру */
+:fullscreen .netbar { display: none !important; }
