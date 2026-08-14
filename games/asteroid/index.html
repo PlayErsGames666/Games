@@ -337,7 +337,7 @@ function moduleReady(){
 function doDock(){
   if(over) return;
   if(!docked()){ message('Док далеко — вернись на площадку'); return; }
-  if(moduleReady() && cargoCount()===0){ launching = true; launchT = 0; message('🚀 ЗАПУСК!'); return; }
+  if(moduleReady() && cargoCount()===0){ launching = true; launchT = 0; launchWho = players.indexOf(player); message('🚀 ЗАПУСК!'); return; }
   let any = 0, fuelGot = 0;
   // лёд и щебень целиком уходят в топливо
   for(const k of ['ice','rego']){
@@ -459,8 +459,11 @@ function update(dt){
 
   if(launching){
     launchT += dt;
-    player.y -= (40 + launchT*220)*dt;
-    for(let i=0;i<3;i++) sparks(player.x+(Math.random()-0.5)*8, player.y+10, '#ffb454');
+    // взлетает ТОТ, кто нажал старт: раньше на экране хозяина вверх уезжало
+    // его собственное тело, даже если модуль запустил напарник
+    const lp = players[launchWho] || player;
+    lp.y -= (40 + launchT*220)*dt;
+    for(let i=0;i<3;i++) sparks(lp.x+(Math.random()-0.5)*8, lp.y+10, '#ffb454');
     if(launchT > 1.6) endGame(true, 'Модуль ушёл с астероида. Ты выжил');
     return;
   }
@@ -493,6 +496,7 @@ function bind(m){
 }
 function unbind(m){ m.drillT = drillT; m.aimA = aimA; m.drillTile = drillTile; }
 
+let launchWho = 0;
 let lastSig = -1, lastAim = 999;
 function syncMyInput(){
   const m = players[meSeat()]; if(!m) return;
@@ -1025,7 +1029,7 @@ function tileChanged(i){ if(isNet() && net.isHost()) dirtyTiles.push(i); }
 function broadcast(){
   const pack = {
     t:'st', tl:timeLeft, cg:cargo, bt:built, rs:reserve,
-    ov:over, wn:win, cs:cause, pa:paused, lg:launching, dg:dug,
+    ov:over, wn:win, cs:cause, pa:paused, lg:launching, lw:launchWho, dg:dug,
     p: players.map(m=>({ x:m.x, y:m.y, vx:m.vx, vy:m.vy, f:m.fuel, hl:m.hull,
                          tx:m.thr.x, ty:m.thr.y, a:m.aimA, fn:m.fine, g:m.gone }))
   };
@@ -1063,7 +1067,7 @@ net = NET.create({
     if(m.t==='world'){ tiles = m.tiles; padX = m.px; padY = m.py; return; }
     if(m.t!=='st') return;
     timeLeft = m.tl; cargo = m.cg; built = m.bt; reserve = m.rs;
-    over = m.ov; win = m.wn; cause = m.cs; paused = m.pa; launching = m.lg; dug = m.dg;
+    over = m.ov; win = m.wn; cause = m.cs; paused = m.pa; launching = m.lg; launchWho = m.lw|0; dug = m.dg;
     if(m.dt) for(const i of m.dt) tiles[i] = EMPTY;
     for(let i=0;i<players.length;i++){
       const s = m.p[i]; if(!s) continue;

@@ -1964,7 +1964,19 @@ net = NET.create({
       q.x=d.x; q.y=d.y;
       if(i !== net.me) q.face = d.fa;      // своим взглядом рулим сами
     }
-    zombies = m.z.map(function(z){ const o = makeZombie(z.x, z.y); o.face=z.f; o.hp=z.hp; o.dead=z.d; o.state=z.s; return o; });
+    /* Собираем зомби вручную, а НЕ через makeZombie: тот прибавляет полклетки
+       к координатам (он ждёт номер клетки, а не готовую позицию) и заново
+       бросает bob — покачивание дёргалось бы пятнадцать раз в секунду.
+       Тела переиспользуем, чтобы не плодить мусор по пакету на кадр. */
+    for(let i=0;i<m.z.length;i++){
+      const d = m.z[i];
+      let o = zombies[i];
+      if(!o){ o = zombies[i] = { path:null, pi:0, repath:0, atk:0, lost:0, wander:0,
+                                 groan:0, groanCd:0, climb:null, hitT:0, stagger:0,
+                                 tx:null, ty:null, bob:Math.random()*6.28 }; }
+      o.x = d.x; o.y = d.y; o.face = d.f; o.hp = d.hp; o.dead = d.d; o.state = d.s;
+    }
+    zombies.length = m.z.length;
     bindS(mySurv());
     computeVis();
   }

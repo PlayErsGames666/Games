@@ -144,7 +144,10 @@
         status(errMsg(e.type));
       });
       S.peer.on('connection', c => {
-        c.on('data', d => { try { o.onData(d, c.slot || 0); } catch (e) { } });
+        // Место выдаётся в обработчике 'open', а 'data' может сработать раньше.
+        // Пакет без места молча роняем: иначе он засчитается хосту как СВОЙ
+        // (slot 0) — чужой ввод начнёт двигать тело хозяина комнаты.
+        c.on('data', d => { if (!c.slot) return; try { o.onData(d, c.slot); } catch (e) { } });
         c.on('open', () => {
           const slot = freeSlot();
           if (!slot) {                                  // комната полная

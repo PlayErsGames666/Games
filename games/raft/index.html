@@ -370,7 +370,12 @@ document.addEventListener('keydown', e => {
 function myMove(dx, dy) { if (host()) move(meSeat(), dx, dy); else net.send({ t: 'mv', dx: dx, dy: dy }); }
 function myHook() { if (host()) hookNearest(meSeat()); else net.send({ t: 'hook' }); }
 function myJab() { if (host()) jabShark(meSeat()); else net.send({ t: 'jab' }); }
-function myClick(x, y) { if (host()) clickAt(x, y, meSeat()); else net.send({ t: 'clk', x: x, y: y }); }
+function myClick(x, y) {
+  if (host()) { clickAt(x, y, meSeat()); return; }
+  // на экране «плот потерян» тап гостя должен просить новый забег, а не
+  // уходить в никуда: пакеты клика хозяин в этот момент игнорирует
+  net.send(over ? { t: 'again' } : { t: 'clk', x: x, y: y });
+}
 function myAct(id) { if (host()) doAct(id); else net.send({ t: 'act', id: id }); }
 function myBuild(id) { if (host()) build(id); else net.send({ t: 'build', id: id }); }
 function myPause() { if (host()) { paused = !paused; updatePauseBtn(); } else net.send({ t: 'pause' }); }

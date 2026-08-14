@@ -429,7 +429,10 @@ function hostSeat(slot) {
 function hostUnseat(slot) {
   if (!T) return;
   T.seats = T.seats.filter(s => s.slot !== slot);
-  if (T.ph === 'PLAY') advanceTurn();
+  if (!T.seats.length) return;
+  if (T.ph === 'PLAY') { advanceTurn(); return; }
+  // ушёл тот, кого ждали со ставкой — иначе стол висел бы до следующего клика
+  if (T.ph === 'BET' && T.seats.every(s => s.ready)) { dealRound(); return; }
   pushTable();
 }
 
@@ -564,7 +567,15 @@ function renderNet() {
 net = NET.create({
   prefix: 'bjack', max: 4,
   onOpen: () => { T = newTable(); hostSeat(0); myReady = false; renderNet(); },
-  onJoin: (slot) => { hostSeat(slot); if (T.ph !== 'BET') { T.ph = 'BET'; T.turn = -1; for (const s of T.seats) { s.ready = false; s.cards = []; s.res = null; } } pushTable(); },
+  /* Пришедшего в середине раздачи НЕ пускаем в текущий круг: раньше стол
+     сбрасывался в «ставки», и те, кто уже поставил, теряли фишки — деньги
+     списываются в момент ставки. Он просто ждёт следующей раздачи. */
+  onJoin: (slot) => {
+    hostSeat(slot);
+    const s = T.seats.find(x => x.slot === slot);
+    if (s && T.ph !== 'BET') { s.done = true; s.cards = []; s.res = null; }
+    pushTable();
+  },
   onLeave: (slot) => hostUnseat(slot),
   onWelcome: () => { myReady = false; },
   onClose: () => { el.msg.textContent = 'Хост вышел — стол закрыт'; },
