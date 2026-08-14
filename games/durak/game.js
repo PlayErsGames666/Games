@@ -101,7 +101,12 @@ function doTransfer(idx, card) {
   table.push({ a: card, d: null });
   [attacker, defender] = [defender, attacker];
   transferCount++;
-  boutMax = Math.min(6, table.length + hands[defender].length);
+  /* Предел кона — это СКОЛЬКО КАРТ В РУКЕ у защитника, а не «карты на столе
+     плюс рука». На каждую атаку, включая уже лежащие, он тратит по карте:
+     считая стол отдельно, мы разрешали подкинуть больше, чем он в принципе
+     способен отбить. Он честно бил всё до последней карты, а потом получал
+     ещё одну атаку — и был вынужден взять весь стол вместо победы. */
+  boutMax = Math.min(6, hands[defender].length);
   phase = 'DEFEND';
 }
 
