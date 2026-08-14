@@ -1,0 +1,143 @@
+:root {
+    --bg: #2b2d42;
+    --panel: #3a3d5c;
+    --panel2: #4a4e73;
+    --text: #edf2f4;
+    --accent: #ffd166;
+    --good: #06d6a0;
+    --bad: #8d99ae;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', Tahoma, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 20px;
+    user-select: none;
+  }
+  h1 { text-align: center; margin-bottom: 6px; letter-spacing: 1px; }
+  .layout {
+    display: flex;
+    gap: 24px;
+    max-width: 900px;
+    margin: 0 auto;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  /* левая колонка — печенька */
+  .cookie-side {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 300px;
+    flex: 1;
+  }
+  .counter {
+    font-size: 34px;
+    font-weight: bold;
+    color: var(--accent);
+    margin: 10px 0 2px;
+  }
+  .per-sec { font-size: 15px; opacity: .8; margin-bottom: 16px; }
+  #cookie {
+    font-size: 150px;
+    cursor: pointer;
+    transition: transform .05s;
+    line-height: 1;
+    filter: drop-shadow(0 8px 12px rgba(0,0,0,.4));
+  }
+  #cookie:active { transform: scale(0.92); }
+  .per-click { font-size: 14px; opacity: .7; margin-top: 12px; }
+
+  /* правая колонка — магазин */
+  .shop {
+    min-width: 320px;
+    flex: 1;
+  }
+  .shop h2 { margin-bottom: 10px; font-size: 20px; }
+  .item {
+    background: var(--panel);
+    border: none;
+    color: var(--text);
+    width: 100%;
+    text-align: left;
+    padding: 12px 14px;
+    border-radius: 10px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    transition: background .12s, opacity .12s;
+  }
+  .item:hover:not(:disabled) { background: var(--panel2); }
+  .item:disabled { opacity: .45; cursor: not-allowed; }
+  .item .emoji { font-size: 30px; }
+  .item .info { flex: 1; }
+  .item .name { font-weight: bold; font-size: 16px; }
+  .item .desc { font-size: 12px; opacity: .75; }
+  .item .right { text-align: right; }
+  .item .cost { color: var(--accent); font-weight: bold; }
+  .item .owned { font-size: 20px; font-weight: bold; opacity: .85; }
+
+  .controls { text-align: center; margin-top: 20px; }
+  .controls button {
+    background: var(--panel);
+    color: var(--text);
+    border: none;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+    margin: 0 4px;
+  }
+  .controls button:hover { background: var(--panel2); }
+
+  /* всплывающие +N при клике */
+  .float {
+    position: fixed;
+    pointer-events: none;
+    font-size: 22px;
+    font-weight: bold;
+    color: var(--accent);
+    animation: floatUp .8s ease-out forwards;
+    z-index: 10;
+  }
+  @keyframes floatUp {
+    from { opacity: 1; transform: translateY(0); }
+    to   { opacity: 0; transform: translateY(-70px); }
+  }
+  
+  
+  .guide-panel {
+    background: var(--panel);
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 12px;
+    padding: 16px 18px;
+    min-width: 215px;
+    max-width: 260px;
+    margin-top: 56px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.35);
+  }
+  .guide-panel h2 { font-size:14px; letter-spacing:1px; text-transform:uppercase; opacity:.85; margin-bottom:14px; display:flex; align-items:center; gap:7px; }
+  .guide-panel .row { display:flex; align-items:center; gap:10px; margin-bottom:10px; font-size:13.5px; }
+  .guide-panel .keys { display:flex; gap:4px; flex-shrink:0; }
+  .guide-panel .desc { opacity:.85; }
+  
+  
+  kbd {
+    display:inline-block; min-width:22px; text-align:center;
+    background:#20223a; border:1px solid rgba(255,255,255,.15);
+    border-bottom-width:2px; border-radius:6px; padding:3px 6px;
+    font-family:inherit; font-size:12px; font-weight:bold; color:var(--text);
+  }
+  @media (max-width:760px){ .guide-panel{ margin-top:8px; max-width:100%; width:100%; } }
+  @media (max-width:600px){
+    body{ padding:12px; }
+    h1{ font-size:26px; }
+    .cookie-side, .shop{ min-width:0; width:100%; flex:1 1 100%; }
+    #cookie{ font-size:110px; }
+    .counter{ font-size:28px; }
+  }
+  :fullscreen canvas { image-rendering:pixelated; max-width:none; }

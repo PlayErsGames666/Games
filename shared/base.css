@@ -1,0 +1,44 @@
+/* =========================================================================
+   ОБЩИЙ КАРКАС СТРАНИЦЫ ИГРЫ
+
+   Эти правила были одинаковыми в двадцати с лишним играх. Теперь они
+   в одном месте, а в игре остаётся только то, что этой игре свойственно.
+
+   Подключается ПЕРВЫМ, до style.css игры. Всё, что игра хочет сделать
+   по-своему — свой цвет кнопки полного экрана, свой фон, — она объявляет
+   у себя, и её правило побеждает по порядку каскада.
+   ========================================================================= */
+
+/* --- раскладка страницы: игра слева, справочник справа --- */
+.stage { display:flex; gap:28px; align-items:flex-start; justify-content:center; flex-wrap:wrap; width:100%; max-width:100%; }
+.game-col { display:flex; flex-direction:column; align-items:center; max-width:100%; min-width:0; }
+
+/* --- мелочи справочника, одинаковые везде --- */
+.guide-panel .sep { height:1px; background:rgba(255,255,255,.09); margin:12px 0; }
+.guide-panel .note { font-size:12px; opacity:.6; margin-top:8px; line-height:1.55; }
+
+/* =====================  ПОЛНЫЙ ЭКРАН  =====================
+   Виден ТОЛЬКО игровой экран: обвязка страницы прячется. */
+.fsbtn.on { background:#06d6a0; color:#10121f; }
+
+:fullscreen { background:#07080f; overflow:hidden; }
+:fullscreen body, body:fullscreen { background:#07080f; padding:0; justify-content:center; }
+
+/* заголовок, навигация, справочник, подсказки.
+   .fs-hide вешает скрипт на ряд с кнопкой ⛶ — игровые кнопки остаются */
+:fullscreen h1, :fullscreen .fs-hide, :fullscreen .guide-panel, :fullscreen .hint,
+:fullscreen footer, :fullscreen .sub { display:none !important; }
+
+:fullscreen .stage { gap:0; align-items:center; justify-content:center; min-height:100vh; }
+:fullscreen .game-col { justify-content:center; }
+
+/* На компьютере (мышь) экранный D-pad и дублирующие кнопки не нужны —
+   без них игра занимает почти весь экран; на тачскрине они остаются. */
+@media (hover:hover) and (pointer:fine){
+  :fullscreen .pad, :fullscreen .fs-touch { display:none !important; }
+}
+
+/* Правило `:fullscreen canvas` намеренно НЕ здесь. Пиксельным играм нужен
+   image-rendering:pixelated, а тем, кто перерисовывается в реальном
+   разрешении экрана (Астероид, Конвейер, Рубеж, Тихий квартал), — наоборот,
+   сглаживание. Общее правило подтекало бы им и мылило бы картинку. */

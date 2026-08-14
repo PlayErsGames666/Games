@@ -1,0 +1,343 @@
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+// --- параметры ---
+const COLS = 10, MARGIN = 24, GAP = 4, BRICK_H = 20, TOP = 60;
+const BRICK_W = (W - 2 * MARGIN - (COLS - 1) * GAP) / COLS;
+const PADDLE_Y = H - 30, PADDLE_H = 14, PADDLE_BASE_W = 88, PADDLE_WIDE_W = 140;
+const PADDLE_SPEED = 460, BALL_R = 7;
+const HP_COLORS = { 1: '#06d6a0', 2: '#ffd166', 3: '#ff9f1c', 4: '#ef476f' };
+
+// бонусы
+const POWERS = [
+  { kind: 'wide',  color: '#ff9f1c', weight: 3 },
+  { kind: 'multi', color: '#b388ff', weight: 2 },
+  { kind: 'slow',  color: '#4cc9f0', weight: 2 },
+  { kind: 'laser', color: '#ffd166', weight: 2 },
+  { kind: 'life',  color: '#ef476f', weight: 1 },
+];
+
+const el = {
+  score: document.getElementById('score'), leveln: document.getElementById('leveln'),
+  lives: document.getElementById('lives'), best: document.getElementById('best'),
+  difficulty: document.getElementById('difficulty'), pause: document.getElementById('pause'),
+};
+
+let paddle, balls, bricks, powerups, lasers;
+let score, best, lives, level, diff;
+let wideTime, slowTime, laserTime, laserCd;
+let running, over, won, paused, launched;
+let aimX, touchActive, lastFrame;
+const keys = {};
+
+best = parseInt(localStorage.getItem('breakoutBest') || '0', 10);
+el.best.textContent = best;
+
+function ballSpeed() { return (250 + (level - 1) * 22) * diff; }
+
+function reset() {
+  diff = parseFloat(el.difficulty.value);
+  score = 0; lives = 3; level = 1;
+  over = false; won = false; paused = false; running = true;
+  wideTime = 0; slowTime = 0; laserTime = 0; laserCd = 0;
+  paddle = { x: W / 2 - PADDLE_BASE_W / 2, w: PADDLE_BASE_W };
+  powerups = []; lasers = [];
+  buildLevel();
+  resetBall();
+  updateHUD();
+  updatePauseBtn();
+}
+
+function buildLevel() {
+  bricks = [];
+  const rows = Math.min(9, 4 + Math.floor(level / 2));
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < COLS; c++) {
+      // разные узоры по уровням
+      const pat = level % 4;
+      let skip = false;
+      if (pat === 1) skip = (r + c) % 2 === 0;          // шахматка
+      else if (pat === 2) skip = (c < r || c >= COLS - r); // пирамида
+      else if (pat === 3) skip = (r % 2 === 1 && (c === 0 || c === COLS - 1));
+      if (skip) continue;
+      const hp = Math.min(4, 1 + Math.floor((rows - r) / 2)); // ниже — крепче? верх крепче
+      bricks.push({
+        x: MARGIN + c * (BRICK_W + GAP), y: TOP + r * (BRICK_H + GAP),
+        w: BRICK_W, h: BRICK_H, hp, maxHp: hp,
+      });
+    }
+  }
+}
+
+function resetBall() {
+  launched = false;
+  balls = [{ x: paddle.x + paddle.w / 2, y: PADDLE_Y - BALL_R - 1, vx: 0, vy: 0, stuck: true }];
+}
+
+function launchBall() {
+  if (launched) return;
+  launched = true;
+  const s = ballSpeed();
+  for (const b of balls) { b.stuck = false; b.vx = s * 0.4 * (Math.random() < 0.5 ? -1 : 1); b.vy = -s; normalize(b, s); }
+}
+
+function normalize(b, s) {
+  const m = Math.hypot(b.vx, b.vy) || 1;
+  b.vx = b.vx / m * s; b.vy = b.vy / m * s;
+}
+
+function updateHUD() {
+  el.score.textContent = score;
+  el.leveln.textContent = level;
+  el.lives.textContent = lives;
+}
+function updatePauseBtn() { el.pause.textContent = paused ? '▶ Продолжить' : '⏸ Пауза'; }
+
+// --- обновление ---
+function update(dt) {
+  if (!running || paused || over) return;
+
+  if (wideTime > 0) { wideTime -= dt; if (wideTime <= 0) paddle.w = PADDLE_BASE_W; }
+  if (slowTime > 0) slowTime -= dt;
+  if (laserTime > 0) laserTime -= dt;
+  if (laserCd > 0) laserCd -= dt;
+
+  // платформа
+  let move = 0;
+  if (keys['ArrowLeft'] || keys['a'] || keys['A'] || keys['ф'] || keys['Ф']) move -= 1;
+  if (keys['ArrowRight'] || keys['d'] || keys['D'] || keys['в'] || keys['В']) move += 1;
+  paddle.x += move * PADDLE_SPEED * dt;
+  if (touchActive && aimX != null) paddle.x = aimX - paddle.w / 2;
+  paddle.x = Math.max(0, Math.min(W - paddle.w, paddle.x));
+
+  // лазер
+  if (laserTime > 0 && (keys[' '] || touchActive) && laserCd <= 0) {
+    lasers.push({ x: paddle.x + 6, y: PADDLE_Y }, { x: paddle.x + paddle.w - 8, y: PADDLE_Y });
+    laserCd = 0.28;
+  }
+  for (const l of lasers) l.y -= 620 * dt;
+  for (const l of lasers) {
+    if (l.dead) continue;
+    for (const br of bricks) {
+      if (l.x > br.x && l.x < br.x + br.w && l.y < br.y + br.h && l.y > br.y) {
+        l.dead = true; hitBrick(br); break;
+      }
+    }
+  }
+  lasers = lasers.filter(l => !l.dead && l.y > -10);
+
+  const speedFactor = slowTime > 0 ? 0.62 : 1;
+
+  // мячи
+  for (const b of balls) {
+    if (b.stuck) { b.x = paddle.x + paddle.w / 2; b.y = PADDLE_Y - BALL_R - 1; continue; }
+    b.x += b.vx * dt * speedFactor;
+    b.y += b.vy * dt * speedFactor;
+
+    // стены
+    if (b.x - BALL_R < 0) { b.x = BALL_R; b.vx = Math.abs(b.vx); }
+    if (b.x + BALL_R > W) { b.x = W - BALL_R; b.vx = -Math.abs(b.vx); }
+    if (b.y - BALL_R < 0) { b.y = BALL_R; b.vy = Math.abs(b.vy); }
+
+    // платформа
+    if (b.vy > 0 && b.y + BALL_R >= PADDLE_Y && b.y - BALL_R <= PADDLE_Y + PADDLE_H &&
+        b.x >= paddle.x - BALL_R && b.x <= paddle.x + paddle.w + BALL_R) {
+      const rel = (b.x - (paddle.x + paddle.w / 2)) / (paddle.w / 2); // -1..1
+      const ang = Math.max(-1, Math.min(1, rel)) * (Math.PI / 3);
+      const s = ballSpeed();
+      b.vx = s * Math.sin(ang); b.vy = -s * Math.cos(ang);
+      b.y = PADDLE_Y - BALL_R - 1;
+    }
+
+    // блоки
+    for (const br of bricks) {
+      if (!hitsBrick(b, br)) continue;
+      // определяем сторону отскока по меньшему проникновению
+      const px = Math.min(b.x + BALL_R - br.x, br.x + br.w - (b.x - BALL_R));
+      const py = Math.min(b.y + BALL_R - br.y, br.y + br.h - (b.y - BALL_R));
+      if (px < py) b.vx = -b.vx; else b.vy = -b.vy;
+      hitBrick(br);
+      break;
+    }
+  }
+
+  // упавшие мячи
+  balls = balls.filter(b => b.y - BALL_R < H + 4);
+  if (balls.length === 0) loseLife();
+
+  // бонусы падают, ловятся платформой
+  for (const p of powerups) p.y += 150 * dt;
+  for (const p of powerups) {
+    if (p.dead) continue;
+    if (p.y + 12 > PADDLE_Y && p.y < PADDLE_Y + PADDLE_H && p.x + 12 > paddle.x && p.x - 12 < paddle.x + paddle.w) {
+      p.dead = true; applyPower(p.kind);
+    }
+  }
+  powerups = powerups.filter(p => !p.dead && p.y < H + 20);
+
+  // уровень пройден
+  if (bricks.length === 0) nextLevel();
+}
+
+function hitsBrick(b, br) {
+  return b.x + BALL_R > br.x && b.x - BALL_R < br.x + br.w &&
+         b.y + BALL_R > br.y && b.y - BALL_R < br.y + br.h;
+}
+
+function hitBrick(br) {
+  br.hp -= 1;
+  score += 10;
+  if (br.hp <= 0) {
+    score += 20;
+    maybeDropPower(br);
+    bricks = bricks.filter(x => x !== br);
+  }
+  updateHUD();
+}
+
+function maybeDropPower(br) {
+  if (Math.random() > 0.16) return;
+  const total = POWERS.reduce((s, p) => s + p.weight, 0);
+  let r = Math.random() * total;
+  let pick = POWERS[0];
+  for (const p of POWERS) { if (r < p.weight) { pick = p; break; } r -= p.weight; }
+  powerups.push({ x: br.x + br.w / 2 - 12, y: br.y, kind: pick.kind, color: pick.color, dead: false });
+}
+
+function applyPower(kind) {
+  if (kind === 'wide') { paddle.w = PADDLE_WIDE_W; wideTime = 15; paddle.x = Math.max(0, Math.min(W - paddle.w, paddle.x)); }
+  else if (kind === 'slow') { slowTime = 9; }
+  else if (kind === 'laser') { laserTime = 12; }
+  else if (kind === 'life') { lives++; updateHUD(); }
+  else if (kind === 'multi') {
+    const src = balls.find(b => !b.stuck) || balls[0];
+    if (src) {
+      const s = ballSpeed();
+      for (const da of [-0.4, 0.4]) {
+        const ang = Math.atan2(src.vy, src.vx) + da;
+        balls.push({ x: src.x, y: src.y, vx: Math.cos(ang) * s, vy: Math.sin(ang) * s, stuck: false });
+      }
+    }
+  }
+}
+
+function loseLife() {
+  lives--;
+  updateHUD();
+  if (lives <= 0) { over = true; running = false; saveBest(); return; }
+  paddle.w = PADDLE_BASE_W; wideTime = 0; slowTime = 0; laserTime = 0;
+  resetBall();
+}
+
+function nextLevel() {
+  level++;
+  updateHUD();
+  paddle.w = PADDLE_BASE_W; wideTime = 0; slowTime = 0; laserTime = 0;
+  powerups = []; lasers = [];
+  buildLevel();
+  resetBall();
+}
+
+function saveBest() { if (score > best) { best = score; localStorage.setItem('breakoutBest', String(best)); el.best.textContent = best; } }
+
+// --- отрисовка ---
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+
+  // блоки
+  for (const br of bricks) {
+    const base = HP_COLORS[br.hp] || '#8d99ae';
+    ctx.fillStyle = base;
+    ctx.fillRect(br.x, br.y, br.w, br.h);
+    ctx.fillStyle = 'rgba(255,255,255,.25)'; ctx.fillRect(br.x, br.y, br.w, 4);
+    ctx.fillStyle = 'rgba(0,0,0,.2)'; ctx.fillRect(br.x, br.y + br.h - 4, br.w, 4);
+  }
+
+  // бонусы
+  for (const p of powerups) {
+    ctx.fillStyle = p.color;
+    ctx.fillRect(p.x, p.y, 24, 14);
+    ctx.fillStyle = '#0f1020'; ctx.font = 'bold 11px Segoe UI'; ctx.textAlign = 'center';
+    ctx.fillText(powerLetter(p.kind), p.x + 12, p.y + 11);
+  }
+
+  // лазеры
+  ctx.fillStyle = '#ffd166';
+  for (const l of lasers) ctx.fillRect(l.x - 1.5, l.y, 3, 12);
+
+  // платформа
+  ctx.fillStyle = laserTime > 0 ? '#ffd166' : '#06d6a0';
+  roundRect(paddle.x, PADDLE_Y, paddle.w, PADDLE_H, 6);
+
+  // мячи
+  ctx.fillStyle = '#edf2f4';
+  for (const b of balls) { ctx.beginPath(); ctx.arc(b.x, b.y, BALL_R, 0, Math.PI * 2); ctx.fill(); }
+
+  if (!launched && !over) {
+    ctx.fillStyle = 'rgba(237,242,244,.75)'; ctx.font = '16px Segoe UI'; ctx.textAlign = 'center';
+    ctx.fillText('Пробел / тап — запуск', W / 2, PADDLE_Y - 30);
+  }
+  if (paused && !over) overlay('⏸ ПАУЗА', 'P / Esc — продолжить');
+  if (over) overlay('💀 Игра окончена', 'Счёт ' + score + ' · Enter / тап — заново');
+}
+
+function powerLetter(k) { return { wide: 'W', multi: '3x', slow: 'S', laser: '⚡', life: '♥' }[k] || '?'; }
+
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath(); ctx.fill();
+}
+
+function overlay(title, subtitle) {
+  ctx.fillStyle = 'rgba(15,16,32,.82)'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#edf2f4'; ctx.textAlign = 'center';
+  ctx.font = 'bold 32px Segoe UI, sans-serif'; ctx.fillText(title, W / 2, H / 2 - 6);
+  ctx.font = '16px Segoe UI, sans-serif'; ctx.fillStyle = 'rgba(237,242,244,.75)';
+  ctx.fillText(subtitle, W / 2, H / 2 + 24);
+}
+
+// --- цикл ---
+function frame(now) {
+  if (lastFrame === null) lastFrame = now;
+  let dt = (now - lastFrame) / 1000; lastFrame = now;
+  if (dt > 0.04) dt = 0.04;
+  update(dt);
+  draw();
+  requestAnimationFrame(frame);
+}
+
+// --- управление ---
+document.addEventListener('keydown', (e) => {
+  if (over) { if (e.key === 'Enter') reset(); return; }
+  if (['ArrowLeft','ArrowRight','a','A','d','D','ф','Ф','в','В',' '].includes(e.key)) { keys[e.key] = true; e.preventDefault(); }
+  if (e.key === ' ') launchBall();
+  if (e.key === 'p' || e.key === 'P' || e.key === 'з' || e.key === 'З' || e.key === 'Escape') {
+    e.preventDefault(); paused = !paused; updatePauseBtn();
+  }
+});
+document.addEventListener('keyup', (e) => { keys[e.key] = false; });
+
+function evX(clientX) { const r = canvas.getBoundingClientRect(); return (clientX - r.left) * (W / r.width); }
+canvas.addEventListener('mousemove', (e) => { paddle && (paddle.x = evX(e.clientX) - paddle.w / 2); });
+canvas.addEventListener('mousedown', () => { if (over) reset(); else launchBall(); });
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  if (over) { reset(); return; }
+  touchActive = true; aimX = evX(e.touches[0].clientX); launchBall();
+}, { passive: false });
+canvas.addEventListener('touchmove', (e) => { e.preventDefault(); aimX = evX(e.touches[0].clientX); }, { passive: false });
+canvas.addEventListener('touchend', (e) => { e.preventDefault(); touchActive = false; }, { passive: false });
+
+el.pause.addEventListener('click', () => { if (!over) { paused = !paused; updatePauseBtn(); } });
+document.getElementById('restart').addEventListener('click', reset);
+el.difficulty.addEventListener('change', reset);
+
+reset();
+lastFrame = null;
+requestAnimationFrame(frame);

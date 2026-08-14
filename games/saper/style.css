@@ -1,0 +1,131 @@
+:root {
+    --bg: #2b2d42;
+    --panel: #3a3d5c;
+    --cell: #8d99ae;
+    --cell-open: #edf2f4;
+    --accent: #ef233c;
+    --text: #edf2f4;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', Tahoma, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    user-select: none;
+  }
+  h1 { margin-bottom: 16px; letter-spacing: 2px; }
+  .controls {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  button, select {
+    background: var(--panel);
+    color: var(--text);
+    border: none;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 15px;
+    cursor: pointer;
+    transition: background .15s;
+  }
+  button:hover, select:hover { background: #4a4e73; }
+  .status {
+    display: flex;
+    gap: 24px;
+    margin-bottom: 14px;
+    font-size: 20px;
+    font-weight: bold;
+    background: var(--panel);
+    padding: 10px 20px;
+    border-radius: 10px;
+  }
+  .status span { display: inline-flex; align-items: center; gap: 6px; }
+  #board {
+    display: grid;
+    gap: 3px;
+    background: var(--panel);
+    padding: 10px;
+    border-radius: 10px;
+    max-width: 100%;
+    overflow: auto;              /* очень широкие поля можно прокрутить на телефоне */
+  }
+  .cell {
+    width: var(--cell-size, 34px);
+    height: var(--cell-size, 34px);
+    background: var(--cell);
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: calc(var(--cell-size, 34px) * 0.52);
+    font-weight: bold;
+    cursor: pointer;
+    transition: background .1s;
+    flex-shrink: 0;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;      /* без двойного тапа-зума, прокрутка поля остаётся */
+    -webkit-touch-callout: none;     /* Android/iOS не перехватывают долгое нажатие */
+    -webkit-user-select: none; user-select: none;
+  }
+  .cell:hover:not(.open) { background: #a2adc0; }
+  .cell.open {
+    background: var(--cell-open);
+    color: #2b2d42;
+    cursor: default;
+  }
+  .cell.mine { background: var(--accent); }
+  .cell.flag { color: var(--accent); }
+  .c1 { color: #3a86ff; }
+  .c2 { color: #2a9d8f; }
+  .c3 { color: #e63946; }
+  .c4 { color: #7209b7; }
+  .c5 { color: #d00000; }
+  .c6 { color: #0096c7; }
+  .c7 { color: #212529; }
+  .c8 { color: #6c757d; }
+  .message {
+    margin-top: 16px;
+    font-size: 22px;
+    font-weight: bold;
+    height: 28px;
+  }
+  .win { color: #06d6a0; }
+  .lose { color: var(--accent); }
+  .hint { margin-top: 10px; font-size: 13px; opacity: .6; }
+  
+  
+  .guide-panel {
+    background: var(--panel);
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 12px;
+    padding: 16px 18px;
+    min-width: 215px;
+    max-width: 260px;
+    margin-top: 56px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.35);
+  }
+  .guide-panel h2 { font-size:14px; letter-spacing:1px; text-transform:uppercase; opacity:.85; margin-bottom:14px; display:flex; align-items:center; gap:7px; }
+  .guide-panel .row { display:flex; align-items:center; gap:10px; margin-bottom:10px; font-size:13.5px; }
+  .guide-panel .keys { display:flex; gap:4px; flex-shrink:0; }
+  .guide-panel .desc { opacity:.85; }
+  
+  
+  kbd {
+    display:inline-block; min-width:22px; text-align:center;
+    background:#20223a; border:1px solid rgba(255,255,255,.15);
+    border-bottom-width:2px; border-radius:6px; padding:3px 6px;
+    font-family:inherit; font-size:12px; font-weight:bold; color:var(--text);
+  }
+  @media (max-width:760px){ .guide-panel{ margin-top:8px; max-width:100%; width:100%; } }
+  @media (max-width:600px){ :root{ --cell-size: 30px; } body{ padding:12px; } h1{ font-size:24px; } }
+  @media (max-width:400px){ :root{ --cell-size: 26px; } }
+  :fullscreen canvas { image-rendering:pixelated; max-width:none; }

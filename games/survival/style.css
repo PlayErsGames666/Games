@@ -1,0 +1,31 @@
+:root { --bg:#2b2d42; --panel:#3a3d5c; --panel2:#4a4e73; --text:#edf2f4; --accent:#06d6a0; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:'Segoe UI',Tahoma,sans-serif; background:var(--bg); color:var(--text); min-height:100vh;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px; user-select:none; }
+  h1 { margin-bottom:12px; letter-spacing:2px; }
+  .controls { display:flex; gap:10px; margin-bottom:12px; flex-wrap:wrap; justify-content:center; align-items:center; }
+  button, a.btn { background:var(--panel); color:var(--text); border:none; padding:8px 14px; border-radius:8px; font-size:15px; cursor:pointer; transition:background .15s; text-decoration:none; display:inline-flex; align-items:center; }
+  button:hover:not(:disabled) { background:var(--panel2); }
+  button:disabled { opacity:.45; cursor:not-allowed; }
+  input.code { width:110px; text-transform:uppercase; background:var(--panel); color:var(--text); border:none; padding:8px 10px; border-radius:8px; font-size:15px; letter-spacing:2px; text-align:center; }
+
+  /* ширина задана явно: размер вёрстки не зависит от разрешения битмапа */
+  canvas { border-radius:10px; display:block; box-shadow:0 8px 24px rgba(0,0,0,.4); width:512px; max-width:100%; height:auto; }
+
+  #bagBtn.on { background:var(--accent); color:#08251c; }
+
+  .pad { margin-top:12px; display:grid; grid-template-columns:repeat(3,48px); grid-gap:6px; justify-content:center; }
+  .pad button { padding:0; height:48px; font-size:20px; }
+  .actions { margin-top:10px; display:flex; gap:8px; flex-wrap:wrap; justify-content:center; }
+
+  .hint { margin-top:10px; font-size:13px; opacity:.6; text-align:center; }
+  
+  
+  .guide-panel { background:var(--panel); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:16px 18px; min-width:215px; max-width:270px; margin-top:56px; box-shadow:0 8px 24px rgba(0,0,0,.35); }
+  .guide-panel h2 { font-size:14px; letter-spacing:1px; text-transform:uppercase; opacity:.85; margin-bottom:14px; }
+  .guide-panel .row2 { margin-bottom:8px; font-size:13px; }
+  
+  
+  @media (max-width:800px){ .guide-panel{ margin-top:8px; max-width:100%; width:100%; } }
+  @media (max-width:480px){ body{ padding:12px; } h1{ font-size:22px; } }
+  :fullscreen canvas { image-rendering:pixelated; max-width:none; }

@@ -1,0 +1,62 @@
+:root { --bg:#2b2d42; --panel:#3a3d5c; --panel2:#4a4e73; --text:#edf2f4; --accent:#06d6a0; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:'Segoe UI',Tahoma,sans-serif; background:var(--bg); color:var(--text); min-height:100vh;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px; user-select:none; }
+  h1 { margin-bottom:14px; letter-spacing:2px; }
+  .controls { display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap; justify-content:center; align-items:center; }
+  button, select { background:var(--panel); color:var(--text); border:none; padding:8px 14px; border-radius:8px; font-size:15px; cursor:pointer; transition:background .15s; }
+  button:hover:not(:disabled) { background:var(--panel2); }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  button.primary { background:var(--accent); color:#0d1a14; font-weight:bold; }
+  .mode { background:var(--panel); color:var(--text); border:none; padding:7px 12px; border-radius:8px; font-size:14px; cursor:pointer; transition:background .12s, color .12s; }
+  .mode:hover { background:var(--panel2); }
+  .mode.on { background:var(--accent); color:#0d1a14; font-weight:bold; box-shadow:0 0 0 2px rgba(6,214,160,.35); }
+  .modegroup { display:inline-flex; flex-wrap:wrap; justify-content:center; gap:5px; background:rgba(0,0,0,.2); padding:4px; border-radius:10px; max-width:100%; }
+  .msg { text-align:center; font-size:15px; font-weight:bold; min-height:22px; margin:8px 0; }
+
+  .board { width:min(520px,100%); background:radial-gradient(120% 90% at 50% 0%, #1f6b46, #14472f);
+    border-radius:14px; padding:14px; box-shadow:0 8px 24px rgba(0,0,0,.4), inset 0 0 0 3px rgba(255,255,255,.05); }
+  .row { display:flex; align-items:center; justify-content:center; gap:6px; min-height:84px; flex-wrap:wrap; }
+  .row.small { min-height:44px; }
+  .deckinfo { display:flex; align-items:center; justify-content:space-between; margin:6px 2px; font-size:14px; font-weight:bold; }
+  .table { min-height:96px; display:flex; gap:14px; flex-wrap:wrap; justify-content:center; align-items:center; padding:8px 0; }
+  .pair { position:relative; width:56px; height:80px; }
+  .pair .card { position:absolute; }
+  .pair .d { top:16px; left:12px; }
+
+  .card { width:52px; height:76px; border-radius:7px; background:#f7f8fb; color:#1a1c2e;
+    display:flex; flex-direction:column; justify-content:space-between; padding:4px 6px; box-shadow:0 3px 8px rgba(0,0,0,.35); }
+  .card.red { color:#d21f3c; }
+  .card .r { font-size:15px; font-weight:bold; line-height:1; }
+  .card .s { font-size:22px; text-align:center; }
+  .card.back { background:repeating-linear-gradient(45deg,#3f43a0,#3f43a0 6px,#2c2f76 6px,#2c2f76 12px); }
+  .card.mini { width:34px; height:50px; padding:3px 4px; }
+  .card.mini .r { font-size:11px; } .card.mini .s { font-size:14px; }
+  .hand .card { cursor:pointer; transition:transform .1s; }
+  .hand.active .card:hover { transform:translateY(-8px); }
+  .hand .card.dim { opacity:.5; cursor:not-allowed; }
+
+  .hint { margin-top:12px; font-size:13px; opacity:.6; text-align:center; }
+  
+  
+  .guide-panel { background:var(--panel); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:16px 18px; min-width:215px; max-width:260px; margin-top:56px; box-shadow:0 8px 24px rgba(0,0,0,.35); }
+  .guide-panel h2 { font-size:14px; letter-spacing:1px; text-transform:uppercase; opacity:.85; margin-bottom:14px; }
+  .guide-panel .row2 { margin-bottom:9px; font-size:13px; }
+  
+  
+  kbd { display:inline-block; background:#20223a; border:1px solid rgba(255,255,255,.15); border-bottom-width:2px; border-radius:6px; padding:2px 6px; font-family:inherit; font-size:12px; font-weight:bold; }
+  @media (max-width:760px){ .guide-panel{ margin-top:8px; max-width:100%; width:100%; } }
+  @media (max-width:480px){
+    body{ padding:10px; } h1{ font-size:22px; margin-bottom:8px; }
+    .board{ padding:8px; }
+    .row{ gap:4px; min-height:70px; }
+    .table{ gap:8px; min-height:82px; }
+    .card{ width:42px; height:62px; padding:3px 4px; border-radius:6px; }
+    .card .r{ font-size:12px; } .card .s{ font-size:17px; }
+    .card.mini{ width:27px; height:40px; } .card.mini .r{ font-size:9px; } .card.mini .s{ font-size:11px; }
+    .pair{ width:46px; height:66px; }
+    button, select{ padding:7px 11px; font-size:14px; }
+    .mode{ padding:6px 9px; font-size:13px; }
+    .controls{ gap:7px; margin-bottom:10px; }
+  }
+  :fullscreen canvas { image-rendering:pixelated; max-width:none; }

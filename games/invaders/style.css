@@ -1,0 +1,132 @@
+:root {
+    --bg: #2b2d42;
+    --panel: #3a3d5c;
+    --panel2: #4a4e73;
+    --text: #edf2f4;
+    --accent: #b388ff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', Tahoma, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    user-select: none;
+  }
+  h1 { margin-bottom: 14px; letter-spacing: 2px; }
+  .controls {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  button, select {
+    background: var(--panel);
+    color: var(--text);
+    border: none;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 15px;
+    cursor: pointer;
+    transition: background .15s;
+  }
+  button:hover, select:hover { background: var(--panel2); }
+  .status {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 14px;
+    font-size: 17px;
+    font-weight: bold;
+    background: var(--panel);
+    padding: 10px 16px;
+    border-radius: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .status span { display: inline-flex; align-items: center; gap: 5px; }
+  .arena { position: relative; max-width: 100%; }
+  canvas {
+    background: #0d0e1a;
+    border-radius: 10px;
+    display: block;
+    box-shadow: 0 8px 24px rgba(0,0,0,.4);
+    touch-action: none;
+    max-width: 100%;
+    height: auto;
+  }
+  .hint { margin-top: 12px; font-size: 13px; opacity: .6; text-align: center; }
+
+  /* магазин прокачки между волнами */
+  .shop {
+    position: absolute;
+    inset: 0;
+    background: rgba(13,14,26,.94);
+    border-radius: 10px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+  .shop[hidden] { display: none; }
+  .shop h2 { text-align: center; font-size: 22px; margin-bottom: 2px; }
+  .shop .sub { text-align: center; opacity: .75; font-size: 13px; margin-bottom: 12px; }
+  .shop .credits { text-align: center; font-size: 18px; font-weight: bold; color: #ffd166; margin-bottom: 12px; }
+  .secname { font-size: 13px; font-weight: bold; opacity: .7; text-transform: uppercase; letter-spacing: 1px; margin: 10px 2px 6px; }
+  .upgrades { display: flex; flex-direction: column; gap: 8px; }
+  .up.equipped { outline: 2px solid var(--accent); background: var(--panel2); }
+  .up {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--panel); border-radius: 10px; padding: 10px 12px;
+    text-align: left; width: 100%; border: 1px solid rgba(255,255,255,.06);
+  }
+  .up:enabled { cursor: pointer; }
+  .up:enabled:hover { background: var(--panel2); }
+  .up:disabled { opacity: .45; cursor: not-allowed; }
+  .up .em { font-size: 24px; flex-shrink: 0; }
+  .up .info { flex: 1; }
+  .up .nm { font-weight: bold; font-size: 15px; }
+  .up .dsc { font-size: 12px; opacity: .75; }
+  .up .lvl { display: flex; gap: 3px; margin-top: 4px; }
+  .up .pip { width: 14px; height: 6px; border-radius: 3px; background: rgba(255,255,255,.15); }
+  .up .pip.on { background: var(--accent); }
+  .up .cost { font-weight: bold; color: #ffd166; white-space: nowrap; }
+  .up .max { font-weight: bold; color: #06d6a0; font-size: 13px; }
+  .shop .go {
+    margin-top: 12px; background: #06d6a0; color: #0d0e1a; font-weight: bold;
+    font-size: 17px; padding: 12px; border-radius: 10px;
+  }
+  .shop .go:hover { background: #08f5b4; }
+
+  
+  
+  .guide-panel {
+    background: var(--panel);
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 12px;
+    padding: 16px 18px;
+    min-width: 215px;
+    max-width: 260px;
+    margin-top: 56px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.35);
+  }
+  .guide-panel h2 { font-size:14px; letter-spacing:1px; text-transform:uppercase; opacity:.85; margin-bottom:14px; display:flex; align-items:center; gap:7px; }
+  .guide-panel .row { display:flex; align-items:center; gap:10px; margin-bottom:10px; font-size:13.5px; }
+  .guide-panel .keys { display:flex; gap:4px; flex-shrink:0; }
+  .guide-panel .desc { opacity:.85; }
+  
+  
+  kbd {
+    display:inline-block; min-width:22px; text-align:center;
+    background:#20223a; border:1px solid rgba(255,255,255,.15);
+    border-bottom-width:2px; border-radius:6px; padding:3px 6px;
+    font-family:inherit; font-size:12px; font-weight:bold; color:var(--text);
+  }
+  @media (max-width:760px){ .guide-panel{ margin-top:8px; max-width:100%; width:100%; } }
+  @media (max-width:480px){ body{ padding:12px; } h1{ font-size:22px; } }
+  :fullscreen canvas { image-rendering:pixelated; max-width:none; }
