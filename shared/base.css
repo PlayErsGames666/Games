@@ -18,24 +18,41 @@
 .guide-panel .note { font-size:12px; opacity:.6; margin-top:8px; line-height:1.55; }
 
 /* =====================  ПОЛНЫЙ ЭКРАН  =====================
-   Виден ТОЛЬКО игровой экран: обвязка страницы прячется. */
+   Виден ТОЛЬКО игровой экран: обвязка страницы прячется.
+
+   Каждое правило продублировано на класс .fs-on, который скрипт вешает
+   на <html> САМ, в тот же миг, когда включился полный экран. Причина:
+   браузер применяет :fullscreen и меняет размер окна не мгновенно, а
+   подгонка успевала померить колонку, пока заголовок с подсказками ещё
+   занимали место. «Лишние» двести пикселей превращали масштаб в единицу,
+   и игра оставалась крошечной с чёрными полями по краям. */
 .fsbtn.on { background:#06d6a0; color:#10121f; }
 
 :fullscreen { background:#07080f; overflow:hidden; }
+html.fs-on { background:#07080f; overflow:hidden; }
 :fullscreen body, body:fullscreen { background:#07080f; padding:0; justify-content:center; }
+html.fs-on body { background:#07080f; padding:0; justify-content:center; }
 
 /* заголовок, навигация, справочник, подсказки.
    .fs-hide вешает скрипт на ряд с кнопкой ⛶ — игровые кнопки остаются */
 :fullscreen h1, :fullscreen .fs-hide, :fullscreen .guide-panel, :fullscreen .hint,
-:fullscreen footer, :fullscreen .sub { display:none !important; }
+:fullscreen footer, :fullscreen .sub,
+html.fs-on h1, html.fs-on .fs-hide, html.fs-on .guide-panel, html.fs-on .hint,
+html.fs-on footer, html.fs-on .sub { display:none !important; }
 
 :fullscreen .stage { gap:0; align-items:center; justify-content:center; min-height:100vh; }
 :fullscreen .game-col { justify-content:center; }
+html.fs-on .stage { gap:0; align-items:center; justify-content:center; min-height:100vh; }
+html.fs-on .game-col { justify-content:center; }
+
+/* канвас в полный экран не ограничиваем шириной страницы */
+html.fs-on canvas { max-width:none; }
 
 /* На компьютере (мышь) экранный D-pad и дублирующие кнопки не нужны —
    без них игра занимает почти весь экран; на тачскрине они остаются. */
 @media (hover:hover) and (pointer:fine){
   :fullscreen .pad, :fullscreen .fs-touch { display:none !important; }
+  html.fs-on .pad, html.fs-on .fs-touch { display:none !important; }
 }
 
 /* Правило `:fullscreen canvas` намеренно НЕ здесь. Пиксельным играм нужен

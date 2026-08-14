@@ -46,7 +46,20 @@
     var k2=Math.min(window.innerWidth/w, window.innerHeight/h)*0.98;
     if(k2>1.01){ col.style.transformOrigin="center center"; col.style.transform="scale("+k2.toFixed(3)+")"; }
   }
-  function upd(){ if(btn){ var on=!!isFs(); btn.textContent=on?"⛶ Выйти":"⛶ Во весь экран"; btn.classList.toggle("on",on); } requestAnimationFrame(fit); }
+  /* Скрываем обвязку САМИ, не дожидаясь, пока браузер применит :fullscreen.
+     Иначе подгонка меряет колонку вместе с заголовком и подсказками, ловит
+     лишние двести пикселей высоты — и масштаб выходит меньше единицы, то
+     есть игра остаётся крошечной, а вокруг чёрные поля. */
+  function markFs(){ root.classList.toggle("fs-on", !!isFs()); }
+  /* Размер окна после входа в полный экран меняется НЕ сразу и не всегда
+     присылает resize вовремя. Одного замера мало: повторяем, пока всё
+     не устаканится. Лишние вызовы бесплатны — fit() идемпотентен. */
+  function refit(){
+    markFs();
+    requestAnimationFrame(fit);
+    setTimeout(fit, 60); setTimeout(fit, 200); setTimeout(fit, 500);
+  }
+  function upd(){ if(btn){ var on=!!isFs(); btn.textContent=on?"⛶ Выйти":"⛶ Во весь экран"; btn.classList.toggle("on",on); } refit(); }
   function fail(w){ if(window.__fsFail) window.__fsFail(w); }
   function toggle(){
     try{
@@ -64,7 +77,8 @@
   if(btn){ btn.addEventListener("click",function(){ btn.blur(); toggle(); }); var nav=btn.closest&&btn.closest(".controls"); if(nav) nav.classList.add("fs-hide"); }
   document.addEventListener("fullscreenchange",upd);
   document.addEventListener("webkitfullscreenchange",upd);
-  window.addEventListener("resize",function(){ if(isFs()) requestAnimationFrame(fit); });
+  window.addEventListener("resize",function(){ if(isFs()) refit(); });
+  if(window.visualViewport) window.visualViewport.addEventListener("resize",function(){ if(isFs()) refit(); });
   document.addEventListener("keydown",function(e){ if(e.target&&e.target.tagName==="INPUT")return; if(e.code==="KeyF"&&!e.repeat&&!e.ctrlKey&&!e.altKey&&!e.metaKey){ toggle(); } });
   window.__toggleFullscreen=toggle; window.__fsFit=fit; upd();
 })();
