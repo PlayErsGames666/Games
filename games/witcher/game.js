@@ -527,8 +527,12 @@ function enchant(it) {
   message('✨ ' + ENCH[e].n + ': ' + ENCH[e].desc);
 }
 function sell(it) {
+  // надетое не продаём: раньше indexOf давал -1, и splice(-1,1) сносил
+  // ПОСЛЕДНИЙ предмет сумки — чужой и ни в чём не виноватый
+  const i = inv.indexOf(it);
+  if (i < 0) { message('Сначала сними: надетое не продаётся'); return; }
   const p = Math.max(1, Math.round(itemPrice(it) * 0.6));
-  inv.splice(inv.indexOf(it), 1);
+  inv.splice(i, 1);
   gold += p;
   message('💰 Продано за ' + p);
 }
@@ -928,8 +932,10 @@ function panelBox(title) {
   ctx.fillStyle = 'rgba(60,50,40,.9)'; ctx.fillRect(CW - 24 - bw, 30, bw, 18);
   txt('✕ закрыть', CW - 24 - bw / 2, 39, 10, '#e6ebf2', 'center');
 }
-function btn(x, y, w, h, label, fn, col, dim) {
-  uiHit.push({ x, y, w, h, fn: dim ? () => {} : fn });
+/* Погашенная кнопка теперь не молчит: по нажатию говорит, ЧЕГО не хватает.
+   Раньше клик просто не давал ничего, и выглядело это как поломка. */
+function btn(x, y, w, h, label, fn, col, dim, why) {
+  uiHit.push({ x, y, w, h, fn: dim ? () => { if (why) message(why); } : fn });
   ctx.fillStyle = dim ? 'rgba(40,36,30,.7)' : (col || 'rgba(60,52,40,.95)');
   ctx.fillRect(x, y, w, h);
   ctx.strokeStyle = dim ? 'rgba(255,255,255,.06)' : 'rgba(201,162,39,.4)'; ctx.lineWidth = 1;
@@ -1006,7 +1012,19 @@ function drawBag() {
     ctx.fillStyle = 'rgba(201,162,39,.6)';
     ctx.fillRect(CW - 22, top + (trackH - thumb) * (v.from / v.max), 4, thumb);
   }
-  txt('I или ✕ — закрыть · надетое в сумке не лежит, но вес считается', CW / 2, CH - 44, 9, '#6c7683', 'center');
+  panelFooter('I или ✕ — закрыть · надетое в сумке не лежит, но вес считается');
+}
+
+/* Нижняя строка панели. Сообщения игра рисует в поясе под полем, а он
+   закрыт открытой панелью — поэтому отказы вроде «не хватает руды»
+   игрок просто не видел. Здесь они и показываются. */
+function panelFooter(hint) {
+  if (msgT > 0) {
+    ctx.fillStyle = 'rgba(60,48,20,.75)'; ctx.fillRect(24, CH - 54, CW - 48, 19);
+    txt(msg, CW / 2, CH - 44, 9, '#f2d59a', 'center');
+  } else {
+    txt(hint, CW / 2, CH - 44, 9, '#6c7683', 'center');
+  }
 }
 
 function drawBench() {
@@ -1023,31 +1041,54 @@ function drawBench() {
   scrollBtns(y - 12, v, () => benchScroll, n => { benchScroll = clamp(n, 0, v.max); });
   for (const it of gear.slice(v.from, v.from + v.vis)) {
     ctx.fillStyle = 'rgba(20,18,15,.75)'; ctx.fillRect(24, y, CW - 48, 26);
-    txt(itemIco(it) + ' ' + fullName(it), 30, y + 9, 10, TIERS[it.tier].c);
+    txt(itemIco(it) + ' ' + fullName(it), 30, y + 8, 9, TIERS[it.tier].c);
     const c = upCost(it);
     const maxed = it.tier >= TIERS.length - 1;
-    txt(maxed ? 'выше некуда' : ('⚒ ' + c.gold + '💰 + ' + c.mat + STUFF[c.matId].ico), 30, y + 20, 8, '#98a2ae');
-    btn(CW - 210, y + 5, 58, 17, maxed ? '—' : 'улучшить', () => upgrade(it), null, maxed || gold < c.gold || countStack(c.matId) < c.mat);
-    btn(CW - 148, y + 5, 66, 17, 'зачаровать', () => enchant(it), null, gold < 120 || countStack('essence') < 2);
+    const мало = { gold: gold < c.gold, mat: countStack(c.matId) < c.mat };
+    // Пишем не только цену, но и СКОЛЬКО ЕСТЬ: иначе непонятно, почему
+    // кнопка мертва — денег вроде полно, а не хватает руды.
+    if (maxed) txt('выше некуда', 30, y + 19, 8, '#6c7683');
+    else {
+      txt('⚒ ' + c.gold + '💰', 30, y + 19, 8, мало.gold ? '#ff7a6a' : '#98a2ae');
+      txt('+ ' + c.mat + STUFF[c.matId].ico, 76, y + 19, 8, мало.mat ? '#ff7a6a' : '#98a2ae');
+      txt('(есть ' + Math.floor(gold) + '💰, ' + countStack(c.matId) + STUFF[c.matId].ico + ')', 122, y + 19, 8, '#6c7683');
+    }
+    const нетДенегИлиРуды = maxed || мало.gold || мало.mat;
+    const почемуУлучшение = maxed ? 'Это уже гроссмейстерская работа — выше некуда'
+      : ('Не хватает: ' + (мало.gold ? (c.gold - Math.floor(gold)) + ' крон ' : '') +
+         (мало.mat ? (c.mat - countStack(c.matId)) + ' × ' + STUFF[c.matId].n.toLowerCase() : '') +
+         ' · руду и шкуры можно купить тут же');
+    btn(CW - 274, y + 5, 56, 17, maxed ? '—' : 'улучшить', () => upgrade(it), null, нетДенегИлиРуды, почемуУлучшение);
+    const нетЭссенции = gold < 120 || countStack('essence') < 2;
+    btn(CW - 214, y + 5, 62, 17, 'зачаровать', () => enchant(it), null, нетЭссенции,
+        'Зачарование: 120 крон + 2 эссенции. Есть ' + Math.floor(gold) + ' крон и ' + countStack('essence') + ' эссенции');
     const own = inv.indexOf(it) >= 0;
-    btn(CW - 78, y + 5, 54, 17, own ? 'продать' : 'надето', () => sell(it), own ? 'rgba(70,60,30,.9)' : null, !own);
+    // «Надеть» прямо с верстака: раньше за этим приходилось уходить в сумку
+    btn(CW - 148, y + 5, 56, 17, own ? 'надеть' : 'надето', () => equip(it), null, !own, 'Это и так на тебе');
+    btn(CW - 88, y + 5, 56, 17, 'продать', () => sell(it), own ? 'rgba(70,60,30,.9)' : null, !own,
+        'Сначала сними: надетое не продаётся');
     y += 28;
   }
 
   y += 4;
   txt('Купить:', 24, y + 6, 10, '#e8d9a8');
+  /* Руда и шкуры продаются здесь же. Без этого золото копилось мёртвым
+     грузом: улучшение упирается в материалы, а материалы падали только
+     с трупов — и полторы тысячи крон нечем было потратить. */
   const shop = [
-    ['➶ болты ×10', 'bolt', 10, 20], ['🧪 Ласточка', 'swallow', 1, 40],
-    ['⚗ Гром', 'thunder', 1, 55], ['🍯 Белый мёд', 'honey', 1, 35],
-    ['💩 Зелье гавна', 'shit', 1, 90], ['✨ Эссенция', 'essence', 1, 34],
+    ['⛏ Руда ×3', 'ore', 3, 66], ['🧵 Шкуры ×3', 'hide', 3, 54],
+    ['✨ Эссенция', 'essence', 1, 34], ['➶ болты ×10', 'bolt', 10, 20],
+    ['🧪 Ласточка', 'swallow', 1, 40], ['⚗ Гром', 'thunder', 1, 55],
+    ['🍯 Белый мёд', 'honey', 1, 35], ['💩 Зелье гавна', 'shit', 1, 90],
   ];
   let sx = 24, sy = y + 16;
   for (const [label, id, n, price] of shop) {
-    btn(sx, sy, 148, 20, label + ' — ' + price + '💰', () => buy(id, n, price), null, gold < price);
-    sx += 152;
-    if (sx + 148 > CW - 20) { sx = 24; sy += 24; }
+    btn(sx, sy, 116, 20, label + ' — ' + price + '💰', () => buy(id, n, price), null, gold < price,
+        'Нужно ' + price + ' крон, у тебя ' + Math.floor(gold));
+    sx += 119;
+    if (sx + 116 > CW - 20) { sx = 24; sy += 23; }
   }
-  txt('U или ✕ — закрыть · зачарование даёт случайное свойство (120💰 + 2✨)', CW / 2, CH - 44, 9, '#6c7683', 'center');
+  panelFooter('U или ✕ — закрыть · зачарование даёт случайное свойство (120💰 + 2✨)');
 }
 
 function render() {
