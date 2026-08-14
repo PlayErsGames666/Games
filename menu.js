@@ -7,6 +7,7 @@ const CATS = [
   { id: 'arcade',   name: '🕹 Аркады и реакция' },
   { id: 'puzzle',   name: '🧩 Головоломки' },
   { id: 'cards',    name: '🃏 Карточные' },
+  { id: 'rpg',      name: '⚔ Ролевые и бои' },
   { id: 'survival', name: '🏕 Выживание' },
   { id: 'build',    name: '🏗 Строительство и стратегии' },
 ];
@@ -37,6 +38,7 @@ const GAMES = [
   { file: 'games/asteroid/index.html',   emoji: '☄️',  name: 'Дрейфующий астероид', guide: 'games/asteroid/управление.txt', accent: '#ff9f1c', cat: 'survival', net: true },
   { file: 'games/factory/index.html',    emoji: '🏭', name: 'Конвейер',         guide: 'games/factory/управление.txt',    accent: '#f2b134', cat: 'build' },
   { file: 'games/defense/index.html',    emoji: '🛡',  name: 'Рубеж',            guide: 'games/defense/управление.txt',    accent: '#ffb43a', cat: 'build' },
+  { file: 'games/witcher/index.html',    emoji: '🐺', name: 'Ведьмачий контракт', guide: 'games/witcher/управление.txt',  accent: '#c9a227', cat: 'rpg' },
 ];
 
 // на устройствах без наведения (телефоны/планшеты) включаем тап-режим
