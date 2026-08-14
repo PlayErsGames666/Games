@@ -268,7 +268,12 @@ function drink(id) {
 
 /* =====================  БОЙ  ===================== */
 
-function faceAim() { return Math.atan2(mouse.y - P.y, mouse.x - P.x); }
+/* Куда смотрит ведьмак. Считаем ТОЛЬКО когда курсор над полем: иначе,
+   потянувшись мышью к поясу, он разворачивался вниз — и руна, пущенная
+   кнопкой, уходила в землю вместо врага. Наводка запоминается в P.face,
+   и удары с рунами берут её, а не сиюминутное положение курсора. */
+function mouseInWorld() { return mouse.x > WX0 && mouse.x < WX1 && mouse.y > WY0 && mouse.y < WY1; }
+function faceAim() { return P.face; }
 
 function swing() {
   if (P.atkCd > 0 || P.dodge > 0) return;
@@ -553,6 +558,7 @@ function reset() {
     atkCd: 0, boltCd: 0, dodge: 0, dodgeCd: 0, dx: 0, dy: 0, inv: 0, swing: null,
     runeCd: [0, 0, 0, 0], quen: 0, quenT: 0, yrden: null, mut: 0, mutGauge: 0,
     regen: 0, buffThunder: 0, biz: 0, slow: 0, shake: 0, face: -Math.PI / 2,
+    potSel: 'swallow',        // после «Заново» выбор зелья не должен слетать в никуда
   };
   P.hp = maxHP();
   inv = [mkStack('bolt', 20), mkStack('swallow', 2), mkStack('honey', 1)];
@@ -619,7 +625,7 @@ function update(dt) {
       P.x = o.x + Math.cos(a) * (o.r + 9); P.y = o.y + Math.sin(a) * (o.r + 9);
     }
   }
-  P.face = faceAim();
+  if (mouseInWorld()) P.face = Math.atan2(mouse.y - P.y, mouse.x - P.x);
 
   // --- взмах меча ---
   if (P.swing) {
@@ -873,39 +879,67 @@ function drawHUD() {
     txt('Лагерь · контракт ' + (ci + 1) + ' · рекорд: ' + best, CW / 2, 50, 10, '#98a2ae', 'center');
   }
 
-  // --- нижний пояс: руны и зелья ---
-  const by = CH - 80;
+  // --- нижний пояс: руны, арбалет, зелья ---
+  const by = CH - 84;
   ctx.fillStyle = 'rgba(10,9,8,.94)'; ctx.fillRect(0, by, CW, CH - by);
-  let x = 10;
+  const hov = (x, y, w, h) => mouse.x >= x && mouse.x <= x + w && mouse.y >= y && mouse.y <= y + h;
+  let hint = '';
+
+  // РУНЫ. Раньше это были просто картинки: нарисованы кнопкой, а нажатие
+  // не обрабатывалось вовсе — человек тыкал, и «магия не показывалась».
   RUNES.forEach((R, i) => {
-    const w = 58, h = 32, y = by + 6;
+    const w = 56, h = 30, y = by + 4, x = 10 + i * 60;
     const ready = P.runeCd[i] <= 0 && P.mp >= R.mp;
+    uiHit.push({ x, y, w, h, fn: () => castRune(i) });
+    if (hov(x, y, w, h)) hint = R.ico + ' ' + R.n + ' — ' + R.desc + ' · ' + R.mp + ' энергии · клавиша ' + (i + 1);
     ctx.fillStyle = ready ? 'rgba(60,80,110,.55)' : 'rgba(35,32,28,.9)';
     ctx.fillRect(x, y, w, h);
     ctx.strokeStyle = ready ? '#6aa6e8' : 'rgba(255,255,255,.1)'; ctx.lineWidth = 1; ctx.strokeRect(x + .5, y + .5, w - 1, h - 1);
-    txt(R.ico + ' ' + R.n, x + 4, y + 11, 11, ready ? '#cfe3ff' : '#6c7683');
-    txt((i + 1) + ' · ' + R.mp + '✨', x + 4, y + 23, 9, '#98a2ae');
+    txt(R.ico + ' ' + R.n, x + 4, y + 10, 10, ready ? '#cfe3ff' : '#6c7683');
+    txt((i + 1) + ' · ' + R.mp + '✨', x + 4, y + 22, 9, '#98a2ae');
     if (P.runeCd[i] > 0) { ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(x, y, w, h * clamp(P.runeCd[i] / R.cd, 0, 1)); }
-    x += w + 4;
   });
-  // Зелья — ОДНИМ рядом: во второй ряд пояс не помещается, он уезжал
-  // за нижний край канваса и «Зелье гавна» было не выбрать.
-  txt('Зелья · E — выпить выбранное:', 10, by + 46, 9, '#6c7683');
+
+  // АРБАЛЕТ: отдельная кнопка, чтобы про него вообще узнали
+  {
+    const x = 252, y = by + 4, w = 80, h = 30;
+    const bolts = countStack('bolt');
+    uiHit.push({ x, y, w, h, fn: () => shootBolt() });
+    if (hov(x, y, w, h)) hint = '🏹 Арбалет — ПКМ по полю или эта кнопка. Бьёт ровно, родство не важно. Болты кончаются и весят.';
+    ctx.fillStyle = bolts ? 'rgba(80,70,40,.55)' : 'rgba(35,32,28,.9)';
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = bolts ? '#c9a227' : 'rgba(255,255,255,.1)'; ctx.strokeRect(x + .5, y + .5, w - 1, h - 1);
+    txt('🏹 Арбалет', x + 4, y + 10, 10, bolts ? '#f2d59a' : '#6c7683');
+    txt('ПКМ · болтов ' + bolts, x + 4, y + 22, 9, bolts ? '#98a2ae' : '#ff7a6a');
+  }
+  /* ЗЕЛЬЯ. Одним рядом: во второй ряд пояс не помещается. Клик — выбрать,
+     двойной клик или E — выпить. Что зелье делает, написано в строке
+     подсказки внизу: по одним названиям это не угадать. */
   const pots = Object.keys(POTIONS);
   const pw = Math.floor((CW - 20 - (pots.length - 1) * 4) / pots.length);
-  let px2 = 10;
-  const py2 = by + 62;
-  pots.forEach(id => {
-    const have = countStack(id);
-    const sel = P.potSel === id;
+  const py2 = by + 40;
+  pots.forEach((id, i) => {
+    const have = countStack(id), sel = P.potSel === id, px2 = 10 + i * (pw + 4);
+    const Pt = POTIONS[id];
+    uiHit.push({ x: px2, y: py2, w: pw, h: 20, fn: () => {
+      if (P.potSel === id && have) drink(id); else P.potSel = id;   // повторный клик — выпить
+    } });
+    if (hov(px2, py2, pw, 20)) hint = Pt.ico + ' ' + Pt.n + ' — ' + Pt.desc + ' · токсичность ' + (Pt.tox > 0 ? '+' : '') + Pt.tox;
     ctx.fillStyle = sel ? 'rgba(201,162,39,.22)' : 'rgba(35,32,28,.9)';
-    ctx.fillRect(px2, py2 - 9, pw, 18);
-    ctx.strokeStyle = sel ? '#c9a227' : 'rgba(255,255,255,.08)'; ctx.strokeRect(px2 + .5, py2 - 8.5, pw - 1, 17);
-    uiHit.push({ x: px2, y: py2 - 9, w: pw, h: 18, fn: () => { P.potSel = id; } });
-    txt(POTIONS[id].ico + ' ' + POTIONS[id].n, px2 + 4, py2, 9, have ? '#e6ebf2' : '#5a616b');
-    txt('×' + have, px2 + pw - 5, py2, 9, have ? '#7fd6a0' : '#5a616b', 'right');
-    px2 += pw + 4;
+    ctx.fillRect(px2, py2, pw, 20);
+    ctx.strokeStyle = sel ? '#c9a227' : 'rgba(255,255,255,.08)'; ctx.strokeRect(px2 + .5, py2 + .5, pw - 1, 19);
+    txt(Pt.ico + ' ' + Pt.n, px2 + 4, py2 + 10, 9, have ? '#e6ebf2' : '#5a616b');
+    txt('×' + have, px2 + pw - 5, py2 + 10, 9, have ? '#7fd6a0' : '#5a616b', 'right');
   });
+
+  /* Строка подсказки: под курсором — про что навёл, иначе про выбранное
+     зелье. Без неё «Ласточка» и «Зелье гавна» — просто слова. */
+  if (!hint) {
+    const Pt = POTIONS[P.potSel];
+    hint = Pt ? ('Выбрано: ' + Pt.ico + ' ' + Pt.n + ' — ' + Pt.desc + ' · E выпить · токсичность ' + (Pt.tox > 0 ? '+' : '') + Pt.tox)
+              : 'Наведи на кнопку — расскажу, что она делает';
+  }
+  txt(hint, 10, by + 70, 9, '#c9a227');
 
   // Сообщение — ВНУТРИ поля, над поясом: снаружи оно ложилось прямо
   // на кнопки рун и срезало им верхушки.
@@ -1149,6 +1183,7 @@ function canvasPos(e) {
 canvas.addEventListener('pointermove', e => { const p = canvasPos(e); mouse.x = p.x; mouse.y = p.y; });
 canvas.addEventListener('pointerdown', e => {
   const p = canvasPos(e); mouse.x = p.x; mouse.y = p.y;
+  if (mouseInWorld() && P) P.face = Math.atan2(mouse.y - P.y, mouse.x - P.x);   // бьём сразу туда, куда ткнули
   if (over) { reset(); return; }
   for (let i = uiHit.length - 1; i >= 0; i--) {
     const b = uiHit[i];
