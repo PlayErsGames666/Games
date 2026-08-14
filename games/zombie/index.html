@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Тихий квартал</title>
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="../../shared/net.js"></script>
+<link rel="stylesheet" href="../../shared/net.css">
 <style>
   :root { --bg:#0b0d10; --panel:#1b2027; --panel2:#262d37; --text:#e6ebef; --accent:#8ab547; }
   * { box-sizing:border-box; margin:0; padding:0; }
@@ -63,6 +66,8 @@
     <button id="pause">⏸ Пауза</button>
     <button id="restart">🔄 Заново</button>
   </div>
+
+  <div id="netbar" class="fs-hide"></div>
 
   <canvas id="game" width="520" height="600"></canvas>
 
@@ -169,6 +174,12 @@ const PART_W = [ ['head',8], ['torso',24], ['larm',20], ['rarm',20], ['lleg',14]
 // --- состояние ---
 let tiles, vis, containers, doorHp, locked, corpses, bloodSpots;
 let player, body, inv, zombies, rings, log, exitPos, spawnPos;
+let survivors = [];                    // тела всех выживших; своё — survivors[meSeat()]
+const MAXP = 4;
+var net = null, netAcc = 0;
+function isNet(){ return net && net.isOnline(); }
+function meSeat(){ return isNet() ? net.me : 0; }
+function amHost(){ return !isNet() || net.isHost(); }
 let time, over, overT, win, cause, paused, panel;
 let stepAcc, noiseLevel, killCount, searched, alerted;
 let lastFrame = null, anim = 0, shots = [];
@@ -359,6 +370,8 @@ function removeItem(id,n){
   return true;
 }
 function countItem(id){ const it = inv.find(i=>i.id===id); return it?it.n:0; }
+// то же, но по всей группе — для условия побега
+function teamCount(id){ let n = 0; for(const sv of survivors){ if(sv.gone) continue; const it = sv.inv.find(i=>i.id===id); if(it) n += it.n; } return n; }
 function weight(){ let w=0; for(const i of inv) w += ITEMS[i.id].w * i.n; return w; }
 function encum(){ return weight()/CAP; }                  // 1.0 = ровно по норме
 function hasWeapon(k){ return WEAPONS[k] && (k===0 || countItem(WEAPONS[k].id)>0); }
@@ -713,7 +726,8 @@ function interact(){
 
   // машина — финал
   if(t===CAR && f.x===exitPos.x && f.y===exitPos.y){
-    if(countItem('keys')>0 && countItem('fuel')>0){ endGame(true,'Ты завёл машину и уехал из квартала'); }
+    // ключи и канистра считаются по ВСЕЙ группе: один может нести ключи, второй бензин
+    if(teamCount('keys')>0 && teamCount('fuel')>0){ endGame(true, isNet() ? 'Группа завела машину и уехала из квартала' : 'Ты завёл машину и уехал из квартала'); }
     else {
       const need = [];
       if(countItem('keys')<=0) need.push('🔑 ключи');
@@ -727,7 +741,7 @@ function interact(){
       if(countItem('crowbar')>0){ player.actT = PRY_TIME; player.act = { kind:'pry', i, x:f.x, y:f.y }; logMsg('🪛 Отжимаешь замок ломом…'); }
       else logMsg('🔒 Заперто. Нужен лом — или выбивай (шумно!)');
     } else {
-      tiles[i] = ODOOR; makeNoise(f.x+0.5,f.y+0.5,3.5,'#9fb0c0','player'); logMsg('🚪 Дверь открыта');
+      tiles[i] = ODOOR; tileChanged(i); makeNoise(f.x+0.5,f.y+0.5,3.5,'#9fb0c0','player'); logMsg('🚪 Дверь открыта');
     }
     return;
   }
@@ -756,7 +770,7 @@ function climb(tx,ty,t){
   if(solid(tAt(ax,ay))){ logMsg('За препятствием нет места'); return; }
   player.climb = { fx:player.x, fy:player.y, tx:ax+0.5, ty:ay+0.5, t:0 };
   player.stam -= 18;
-  if(t===WIN){ tiles[idx(tx,ty)] = BWIN; makeNoise(tx+0.5,ty+0.5,12,'#ffd166','player'); logMsg('🪟 Разбил окно — звон на весь двор!'); }
+  if(t===WIN){ tiles[idx(tx,ty)] = BWIN; tileChanged(idx(tx,ty)); makeNoise(tx+0.5,ty+0.5,12,'#ffd166','player'); logMsg('🪟 Разбил окно — звон на весь двор!'); }
   else makeNoise(tx+0.5,ty+0.5,5,'#cfd8e0','player');
   // неловкое приземление при усталости
   if(player.stam<12 && Math.random()<0.30) wound(Math.random()<0.5?'lleg':'rleg','fx');
@@ -764,7 +778,7 @@ function climb(tx,ty,t){
 
 function doSearch(i){
   const c = containers.get(i); if(!c) return;
-  c.searched = true; searched++;
+  c.searched = true; searched++; contChanged(i);
   if(c.special){ addItem(c.special); logMsg((c.special==='keys'?'🔑 КЛЮЧИ ОТ МАШИНЫ!':'⛽ КАНИСТРА БЕНЗИНА (8 кг!)')); return; }
   let n = 1 + (Math.random()<0.35?1:0), got = [];
   for(let k=0;k<n;k++){
@@ -976,13 +990,18 @@ function reset(){
   for(let i=0;i<6 && !ok;i++) ok = genMap();
   vis = new Uint8Array(MAPW*MAPH);
   corpses = []; bloodSpots = []; rings = []; shots = []; log = [];
-  inv = [];
-  addItem('bandage',2); addItem('water'); addItem('food');
-
-  body = {}; for(const p of PARTS) body[p.id] = newPart();
-  player = { x:spawnPos.x, y:spawnPos.y, face:-1.57, stam:100, blood:BLOOD_MAX,
-             hunger:100, thirst:100, painkill:0, weapon:0, mag:0, atkCd:0, swing:0,
-             actT:0, act:null, climb:null, hurtT:0, dead:false, virusOn:false, virus:0 };
+  survivors = [];
+  for(let i=0;i<MAXP;i++){
+    const sv = mkSurvivor(i !== 0);
+    sv.player.x = spawnPos.x + ((i&1) ? 0.7 : -0.7) * (i ? 1 : 0);
+    sv.player.y = spawnPos.y + (i > 1 ? 0.7 : 0);
+    survivors.push(sv);
+  }
+  if(isNet() && net.isHost()) for(const sl of net.slots()) survivors[sl].gone = false;
+  survivors[meSeat()].gone = false;
+  // стартовый набор — каждому свой: рюкзак и вес тут личные
+  for(const sv of survivors){ bindS(sv); addItem('bandage',2); addItem('water'); addItem('food'); }
+  bindS(mySurv());
   zombies = [];
   for(let i=0;i<ZOMBIES;i++){
     let x,y,tries=0;
@@ -1022,14 +1041,48 @@ function endGame(won, why){
   try { localStorage.setItem('zombie_best', JSON.stringify(best)); } catch(e){}
 }
 
-let pathBudget = 0;
 
-function update(dt){
-  anim += dt;
-  if(over || paused) return;
-  const wdt = panel ? dt*0.4 : dt;    // в панелях мир идёт медленно, но идёт
-  time += wdt;
+/* =====================  ВЫЖИВШИЕ  =====================
+   Тело, раны и рюкзак у каждого свои — вес и медицина в этой игре личные.
+   Чтобы не переписывать полторы тысячи строк под массив, расчёт идёт по
+   очереди: глобальные player/body/inv/held на время шага указывают на того,
+   кого считаем. Весь прежний код движения, ран, обыска и боя работает как был. */
+function mkSurvivor(gone){
+  const b = {}; for(const p of PARTS) b[p.id] = newPart();
+  const iv = [];
+  return {
+    gone: !!gone, body: b, inv: iv, stepAcc: 0, crouch: false, runHeld: false,
+    held: { up:false, down:false, left:false, right:false },
+    player: { x:0, y:0, face:-1.57, stam:100, blood:BLOOD_MAX, hunger:100, thirst:100,
+              painkill:0, weapon:0, mag:0, atkCd:0, swing:0, actT:0, act:null, climb:null,
+              hurtT:0, dead:false, virusOn:false, virus:0, escaped:false }
+  };
+}
+function bindS(s){
+  player = s.player; body = s.body; inv = s.inv;
+  held.up = s.held.up; held.down = s.held.down; held.left = s.held.left; held.right = s.held.right;
+  crouch = s.crouch; runHeld = s.runHeld; stepAcc = s.stepAcc;
+}
+function unbindS(s){ s.stepAcc = stepAcc; }
+function mySurv(){ return survivors[meSeat()]; }
+function aliveSurvivors(){ return survivors.filter(s=>!s.gone && !s.player.dead && !s.player.escaped); }
+// зомби гонится за ближайшим живым: перед его шагом подставляем именно это тело
+function nearestSurv(x,y){
+  let b = null, bd = 1e9;
+  for(const s of aliveSurvivors()){ const d = dist(x,y,s.player.x,s.player.y); if(d<bd){ bd=d; b=s; } }
+  return b;
+}
 
+function stepSurvivors(dt, wdt){
+  syncMyInput();
+  if(!amHost()) return;                 // гость мир не считает
+  for(const s of survivors){
+    if(s.gone || s.player.dead || s.player.escaped) continue;
+    bindS(s); stepOne(dt, wdt); unbindS(s);
+  }
+  bindS(mySurv());                      // глобальные — обратно на своё тело
+}
+function stepOne(dt, wdt){
   // --- таймеры игрока ---
   if(player.atkCd>0) player.atkCd -= wdt;
   if(player.swing>0) player.swing -= wdt;
@@ -1042,7 +1095,7 @@ function update(dt){
       if(player.act.kind==='search'){ doSearch(player.act.i); makeNoise(player.x,player.y,3,'#9fb0c0','player'); }
       if(player.act.kind==='pry'){
         const i = player.act.i;
-        tiles[i] = ODOOR; locked.delete(i);
+        tiles[i] = ODOOR; locked.delete(i); tileChanged(i);
         makeNoise(player.act.x+0.5, player.act.y+0.5, 7, '#cfd8e0','player');
         logMsg('🪛 Замок отжат — почти тихо');
       }
@@ -1138,6 +1191,40 @@ function update(dt){
     if(player.virus>=100) endGame(false,'Ты обратился. Укус нельзя вылечить');
   }
 
+  // смерть считаем для КАЖДОГО тела отдельно: в одиночку это конец забега,
+  // в команде — выбывает один, а остальные продолжают
+  const dcause = body.head.hp<=0 ? 'Смертельные раны головы'
+    : body.torso.hp<=0 ? 'Тело не выдержало'
+    : player.blood<=0 ? 'Кровопотеря — надо было перевязывать'
+    : maxInf()>=100 ? 'Сепсис. Рану надо было обработать' : null;
+  if(dcause && !player.dead){
+    if(!isNet()){ endGame(false, dcause); return; }
+    player.dead = true; logMsg('☠️ Выживший ' + (survivors.findIndex(v=>v.player===player)+1) + ': ' + dcause);
+    if(survivors.every(v=>v.gone || v.player.dead)) endGame(false, 'Вся группа погибла');
+  }
+}
+
+let pathBudget = 0;
+
+function update(dt){
+  anim += dt;
+  if(over || paused) return;
+  const wdt = panel ? dt*0.4 : dt;    // в панелях мир идёт медленно, но идёт
+  time += wdt;
+
+  stepSurvivors(dt, wdt);
+
+  // гость мир не считает: зомби, шум и двери приходят от хозяина комнаты
+  if(!amHost()){
+    for(const r of rings){ r.t += dt; r.r = r.max * Math.min(1, r.t/r.life); }
+    rings = rings.filter(r=>r.t < r.life);
+    for(const sh of shots) sh.t += dt;
+    shots = shots.filter(sh=>sh.t<0.12);
+    for(const l of log) l.life -= dt;
+    computeVis();
+    return;
+  }
+
   // --- шум затухает ---
   noiseLevel = Math.max(0, noiseLevel - 14*wdt);
 
@@ -1151,19 +1238,17 @@ function update(dt){
   pathBudget = 7;
   alerted = 0;
   for(const z of zombies){
+    const tgt = nearestSurv(z.x, z.y);
+    if(tgt) bindS(tgt);                 // зомби видит и кусает ближайшего
     updateZombie(z, wdt);
     if(z.state!=='idle' && !z.dead) alerted++;
   }
-
-  // --- смерть ---
-  if(body.head.hp<=0) endGame(false,'Смертельные раны головы');
-  else if(body.torso.hp<=0) endGame(false,'Тело не выдержало');
-  else if(player.blood<=0) endGame(false,'Кровопотеря — надо было перевязывать');
-  else if(maxInf()>=100) endGame(false,'Сепсис. Рану надо было обработать');
+  bindS(mySurv());
 
   for(const l of log) l.life -= dt;
 
   computeVis();
+  if(isNet() && net.isHost()){ netAcc += dt; if(netAcc >= 1/15){ netAcc = 0; broadcast(); } }
 }
 
 function solidAt(x,y){ return solid(tAt(x|0, y|0)); }
@@ -1508,8 +1593,8 @@ function drawInvPanel(){
     ctx.fillText(I.name + (it.n>1?' ×'+it.n:''), x+40, ry+11);
     ctx.fillStyle = '#8f98a1'; ctx.font = '11px Segoe UI'; ctx.textAlign='right';
     ctx.fillText((I.w*it.n).toFixed(2)+' кг', x+w-136, ry+11);
-    uiBtn(x+w-128, ry+2, 62, 18, 'Использовать', ()=>useItem(it.id), 'rgba(70,94,60,.9)', true);
-    uiBtn(x+w-62,  ry+2, 52, 18, 'Выбросить',   ()=>dropItem(it.id), 'rgba(94,60,60,.9)', true);
+    uiBtn(x+w-128, ry+2, 62, 18, 'Использовать', ()=>myAct('use', it.id), 'rgba(70,94,60,.9)', true);
+    uiBtn(x+w-62,  ry+2, 52, 18, 'Выбросить',   ()=>myAct('drop', it.id), 'rgba(94,60,60,.9)', true);
     ry += 25;
   }
 }
@@ -1546,10 +1631,10 @@ function drawMedPanel(){
     ctx.fillText(tags.join('  ') || 'без повреждений', x+20, ry+31);
 
     const bx0 = x+w-198;
-    uiBtn(bx0,     ry+13, 44, 20, '🩹 бинт',  ()=>treat(p.id,'bandage'),   countItem('bandage')>0?'rgba(70,90,60,.9)':'rgba(45,50,58,.8)', true);
-    uiBtn(bx0+48,  ry+13, 50, 20, '🧴 антисп',()=>treat(p.id,'antiseptic'),countItem('antiseptic')>0?'rgba(70,90,60,.9)':'rgba(45,50,58,.8)', true);
-    uiBtn(bx0+102, ry+13, 42, 20, '🦯 шина',  ()=>treat(p.id,'splint'),    countItem('splint')>0?'rgba(70,90,60,.9)':'rgba(45,50,58,.8)', true);
-    uiBtn(bx0+148, ry+13, 46, 20, '💉 антиб', ()=>treat(p.id,'antibio'),   countItem('antibio')>0?'rgba(70,90,60,.9)':'rgba(45,50,58,.8)', true);
+    uiBtn(bx0,     ry+13, 44, 20, '🩹 бинт',  ()=>myAct('treat',{part:p.id,item:'bandage'}),   countItem('bandage')>0?'rgba(70,90,60,.9)':'rgba(45,50,58,.8)', true);
+    uiBtn(bx0+48,  ry+13, 50, 20, '🧴 антисп',()=>myAct('treat',{part:p.id,item:'antiseptic'}),countItem('antiseptic')>0?'rgba(70,90,60,.9)':'rgba(45,50,58,.8)', true);
+    uiBtn(bx0+102, ry+13, 42, 20, '🦯 шина',  ()=>myAct('treat',{part:p.id,item:'splint'}),    countItem('splint')>0?'rgba(70,90,60,.9)':'rgba(45,50,58,.8)', true);
+    uiBtn(bx0+148, ry+13, 46, 20, '💉 антиб', ()=>myAct('treat',{part:p.id,item:'antibio'}),   countItem('antibio')>0?'rgba(70,90,60,.9)':'rgba(45,50,58,.8)', true);
     ry += 50;
   }
 }
@@ -1621,6 +1706,20 @@ function render(){
     ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
   }
 
+  if(isNet()) for(let i=0;i<survivors.length;i++){
+    const sv = survivors[i];
+    if(sv.gone || sv === mySurv() || sv.player.escaped) continue;
+    // напарника видно, только если он в поле зрения — иначе туман бесполезен
+    if(!visible(sv.player.x|0, sv.player.y|0)) continue;
+    const q = worldToScreen(sv.player.x, sv.player.y);
+    ctx.fillStyle = 'rgba(0,0,0,.45)';
+    ctx.beginPath(); ctx.ellipse(q.x, q.y+7, 8, 3.5, 0, 0, 6.3); ctx.fill();
+    ctx.fillStyle = sv.player.dead ? '#6a5a5a' : ['#cfd8e0','#8ef0a0','#7fd0ff','#ffb0c0'][i%4];
+    ctx.beginPath(); ctx.arc(q.x, q.y, sv.crouch?7:8.5, 0, 6.3); ctx.fill();
+    ctx.strokeStyle = '#2b3038'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = '#e7edf4'; ctx.font = '9px Segoe UI'; ctx.textAlign = 'center';
+    ctx.fillText(sv.player.dead ? '☠' : String(i+1), q.x, q.y-12);
+  }
   drawPlayer();
   drawRings();
 
@@ -1675,7 +1774,7 @@ canvas.addEventListener('pointermove', e=>{
 canvas.addEventListener('pointerdown', e=>{
   const p = canvasPos(e);
   // пауза после гибели: иначе последний клик боя мгновенно перезапускает забег
-  if(over){ if(anim-overT > 0.8) reset(); return; }
+  if(over){ if(anim-overT > 0.8){ if(amHost()) reset(); else net.send({ t:'again' }); } return; }
   // сначала кнопки интерфейса
   for(let i=uiHit.length-1;i>=0;i--){
     const b = uiHit[i];
@@ -1685,13 +1784,13 @@ canvas.addEventListener('pointerdown', e=>{
   if(paused) return;
   const sp = worldToScreen(player.x,player.y);
   player.face = Math.atan2(p.y-sp.y, p.x-sp.x);
-  attack();
+  myAct('attack');
 });
 canvas.addEventListener('contextmenu', e=>e.preventDefault());
 
 document.addEventListener('keydown', e=>{
   if(e.target && e.target.tagName==='INPUT') return;
-  if(over){ if(e.code==='Enter'){ reset(); } return; }
+  if(over){ if(e.code==='Enter'){ if(amHost()) reset(); else net.send({ t:'again' }); } return; }
   if(e.code==='Escape'){
     if(panel) setPanel(null, true);              // захват Esc снимем на keyup
     else { paused = !paused; updateButtons(); }
@@ -1705,13 +1804,13 @@ document.addEventListener('keydown', e=>{
   if(e.code==='ShiftLeft'||e.code==='ShiftRight'){ runHeld = true; return; }
   if(e.repeat) return;
   if(e.code==='KeyC'){ crouch = !crouch; return; }
-  if(e.code==='KeyE'){ interact(); e.preventDefault(); return; }
-  if(e.code==='Space'){ attack(); e.preventDefault(); return; }
-  if(e.code==='KeyR'){ reload(); return; }
-  if(e.code==='KeyQ'){ quickBandage(); return; }
+  if(e.code==='KeyE'){ myAct('interact'); e.preventDefault(); return; }
+  if(e.code==='Space'){ myAct('attack'); e.preventDefault(); return; }
+  if(e.code==='KeyR'){ myAct('reload'); return; }
+  if(e.code==='KeyQ'){ myAct('bandage'); return; }
   if(e.code==='KeyI'||e.code==='Tab'){ togglePanel('inv'); e.preventDefault(); return; }
   if(e.code==='KeyH'){ togglePanel('med'); return; }
-  if(e.code.startsWith('Digit')){ const n = +e.code.slice(5); if(n>=1&&n<=4) selectWeapon(n-1); return; }
+  if(e.code.startsWith('Digit')){ const n = +e.code.slice(5); if(n>=1&&n<=4) myAct('weapon', n-1); return; }
 });
 document.addEventListener('keyup', e=>{
   const M = { KeyW:'up', ArrowUp:'up', KeyS:'down', ArrowDown:'down', KeyA:'left', ArrowLeft:'left', KeyD:'right', ArrowRight:'right' };
@@ -1739,8 +1838,8 @@ function onBtn(id, fn){
   const b = document.getElementById(id); if(!b) return;
   b.addEventListener('click', e=>{ b.blur(); fn(e); });
 }
-onBtn('actBtn', ()=>{ if(!over&&!paused) interact(); });
-onBtn('hitBtn', ()=>{ if(!over&&!paused) attack(); });
+onBtn('actBtn', ()=>{ if(!over&&!paused) myAct('interact'); });
+onBtn('hitBtn', ()=>{ if(!over&&!paused) myAct('attack'); });
 onBtn('runBtn', ()=>{ runHeld = !runHeld; crouch = false; });
 onBtn('crouchBtn', ()=>{ crouch = !crouch; runHeld = false; });
 onBtn('bagBtn', ()=>togglePanel('inv'));
@@ -1754,6 +1853,124 @@ function updateButtons(){
 }
 
 // движение мыши поворачивает игрока даже когда курсор ушёл с канваса
+
+/* =====================  ОНЛАЙН: ОДИН КВАРТАЛ НА ГРУППУ  =====================
+   Карта, зомби, шум и обысканные шкафы общие. Тело, раны и рюкзак — личные:
+   вес и медицина в этой игре и есть игра, делить их нельзя.
+   Туман войны каждый считает у себя: хозяину не нужно знать, что видит
+   напарник, — иначе конус обзора терял бы смысл. */
+function myAct(a, v){
+  if(amHost()){
+    if(a==='interact') interact();
+    else if(a==='attack') attack();
+    else if(a==='reload') reload();
+    else if(a==='bandage') quickBandage();
+    else if(a==='weapon') selectWeapon(v);
+    else if(a==='use') useItem(v);
+    else if(a==='drop') dropItem(v);
+    else if(a==='treat') treat(v.part, v.item);
+    if(isNet()) broadcast();
+  } else net.send({ t:'act', a:a, v:v });
+}
+let lastSig = -1, lastFace = 999;
+function syncMyInput(){
+  const sv = mySurv(); if(!sv) return;
+  sv.held.up = held.up; sv.held.down = held.down; sv.held.left = held.left; sv.held.right = held.right;
+  sv.crouch = crouch; sv.runHeld = runHeld;
+  if(isNet() && !net.isHost()){
+    // пакет уходит, только когда ввод изменился: держать W — это один пакет
+    const sig = (held.up?1:0)|(held.down?2:0)|(held.left?4:0)|(held.right?8:0)|(crouch?16:0)|(runHeld?32:0);
+    const f = Math.round(player.face*16);
+    if(sig !== lastSig || f !== lastFace){ lastSig = sig; lastFace = f; net.send({ t:'in', h:sig, f:player.face }); }
+  }
+}
+function packSurv(sv){
+  const p = sv.player;
+  return { g:sv.gone, cr:sv.crouch, x:p.x, y:p.y, fa:p.face, st:p.stam, bl:p.blood,
+           hu:p.hunger, th:p.thirst, w:p.weapon, mg:p.mag, sw:p.swing, ht:p.hurtT,
+           at:p.actT, dd:p.dead, es:p.escaped, vr:p.virus, vo:p.virusOn,
+           body:sv.body, inv:sv.inv };
+}
+let dirtyTiles = [], dirtyCont = [];
+function broadcast(){
+  net.send({
+    t:'st', tm:time, ov:over, wn:win, cs:cause, pa:paused, nl:noiseLevel, kc:killCount, al:alerted,
+    p: survivors.map(packSurv),
+    z: zombies.map(z=>({ x:z.x, y:z.y, f:z.face, hp:z.hp, d:z.dead, s:z.state })),
+    ti: dirtyTiles.length ? dirtyTiles.map(i=>({ i:i, t:tiles[i] })) : null,
+    co: dirtyCont.length ? dirtyCont : null
+  });
+  dirtyTiles = []; dirtyCont = [];
+}
+function tileChanged(i){ if(isNet() && net.isHost()) dirtyTiles.push(i); }
+function contChanged(i){ if(isNet() && net.isHost()) dirtyCont.push(i); }
+function sendWorld(slot){
+  // квартал целиком — один раз при входе; дальше летят только изменения
+  net.sendTo(slot, { t:'world', tiles: Array.from(tiles), ex: exitPos, sp: spawnPos,
+    cont: [...containers.entries()].map(function(e){ return [e[0], e[1].searched?1:0, e[1].special||'']; }) });
+  broadcast();
+}
+
+net = NET.create({
+  prefix:'zomb', max:MAXP,
+  onOpen: function(){ reset(); },
+  onJoin: function(slot){
+    if(survivors[slot]){
+      const sv = mkSurvivor(false);
+      sv.player.x = spawnPos.x; sv.player.y = spawnPos.y;
+      survivors[slot] = sv;
+      bindS(sv); addItem('bandage',2); addItem('water'); addItem('food'); bindS(mySurv());
+    }
+    logMsg('🧍 Выживший ' + (slot+1) + ' присоединился');
+    sendWorld(slot);
+  },
+  onLeave: function(slot){ if(survivors[slot]) survivors[slot].gone = true; logMsg('Выживший ' + (slot+1) + ' отключился'); broadcast(); },
+  onWelcome: function(){ bindS(mySurv()); logMsg('Ждём карту квартала…'); },
+  onClose: function(){ logMsg('Хозяин комнаты вышел'); },
+  onData: function(m, slot){
+    if(net.isHost()){
+      const sv = survivors[slot]; if(!sv) return;
+      if(m.t==='in'){
+        sv.held.up=!!(m.h&1); sv.held.down=!!(m.h&2); sv.held.left=!!(m.h&4); sv.held.right=!!(m.h&8);
+        sv.crouch=!!(m.h&16); sv.runHeld=!!(m.h&32); sv.player.face=m.f;
+      } else if(m.t==='act'){
+        // действие выполняем ОТ ЛИЦА напарника: бой, обыск и лечение смотрят на player
+        bindS(sv);
+        if(m.a==='interact') interact(); else if(m.a==='attack') attack();
+        else if(m.a==='reload') reload(); else if(m.a==='bandage') quickBandage();
+        else if(m.a==='weapon') selectWeapon(m.v); else if(m.a==='use') useItem(m.v);
+        else if(m.a==='drop') dropItem(m.v); else if(m.a==='treat') treat(m.v.part, m.v.item);
+        unbindS(sv); bindS(mySurv()); broadcast();
+      } else if(m.t==='again'){ reset(); for(const sl of net.slots()) sendWorld(sl); }
+      return;
+    }
+    if(m.t==='world'){
+      tiles = m.tiles; exitPos = m.ex; spawnPos = m.sp;
+      containers = new Map();
+      for(const c of m.cont) containers.set(c[0], { x:c[0]%MAPW, y:(c[0]/MAPW)|0, searched:!!c[1], special:c[2]||null, loot:[] });
+      computeVis(); return;
+    }
+    if(m.t!=='st') return;
+    time = m.tm; over = m.ov; win = m.wn; cause = m.cs; paused = m.pa;
+    noiseLevel = m.nl; killCount = m.kc; alerted = m.al;
+    if(m.ti) for(const c of m.ti) tiles[c.i] = c.t;
+    if(m.co) for(const k of m.co){ const c = containers.get(k); if(c) c.searched = true; }
+    for(let i=0;i<survivors.length;i++){
+      const d = m.p[i], sv = survivors[i]; if(!d) continue;
+      sv.gone = d.g; sv.crouch = d.cr; sv.body = d.body; sv.inv = d.inv;
+      const q = sv.player;
+      q.stam=d.st; q.blood=d.bl; q.hunger=d.hu; q.thirst=d.th; q.weapon=d.w; q.mag=d.mg;
+      q.swing=d.sw; q.hurtT=d.ht; q.actT=d.at; q.dead=d.dd; q.escaped=d.es; q.virus=d.vr; q.virusOn=d.vo;
+      q.x=d.x; q.y=d.y;
+      if(i !== net.me) q.face = d.fa;      // своим взглядом рулим сами
+    }
+    zombies = m.z.map(function(z){ const o = makeZombie(z.x, z.y); o.face=z.f; o.hp=z.hp; o.dead=z.d; o.state=z.s; return o; });
+    bindS(mySurv());
+    computeVis();
+  }
+});
+NET.lobby(document.getElementById('netbar'), net);
+
 reset();
 requestAnimationFrame(frame);
 
