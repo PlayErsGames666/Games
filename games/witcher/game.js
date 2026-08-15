@@ -75,6 +75,39 @@ const SWORD = {
 const HIT_RIGHT = 2.0;    // тем мечом
 const HIT_WRONG = 0.45;   // не тем мечом
 
+/* Арбалеты. Раньше арбалет был один, вечный и безымянный — просто кнопка
+   «выстрелить». Теперь это такая же вещь, как меч: у неё есть тип и ступень,
+   она весит, её находят, покупают, улучшают и зачаровывают.
+
+   Тип решает три числа разом — урон, перезарядку и полёт болта, — и тянут
+   они в разные стороны: ворот кладёт с одного болта, но пока взведёшь, тебя
+   уже грызут; скорострел сыплет очередью, и колчан тает на глазах. */
+const XBOW = {
+  light:  { n: 'Лёгкий арбалет',    sn: 'Лёгкий', ico: '🏹', dmg: 15, cd: 0.75, spd: 400, life: 1.4, w: 3.0, price: 90,
+            bon: 'то, с чем выходят в первый раз: лёгкий и без причуд' },
+  hunter: { n: 'Охотничий арбалет', sn: 'Охотн.', ico: '🎯', dmg: 21, cd: 0.95, spd: 520, life: 2.0, w: 4.2, price: 240,
+            bon: 'болт летит быстрее и вдвое дальше — лучника снимаешь раньше, чем он тебя' },
+  siege:  { n: 'Тяжёлый ворот',     sn: 'Ворот',  ico: '🛠', dmg: 38, cd: 1.6,  spd: 360, life: 1.5, w: 8.0, price: 480, knock: 240,
+            bon: 'сбивает тварь с ног и глушит, но взводится долго и тянет спину' },
+  repeat: { n: 'Скорострел',        sn: 'Скоростр.', ico: '⚙', dmg: 10, cd: 0.3, spd: 430, life: 1.2, w: 5.5, price: 620,
+            bon: 'очередью: урона мало, зато часто — колчан пустеет вчетверо быстрее' },
+};
+const XBOW_KEYS = Object.keys(XBOW);
+
+/* Болты. Обычный родству не подчиняется — этим арбалет и хорош, когда в руке
+   не тот меч. Особые меняют правило и стоят дороже: серебряный рвёт нечисть,
+   но по человеку почти впустую; бронебойный не замечает брони наёмника;
+   зажигательный поджигает; разрывной достаёт всех, кто стоял рядом. */
+const BOLTS = {
+  bolt:    { mul: 1 },
+  boltsil: { fam: 'monster', hit: 2.1, miss: 0.5 },
+  boltarm: { mul: 1.15, pierce: true },
+  boltfir: { mul: 0.8, burn: 3.5 },
+  boltbom: { mul: 1.2, blast: 46 },
+};
+const BOLT_IDS = Object.keys(BOLTS);
+const BOLT_COLOR = { bolt: '#e8d9a8', boltsil: '#cfe3ff', boltarm: '#9aa3ad', boltfir: '#ff9a4a', boltbom: '#ffd166' };
+
 // Доспехи: тип решает не только броню, но и повадку
 const ARMOR = {
   light:  { n: 'Лёгкий доспех',  ico: '🥋', def: 5,  w: 6,  spd: 1.18, mpr: 1.55, c: '#9ad9a0',
@@ -96,7 +129,11 @@ const POTIONS = {
 // Материалы и припасы. Масла лежат тут же: по смыслу это расходник к мечу,
 // а не зелье — токсичности от них нет, пить их незачем.
 const STUFF = {
-  bolt:    { n: 'Болты',     ico: '➶', w: 0.05, price: 2,  desc: 'снаряды для арбалета' },
+  bolt:    { n: 'Болты',               ico: '➶', w: 0.05, price: 2,  desc: 'обычные: бьют ровно по всем, родство не важно' },
+  boltsil: { n: 'Серебряные болты',    ico: '✧', w: 0.06, price: 8,  desc: 'нечисть рвут вдвое, по человеку — почти впустую' },
+  boltarm: { n: 'Бронебойные болты',   ico: '➹', w: 0.09, price: 6,  desc: 'проходят броню насквозь: наёмнику она не поможет' },
+  boltfir: { n: 'Зажигательные болты', ico: '🔥', w: 0.07, price: 10, desc: 'урона меньше, зато тварь горит ещё несколько секунд' },
+  boltbom: { n: 'Разрывные болты',     ico: '💥', w: 0.18, price: 22, desc: 'рвут всех, кто рядом — на толпу накеров' },
   ore:     { n: 'Руда',      ico: '⛏', w: 1.0,  price: 14, desc: 'на улучшение мечей' },
   hide:    { n: 'Шкура',     ico: '🧵', w: 0.8,  price: 12, desc: 'на улучшение доспехов' },
   essence: { n: 'Эссенция',  ico: '✨', w: 0.2,  price: 30, desc: 'на зачарование' },
@@ -550,6 +587,7 @@ try { best = +localStorage.getItem('witcher_best') || 0; } catch (e) { best = 0;
 
 let nextId = 1;
 function mkSword(metal, tier, ench) { return { k: 'sword', metal, tier: tier | 0, ench: ench || null, id: nextId++ }; }
+function mkXbow(type, tier, ench) { return { k: 'xbow', type, tier: tier | 0, ench: ench || null, id: nextId++ }; }
 function mkArmor(type, tier, ench) { return { k: 'armor', type, tier: tier | 0, ench: ench || null, id: nextId++ }; }
 function mkStack(id, n) { return { k: 'stack', id, n, uid: nextId++ }; }
 
@@ -558,28 +596,32 @@ function mkStack(id, n) { return { k: 'stack', id, n, uid: nextId++ }; }
 function itemWeight(it) {
   if (it.k === 'sword') return SWORD[it.metal].w;
   if (it.k === 'armor') return ARMOR[it.type].w;
+  if (it.k === 'xbow') return XBOW[it.type].w;
   const s = POTIONS[it.id] || STUFF[it.id];
   return (s ? s.w : 0) * it.n;
 }
 function itemName(it) {
   if (it.k === 'sword') return SWORD[it.metal].n;
   if (it.k === 'armor') return ARMOR[it.type].n;
+  if (it.k === 'xbow') return XBOW[it.type].n;
   return (POTIONS[it.id] || STUFF[it.id]).n;
 }
 function itemIco(it) {
   if (it.k === 'sword') return SWORD[it.metal].ico;
   if (it.k === 'armor') return ARMOR[it.type].ico;
+  if (it.k === 'xbow') return XBOW[it.type].ico;
   return (POTIONS[it.id] || STUFF[it.id]).ico;
 }
 function itemPrice(it) {
   if (it.k === 'sword') return Math.round(SWORD[it.metal].dmg * 4 * TIERS[it.tier].m * (it.ench ? 1.6 : 1));
   if (it.k === 'armor') return Math.round(ARMOR[it.type].def * 7 * TIERS[it.tier].m * (it.ench ? 1.6 : 1));
+  if (it.k === 'xbow') return Math.round(XBOW[it.type].price * TIERS[it.tier].m * (it.ench ? 1.6 : 1));
   return (POTIONS[it.id] || STUFF[it.id]).price * it.n;
 }
 function carried() {
   let w = bagWeight();                                 // сам мешок тоже на спине
   for (const it of inv) w += itemWeight(it);
-  for (const s of [P.steel, P.silver, P.armor]) if (s) w += itemWeight(s);
+  for (const s of [P.steel, P.silver, P.armor, P.xbow]) if (s) w += itemWeight(s);
   return w;
 }
 function capacity() { return 70 + (P.bag ? BAGS[P.bag].cap : 0); }
@@ -644,7 +686,7 @@ function mpRegen() {
   return r;
 }
 function hasEnch(key) {
-  for (const s of [P.steel, P.silver, P.armor]) if (s && s.ench === key) return true;
+  for (const s of [P.steel, P.silver, P.armor, P.xbow]) if (s && s.ench === key) return true;
   return false;
 }
 function maxHP() { return 100 + (P.armor ? ARMOR[P.armor.type].def * 2 : 0); }
@@ -678,7 +720,7 @@ function dropItem(it) {
    когда-то погорела продажа. */
 function equip(it) {
   const at = inv.indexOf(it);
-  if (at < 0) { message(it === P.steel || it === P.silver || it === P.armor ? 'Это и так на тебе' : 'Этого нет в сумке'); return; }
+  if (at < 0) { message(it === P.steel || it === P.silver || it === P.armor || it === P.xbow ? 'Это и так на тебе' : 'Этого нет в сумке'); return; }
   if (it.k === 'sword') {
     const slot = it.metal;
     const old = slot === 'steel' ? P.steel : P.silver;
@@ -693,6 +735,12 @@ function equip(it) {
     if (old) inv.push(old);
     P.hp = Math.min(P.hp, maxHP());
     message('Надел: ' + fullName(it) + (old ? ' · прежний ушёл в сумку' : ''));
+  } else if (it.k === 'xbow') {
+    const old = P.xbow;
+    inv.splice(at, 1);
+    P.xbow = it;
+    if (old) inv.push(old);
+    message('За спину: ' + fullName(it) + ' · ' + XBOW[it.type].bon + (old ? ' · прежний ушёл в сумку' : ''));
   }
   saveRun();
 }
@@ -701,9 +749,15 @@ function equip(it) {
    «надеть», они меняются местами, надпись «взял в руку» мелькает — а
    на экране ровно то же самое. Выглядит как сломанная кнопка, хотя
    обмен честно произошёл. */
-function slotOf(it) { return it.k === 'armor' ? P.armor : (it.metal === 'steel' ? P.steel : P.silver); }
+function slotOf(it) {
+  if (it.k === 'armor') return P.armor;
+  if (it.k === 'xbow') return P.xbow;
+  return it.metal === 'steel' ? P.steel : P.silver;
+}
 function gearValue(it) {
-  return it.k === 'sword' ? SWORD[it.metal].dmg * TIERS[it.tier].m : ARMOR[it.type].def * TIERS[it.tier].m;
+  if (it.k === 'sword') return SWORD[it.metal].dmg * TIERS[it.tier].m;
+  if (it.k === 'xbow') return XBOW[it.type].dmg * TIERS[it.tier].m;
+  return ARMOR[it.type].def * TIERS[it.tier].m;
 }
 function sameGear(a, b) {
   if (!a || !b || a.k !== b.k || a.tier !== b.tier || (a.ench || null) !== (b.ench || null)) return false;
@@ -714,7 +768,7 @@ function compareNote(it) {                             // it лежит в су�
   if (!cur) return { t: 'слот пуст', c: '#7fd6a0' };
   if (sameGear(it, cur)) return { t: 'точно такой же', c: '#8a8f96', same: true };
   const d = Math.round(gearValue(it) - gearValue(cur));
-  const what = it.k === 'sword' ? ' урона' : ' брони';
+  const what = it.k === 'armor' ? ' брони' : ' урона';
   if (d > 0) return { t: '+' + d + what, c: '#7fd6a0' };
   if (d < 0) return { t: '−' + (-d) + what, c: '#ff7a6a' };
   return { t: 'цифры те же', c: '#c9a227' };           // разница только в чарах или масле
@@ -766,22 +820,87 @@ function throwContract() {
   const a = faceAim();
   shots.push({ x: P.x, y: P.y, vx: Math.cos(a) * 300, vy: Math.sin(a) * 300, dmg: 26, mine: true, kind: 'paper', life: 1.6 });
 }
+/* Выстрел. Урон, перезарядка и полёт болта берутся с ТОГО арбалета, что за
+   спиной, а родство, броня и всё прочее решаются уже в полёте — при попадании:
+   на момент нажатия неизвестно, в кого этот болт попадёт. */
+function xbowDamage() {
+  if (!P.xbow) return 0;
+  return XBOW[P.xbow.type].dmg * TIERS[P.xbow.tier].m *
+         (P.buffThunder > 0 ? 1.45 : 1) * (P.mut > 0 ? 2.2 : 1);
+}
+/* Какой болт в жёлобе. Проверяем по BOLTS, а не по STUFF: в STUFF лежат ещё
+   руда, шкуры и масла — с битой записью в жёлоб попала бы шкура. */
+function boltInfo() { return BOLTS[P.boltSel] ? P.boltSel : 'bolt'; }
 function shootBolt() {
   if (P.boltCd > 0 || P.dodge > 0) return;
-  if (!useStack('bolt', 1)) { message('Болты кончились'); P.boltCd = 0.5; return; }
-  P.boltCd = 0.75;
+  if (!P.xbow) { message('🏹 Арбалета нет — купи у оружейника (⚒ верстак, U)'); P.boltCd = 0.6; return; }
+  const X = XBOW[P.xbow.type];
+  let id = P.boltSel = boltInfo();       // заодно вычищаем битый выбор
+  /* Кончились выбранные — берём любые, какие есть, и говорим об этом.
+     Иначе выходило глупо: сорок серебряных в колчане, а игра отвечает
+     «болты кончились», потому что выбраны были обычные. */
+  if (countStack(id) <= 0) {
+    const alt = BOLT_IDS.find(b => countStack(b) > 0);
+    if (!alt) { message('Колчан пуст — болты продаются в лавке'); P.boltCd = 0.5; return; }
+    id = P.boltSel = alt;
+    message(STUFF[id].ico + ' ' + STUFF[id].n + ': подхватил, что осталось');
+  }
+  useStack(id, 1);
+  P.boltCd = X.cd;
   const a = faceAim();
-  shots.push({ x: P.x, y: P.y, vx: Math.cos(a) * 400, vy: Math.sin(a) * 400, dmg: 15 * (P.buffThunder > 0 ? 1.45 : 1) * (P.mut > 0 ? 2.2 : 1), mine: true, kind: 'bolt', life: 1.4 });
+  shots.push({
+    x: P.x, y: P.y, vx: Math.cos(a) * X.spd, vy: Math.sin(a) * X.spd,
+    dmg: xbowDamage(), mine: true, kind: 'bolt', bolt: id, knock: X.knock || 0, life: X.life,
+  });
+}
+/* Попадание болта. Родство считаем ЗДЕСЬ: обычный болт бьёт всех ровно
+   (этим арбалет и выручает, когда в руке не тот меч), а серебряный уже
+   разбирает, нечисть перед ним или человек. */
+function boltHit(s, f) {
+  const B = BOLTS[s.bolt] || BOLTS.bolt;
+  const fam = FOES[f.t].fam;
+  let k = B.mul || 1, src = 'shot';
+  if (B.fam) {
+    const right = B.fam === fam;
+    k *= right ? B.hit : B.miss;
+    if (!right) src = 'wrongbolt';
+  }
+  hurtFoe(f, s.dmg * k, src, B.pierce);
+  if (B.burn) f.burn = Math.max(f.burn, B.burn);
+  if (s.knock) {                                       // ворот сбивает с ног
+    const a = Math.atan2(f.y - P.y, f.x - P.x);
+    f.kx = Math.cos(a) * s.knock; f.ky = Math.sin(a) * s.knock;
+    f.stun = Math.max(f.stun, 0.9);
+  }
+  if (B.blast) {
+    parts.push({ x: s.x, y: s.y, vx: 0, vy: 0, t: 0, life: 0.35, c: '#ffb43a', r: B.blast, ring: true });
+    for (const o of foes) {
+      if (o === f || o.dead || dist(o, s) > B.blast) continue;
+      hurtFoe(o, s.dmg * k * 0.6, 'shot', B.pierce);
+      if (B.burn) o.burn = Math.max(o.burn, B.burn);
+    }
+  }
+}
+/* Переключение болта. Катаемся только по тем, что реально есть в колчане:
+   выбрать пустую связку и потом гадать, почему не стреляет, — не игра. */
+function cycleBolt(dir) {
+  const have = BOLT_IDS.filter(b => countStack(b) > 0);
+  if (!have.length) { message('➶ Колчан пуст — болты продаются в лавке'); return; }
+  const i = (have.indexOf(P.boltSel) + (dir || 1) + have.length) % have.length;
+  P.boltSel = have[i];
+  const S = STUFF[P.boltSel];
+  message(S.ico + ' ' + S.n + ' ×' + countStack(P.boltSel) + ' — ' + S.desc);
 }
 
-function hurtFoe(f, dmg, src) {
+function hurtFoe(f, dmg, src, pierce) {
   if (f.dead) return;                                  // добивать труп — значит дважды снять его с контракта
-  const armor = FOES[f.t].armor || 0;
+  const armor = pierce ? 0 : (FOES[f.t].armor || 0);   // бронебойный болт брони не замечает
   const real = Math.max(1, dmg - armor);
   f.hp -= real;
   f.hitT = 0.12;
-  floaties.push({ x: f.x, y: f.y - 14, txt: Math.round(real), t: 0, c: src === 'wrong' ? '#8a8f96' : '#ffd166' });
-  if (src === 'wrong') floaties.push({ x: f.x, y: f.y - 26, txt: 'не тот меч', t: 0, c: '#8a8f96' });
+  const weak = src === 'wrong' || src === 'wrongbolt';
+  floaties.push({ x: f.x, y: f.y - 14, txt: Math.round(real), t: 0, c: weak ? '#8a8f96' : '#ffd166' });
+  if (weak) floaties.push({ x: f.x, y: f.y - 26, txt: src === 'wrong' ? 'не тот меч' : 'не тот болт', t: 0, c: '#8a8f96' });
   if (hasEnch('vamp')) P.hp = Math.min(maxHP(), P.hp + real * 0.12);
   if (P.mut > 0) P.hp = Math.min(maxHP(), P.hp + real * 0.25);
   if (hasEnch('flame')) f.burn = Math.max(f.burn, 3);
@@ -875,15 +994,23 @@ function lootFrom(f) {
   drop(f.x, f.y, { k: 'gold', n: Math.round((6 + ri(9) + k * 2) * mul) });
   const roll = Math.random();
   if (roll < 0.34) drop(f.x, f.y, mkStack(pick(['ore', 'hide', 'hide', 'essence']), 1 + ri(2)));
-  else if (roll < 0.46) drop(f.x, f.y, mkStack('bolt', 4 + ri(6)));
+  else if (roll < 0.46) {
+    // особые болты попадаются реже обычных и меньшими связками
+    const rare = Math.random() < 0.28;
+    const b = rare ? pick(['boltsil', 'boltarm', 'boltfir', 'boltbom']) : 'bolt';
+    drop(f.x, f.y, mkStack(b, rare ? 2 + ri(3) : 4 + ri(6)));
+  }
   else if (roll < 0.56) drop(f.x, f.y, mkStack(pick(['swallow', 'thunder', 'honey']), 1));
   else if (roll < 0.62 || FOES[f.t].boss) drop(f.x, f.y, randomGear());
 }
 function randomGear() {
   const tier = Math.min(TIERS.length - 1, ri(Math.min(4, 2 + Math.floor(ci / 2))));
   const ench = Math.random() < 0.3 ? pick(ENCH_KEYS) : null;
-  return Math.random() < 0.5 ? mkSword(pick(['steel', 'silver']), tier, ench)
-                             : mkArmor(pick(['light', 'medium', 'heavy']), tier, ench);
+  const r = Math.random();
+  if (r < 0.44) return mkSword(pick(['steel', 'silver']), tier, ench);
+  if (r < 0.84) return mkArmor(pick(['light', 'medium', 'heavy']), tier, ench);
+  // скорострел с трупа не снимают — его только покупают у оружейника
+  return mkXbow(pick(['light', 'hunter', 'siege']), tier, ench);
 }
 /* Место для добычи. Куст и камень игрок обходит по дуге r+9, а радиус
    подбора всего 18 — значит вещь, упавшая в середину дерева, недостижима
@@ -1157,7 +1284,8 @@ function finishContract() {
 
 function upCost(it) {
   const t = it.tier;
-  return { gold: Math.round(70 * Math.pow(1.75, t)), mat: 2 + t, matId: it.k === 'sword' ? 'ore' : 'hide' };
+  // доспех чинят шкурами, железо (меч и арбалет) — рудой
+  return { gold: Math.round(70 * Math.pow(1.75, t)), mat: 2 + t, matId: it.k === 'armor' ? 'hide' : 'ore' };
 }
 function upgrade(it) {
   if (it.tier >= TIERS.length - 1) { message('Это уже гроссмейстерская работа — выше некуда'); return; }
@@ -1188,7 +1316,8 @@ function enchant(it) {
    иначе на разнице делались бы деньги из воздуха. */
 const TRADE_RATE = 0.6;
 let hotGood = 'hide';
-const TRADEABLE = ['ore', 'hide', 'essence', 'bolt', 'oilsil', 'oilste', 'swallow', 'thunder', 'honey', 'shit'];
+const TRADEABLE = ['ore', 'hide', 'essence', 'bolt', 'boltsil', 'boltarm', 'boltfir', 'boltbom',
+                   'oilsil', 'oilste', 'swallow', 'thunder', 'honey', 'shit'];
 function rollHotGood() { hotGood = pick(TRADEABLE); }
 function goodInfo(id) { return POTIONS[id] || STUFF[id]; }
 function sellRate(id) { return id === hotGood ? 1 : TRADE_RATE; }
@@ -1225,6 +1354,19 @@ function buyBag(id) {
   message('🎒 ' + B.n + ': предел веса теперь ' + capacity() + ' кг' + (old ? ' (' + old + ' ушёл в уплату)' : ''));
   saveRun();
 }
+/* Арбалет у оружейника. Слот пуст — вешаем сразу за спину: покупать оружие
+   и потом искать, чем его надеть, глупо. Занят — кладём в сумку, там его
+   можно сравнить с нынешним и поменять. */
+function buyXbow(type) {
+  const X = XBOW[type];
+  if (!X) return;
+  if (gold < X.price) { message('Нужно ' + X.price + ' крон, у тебя ' + Math.floor(gold)); return; }
+  gold -= X.price;
+  const it = mkXbow(type, 0, null);
+  if (!P.xbow) { P.xbow = it; message('🏹 ' + X.n + ' за спину: ' + X.bon); }
+  else { inv.push(it); message('🏹 ' + X.n + ' — в сумке. «Надеть» на вкладке «Работа с железом»'); }
+  saveRun();
+}
 function buy(id, n, price) {
   if (gold < price) { message('Не хватает крон: нужно ' + price); return; }
   gold -= price; addStack(id, n);
@@ -1248,7 +1390,8 @@ function saveRun() {
     localStorage.setItem(SAVE_KEY, JSON.stringify({
       v: 1, ci, gold, hp: downed ? maxHP() * 0.5 : P.hp,
       tox: downed ? 0 : P.tox, mutGauge: downed ? 0 : P.mutGauge, hand: P.hand, potSel: P.potSel,
-      steel: P.steel, silver: P.silver, armor: P.armor, inv, offers, hot: hotGood,
+      steel: P.steel, silver: P.silver, armor: P.armor, xbow: P.xbow, boltSel: P.boltSel,
+      inv, offers, hot: hotGood,
       x: downed ? FIRE.x : P.x, y: downed ? FIRE.y + 60 : P.y,
       bag: P.bag, story: storyIdx, deaths,
     }));
@@ -1274,6 +1417,7 @@ function reviveItem(it) {
     return g;
   }
   if (it.k === 'armor' && ARMOR[it.type]) return mkArmor(it.type, tier, ench);
+  if (it.k === 'xbow' && XBOW[it.type]) return mkXbow(it.type, tier, ench);
   return null;
 }
 function loadRun() {
@@ -1286,6 +1430,12 @@ function loadRun() {
   P.steel = sw(s.steel, 'steel');
   P.silver = sw(s.silver, 'silver');
   const ar = reviveItem(s.armor); P.armor = ar && ar.k === 'armor' ? ar : null;
+  /* Записи, сделанные до появления арбалетов, поля xbow не знают вовсе.
+     Отличаем «поля не было» от «продал последний»: в первом случае выдаём
+     лёгкий, иначе вернувшийся игрок остался бы без арбалета ни за что. */
+  if (s.xbow === undefined) P.xbow = mkXbow('light', 0, null);
+  else { const xb = reviveItem(s.xbow); P.xbow = xb && xb.k === 'xbow' ? xb : null; }
+  P.boltSel = BOLTS[s.boltSel] ? s.boltSel : 'bolt';
   inv = s.inv.slice(0, 300).map(reviveItem).filter(Boolean);
   P.hand = s.hand === 'silver' ? 'silver' : 'steel';
   P.potSel = POTIONS[s.potSel] ? s.potSel : 'swallow';
@@ -1321,6 +1471,8 @@ function reset() {
   P = {
     x: FIRE.x, y: FIRE.y + 60, hp: 100, mp: 100, tox: 0, hand: 'steel',
     steel: mkSword('steel', 0, null), silver: mkSword('silver', 0, null), armor: mkArmor('light', 0, null),
+    xbow: mkXbow('light', 0, null),   // арбалет теперь вещь, а не вечная кнопка
+    boltSel: 'bolt',                  // какой болт в жёлобе — переключается на B
     atkCd: 0, boltCd: 0, dodge: 0, dodgeCd: 0, dx: 0, dy: 0, inv: 0, swing: null,
     runeCd: [0, 0, 0, 0], quen: 0, quenT: 0, yrden: null, mut: 0, mutGauge: 0,
     regen: 0, buffThunder: 0, biz: 0, slow: 0, shake: 0, face: -Math.PI / 2,
@@ -1459,9 +1611,9 @@ function update(dt) {
     if (s.mine) {
       for (const f of foes) {
         if (f.dead || dist(s, f) > f.r + 4) continue;
-        const fam = FOES[f.t].fam;
-        // арбалет и договоры родству не подчиняются — бьют ровно
-        hurtFoe(f, s.dmg, 'shot');
+        // обычный болт и договоры родству не подчиняются — бьют ровно,
+        // а вот особые болты разбирают, в кого попали (см. boltHit)
+        boltHit(s, f);
         s.life = 0; break;
       }
     } else if (Math.hypot(s.x - P.x, s.y - P.y) < 11) { hurtPlayer(s.dmg, null); s.life = 0; }
@@ -1653,7 +1805,12 @@ function drawWorld() {
   for (const s of shots) {
     ctx.save(); ctx.translate(s.x, s.y); ctx.rotate(Math.atan2(s.vy, s.vx));
     if (s.kind === 'paper') { ctx.fillStyle = '#f0ead6'; ctx.fillRect(-5, -4, 10, 8); ctx.fillStyle = '#8a8f96'; ctx.fillRect(-3, -2, 6, 1); ctx.fillRect(-3, 1, 6, 1); }
-    else { ctx.fillStyle = s.mine ? '#e8d9a8' : '#c98a5a'; ctx.fillRect(-6, -1.2, 12, 2.4); }
+    else {
+      // болт видно, какой летит: серебро блестит, зажигательный тлеет
+      ctx.fillStyle = s.mine ? (BOLT_COLOR[s.bolt] || '#e8d9a8') : '#c98a5a';
+      ctx.fillRect(-6, -1.2, 12, 2.4);
+      if (s.bolt === 'boltfir') { ctx.fillStyle = 'rgba(255,140,60,.75)'; ctx.fillRect(-9, -1, 4, 2); }
+    }
     ctx.restore();
   }
 
@@ -1807,7 +1964,9 @@ function drawHUD() {
   const ld = loadState();                              // не L: L() — это место, и оно тут же рядом
   txt('⚖ ' + carried().toFixed(1) + ' / ' + capacity() + ' кг', rx, 29, 10,
     ld.lvl === 0 ? '#98a2ae' : ld.lvl === 1 ? '#ffb43a' : '#ff5a4a', 'right');
-  txt('➶ болты: ' + countStack('bolt'), rx, 41, 9, '#98a2ae', 'right');
+  // болты: важно не «сколько всего», а сколько ТЕХ, что сейчас в жёлобе
+  const bsel = STUFF[boltInfo()], bhave = countStack(boltInfo());
+  txt(bsel.ico + ' ' + bsel.n.toLowerCase() + ': ' + bhave, rx, 41, 9, bhave ? '#98a2ae' : '#ff7a6a', 'right');
 
   // где ты и что делаешь. Место читается по ногам, а не по фазе игры
   const here = L().ico + ' ' + L().n;
@@ -1844,22 +2003,38 @@ function drawHUD() {
     if (P.runeCd[i] > 0) { ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(x, y, w, h * clamp(P.runeCd[i] / R.cd, 0, 1)); }
   });
 
-  // АРБАЛЕТ: отдельная кнопка, чтобы про него вообще узнали
+  // АРБАЛЕТ: показывает, ЧТО именно за спиной — от типа зависит всё
   {
-    const x = 252, y = by + 4, w = 80, h = 30;
-    const bolts = countStack('bolt');
+    const x = 252, y = by + 4, w = 76, h = 30;
+    const X = P.xbow ? XBOW[P.xbow.type] : null;
+    const ready = !!X && bhave > 0;
     uiHit.push({ x, y, w, h, fn: () => shootBolt() });
-    if (hov(x, y, w, h)) hint = '🏹 Арбалет — ПКМ по полю или эта кнопка. Бьёт ровно, родство не важно. Болты кончаются и весят.';
-    ctx.fillStyle = bolts ? 'rgba(80,70,40,.55)' : 'rgba(35,32,28,.9)';
+    if (hov(x, y, w, h)) hint = X ? ('🏹 ' + fullName(P.xbow) + ' — ПКМ по полю или эта кнопка · урон ' +
+        Math.round(X.dmg * TIERS[P.xbow.tier].m) + ', взвод ' + X.cd.toFixed(2) + ' с · ' + X.bon)
+      : '🏹 Арбалета нет — купи у оружейника (⚒ верстак, вкладка «Оружейник»)';
+    ctx.fillStyle = ready ? 'rgba(80,70,40,.55)' : 'rgba(35,32,28,.9)';
     ctx.fillRect(x, y, w, h);
-    ctx.strokeStyle = bolts ? '#c9a227' : 'rgba(255,255,255,.1)'; ctx.strokeRect(x + .5, y + .5, w - 1, h - 1);
-    txt('🏹 Арбалет', x + 4, y + 10, 10, bolts ? '#f2d59a' : '#6c7683');
-    txt('ПКМ · болтов ' + bolts, x + 4, y + 22, 9, bolts ? '#98a2ae' : '#ff7a6a');
+    ctx.strokeStyle = ready ? '#c9a227' : 'rgba(255,255,255,.1)'; ctx.strokeRect(x + .5, y + .5, w - 1, h - 1);
+    txt(clipText(X ? X.ico + ' ' + X.sn : '🏹 нет', w - 8, 10), x + 4, y + 10, 10, ready ? '#f2d59a' : '#6c7683');
+    txt(X ? 'ПКМ · взвод ' + X.cd.toFixed(2) : 'купи в лавке', x + 4, y + 22, 8, ready ? '#98a2ae' : '#ff7a6a');
+    if (P.boltCd > 0 && X) { ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(x, y, w, h * clamp(P.boltCd / X.cd, 0, 1)); }
+  }
+
+  // БОЛТ В ЖЁЛОБЕ: клик или B — следующий сорт из тех, что есть в колчане
+  {
+    const x = 331, y = by + 4, w = 40, h = 30;
+    uiHit.push({ x, y, w, h, fn: () => cycleBolt(1) });
+    if (hov(x, y, w, h)) hint = bsel.ico + ' ' + bsel.n + ' ×' + bhave + ' — ' + bsel.desc + ' · клик или B — следующие';
+    ctx.fillStyle = bhave ? 'rgba(60,60,80,.55)' : 'rgba(35,32,28,.9)';
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = bhave ? '#8a9ad8' : 'rgba(255,255,255,.1)'; ctx.strokeRect(x + .5, y + .5, w - 1, h - 1);
+    txt(bsel.ico, x + w / 2, y + 11, 13, bhave ? '#dfe4ff' : '#6c7683', 'center');
+    txt('B ×' + bhave, x + w / 2, y + 23, 8, bhave ? '#98a2ae' : '#ff7a6a', 'center');
   }
 
   // МАСЛО на клинок, что сейчас в руке
   {
-    const x = 338, y = by + 4, w = 104, h = 30;
+    const x = 374, y = by + 4, w = 86, h = 30;
     const sw2 = activeSword();
     const oilId = sw2 ? oilFor(sw2.metal) : 'oilste';
     const have = countStack(oilId), left = sw2 && sw2.oil > 0 ? sw2.oil : 0;
@@ -1870,13 +2045,13 @@ function drawHUD() {
     ctx.fillRect(x, y, w, h);
     ctx.strokeStyle = left ? '#7fd6a0' : can ? '#9ab04a' : 'rgba(255,255,255,.1)'; ctx.strokeRect(x + .5, y + .5, w - 1, h - 1);
     txt(STUFF[oilId].ico + ' Масло (O)', x + 4, y + 10, 10, can || left ? '#e0f0c0' : '#6c7683');
-    txt(left ? 'на клинке: ' + left + ' ударов' : 'в сумке ' + have + ' · +40% урона',
-        x + 4, y + 22, 9, left ? '#7fd6a0' : have ? '#98a2ae' : '#6c7683');
+    txt(left ? 'на клинке ' + left + ' уд.' : 'в сумке ' + have + ' · +40%',
+        x + 4, y + 22, 8, left ? '#7fd6a0' : have ? '#98a2ae' : '#6c7683');
   }
 
   // МУТАЦИЯ: в полном экране кнопок под игрой не видно, а R знают не все
   {
-    const x = 448, y = by + 4, w = 62, h = 30;
+    const x = 463, y = by + 4, w = 47, h = 30;
     const ready = P.mut > 0 || P.mutGauge >= 100;
     uiHit.push({ x, y, w, h, fn: () => toggleMutation() });
     if (hov(x, y, w, h)) hint = '🩸 Кровавая ебатня — копится с убийств. Урон вдвое и чужая кровь лечит, но и по тебе бьёт больнее · клавиша R';
@@ -1884,7 +2059,7 @@ function drawHUD() {
     ctx.fillRect(x, y, w, h);
     ctx.strokeStyle = ready ? '#ff6a5a' : 'rgba(255,255,255,.1)'; ctx.strokeRect(x + .5, y + .5, w - 1, h - 1);
     txt('🩸 R', x + 4, y + 10, 10, ready ? '#ffb0a8' : '#6c7683');
-    txt(P.mut > 0 ? P.mut.toFixed(1) + 'с' : Math.round(P.mutGauge) + '/100', x + 4, y + 22, 9, ready ? '#ffb0a8' : '#98a2ae');
+    txt(P.mut > 0 ? P.mut.toFixed(1) + 'с' : Math.round(P.mutGauge) + '/100', x + 4, y + 22, 8, ready ? '#ffb0a8' : '#98a2ae');
   }
   /* ЗЕЛЬЯ. Одним рядом: во второй ряд пояс не помещается. Клик — выбрать,
      двойной клик или E — выпить. Что зелье делает, написано в строке
@@ -1952,24 +2127,28 @@ function btn(x, y, w, h, label, fn, col, dim, why) {
 }
 
 function drawEquipRow(y) {
-  const slots = [['Сталь', P.steel], ['Серебро', P.silver], ['Доспех', P.armor]];
+  // четвёртым слотом встал арбалет: он такая же вещь, как меч и доспех
+  const slots = [['Сталь', P.steel], ['Серебро', P.silver], ['Доспех', P.armor], ['Арбалет', P.xbow]];
+  const w = 114;
   let x = 24;
   for (const [nm, it] of slots) {
-    const w = 150;
+    // перенос СПЕРВА, а не после: иначе последний слот оставлял под собой
+    // пустую строку в сорок пикселей
+    if (x + w > CW - 20) { x = 24; y += 40; }
     ctx.fillStyle = 'rgba(20,18,15,.9)'; ctx.fillRect(x, y, w, 34);
     ctx.strokeStyle = it ? TIERS[it.tier].c : 'rgba(255,255,255,.1)'; ctx.strokeRect(x + .5, y + .5, w - 1, 33);
     txt(nm, x + 5, y + 9, 8, '#98a2ae');
     if (it) {
-      txt(itemIco(it) + ' ' + TIERS[it.tier].n, x + 5, y + 20, 10, TIERS[it.tier].c);
-      let sub = it.k === 'sword'
-        ? 'урон ' + Math.round(SWORD[it.metal].dmg * TIERS[it.tier].m) + ' · ' + itemWeight(it) + ' кг'
-        : 'броня ' + Math.round(ARMOR[it.type].def * TIERS[it.tier].m) + ' · ' + itemWeight(it) + ' кг';
-      if (it.ench) sub += ' · ' + ENCH[it.ench].ico;
-      if (it.oil > 0) sub += ' · 🧴' + it.oil;
-      txt(sub, x + 5, y + 29, 8, '#98a2ae');
+      txt(clipText(itemIco(it) + ' ' + TIERS[it.tier].n, w - 10, 10), x + 5, y + 20, 10, TIERS[it.tier].c);
+      let sub = it.k === 'sword' ? 'урон ' + Math.round(SWORD[it.metal].dmg * TIERS[it.tier].m)
+              : it.k === 'xbow'  ? 'урон ' + Math.round(XBOW[it.type].dmg * TIERS[it.tier].m)
+                                 : 'броня ' + Math.round(ARMOR[it.type].def * TIERS[it.tier].m);
+      sub += ' · ' + itemWeight(it) + ' кг';
+      if (it.ench) sub += ' ' + ENCH[it.ench].ico;
+      if (it.oil > 0) sub += ' 🧴' + it.oil;
+      txt(clipText(sub, w - 10, 8), x + 5, y + 29, 8, '#98a2ae');
     } else txt('пусто', x + 5, y + 20, 10, '#5a616b');
     x += w + 6;
-    if (x + 150 > CW - 20) { x = 24; y += 40; }
   }
   return y + 42;
 }
@@ -2020,6 +2199,11 @@ function drawBag() {
     // масло мажется на СВОЙ меч, какой бы ни был сейчас в руке
     else if (it.k === 'stack' && STUFF[it.id] && STUFF[it.id].oil)
       btn(CW - 142, rowY + 3, 52, 16, 'смазать', () => applyOil(STUFF[it.id].oil === 'silver' ? P.silver : P.steel));
+    // связку болтов можно положить в жёлоб прямо отсюда — не только по B
+    else if (it.k === 'stack' && BOLTS[it.id])
+      btn(CW - 142, rowY + 3, 52, 16, P.boltSel === it.id ? 'в жёлобе' : 'в жёлоб',
+          () => { P.boltSel = it.id; message(STUFF[it.id].ico + ' ' + STUFF[it.id].n + ' — ' + STUFF[it.id].desc); },
+          null, P.boltSel === it.id, 'Эти и так в жёлобе');
     else if (it.k !== 'stack') btn(CW - 142, rowY + 3, 52, 16, 'надеть', () => equip(it));
     btn(CW - 86, rowY + 3, 58, 16, 'выбросить', () => dropItem(it), 'rgba(70,40,40,.9)');
     y += 24;
@@ -2172,21 +2356,23 @@ function drawMap() {
 
 function drawBench() {
   panelBox('⚒ ВЕРСТАК И ЛАВКА');
-  const tabs = [['work', '⚒ Работа с железом'], ['shop', '💰 Лавка']];
+  const tabs = [['work', '⚒ Железо'], ['shop', '💰 Припасы'], ['gear', '🏹 Оружейник']];
   let tx = 24;
+  const tw = Math.min(150, Math.floor((CW - 48 - 12) / 3));
   for (const [id, label] of tabs) {
     const on = benchTab === id;
-    btn(tx, 62, 150, 20, label, () => { benchTab = id; benchScroll = 0; },
+    btn(tx, 62, tw, 20, label, () => { benchTab = id; benchScroll = 0; },
         on ? 'rgba(96,78,36,.95)' : 'rgba(34,31,26,.9)');
-    tx += 156;
+    tx += tw + 6;
   }
   if (benchTab === 'shop') { drawShop(); return; }
+  if (benchTab === 'gear') { drawArmory(); return; }
 
   let y = 92;
   txt('Улучшение: обычный → улучшенный → отличный → мастерский → гроссмейстер', 24, y - 4, 9, '#98a2ae');
   y += 12;
 
-  const gear = [P.steel, P.silver, P.armor].concat(inv.filter(i => i.k !== 'stack')).filter(Boolean);
+  const gear = [P.steel, P.silver, P.armor, P.xbow].concat(inv.filter(i => i.k !== 'stack')).filter(Boolean);
   // список железа тоже катается: раньше показывались первые шесть, и седьмой
   // меч нельзя было ни улучшить, ни продать — он просто не отображался
   const v = listView(gear.length, y, CH - 70, 28, benchScroll);
@@ -2245,46 +2431,59 @@ function drawBench() {
    зелья и болты копились мёртвым весом: выбросить жалко, деть некуда. */
 const SHOP = [
   ['⛏ Руда ×3', 'ore', 3, 66], ['🧵 Шкуры ×3', 'hide', 3, 54],
-  ['✨ Эссенция', 'essence', 1, 34], ['➶ болты ×10', 'bolt', 10, 20],
+  ['✨ Эссенция', 'essence', 1, 34],
   ['🧪 Ласточка', 'swallow', 1, 40], ['⚗ Гром', 'thunder', 1, 55],
   ['🍯 Белый мёд', 'honey', 1, 35], ['💩 Зелье гавна', 'shit', 1, 90],
   ['🧴 Масло: нечисть', 'oilsil', 1, 45], ['🛢 Масло: люди', 'oilste', 1, 45],
 ];
+/* Болты стоят отдельным рядком: их пять сортов, и вперемешку с зельями
+   выбрать нужный уже не глазами, а перебором. Цена связки ВЫШЕ полной
+   скупочной — иначе на «сегодня в цене» делались бы деньги из воздуха. */
+const SHOP_BOLTS = [
+  ['➶ Обычные ×10', 'bolt', 10, 24],
+  ['✧ Серебряные ×8', 'boltsil', 8, 76],
+  ['➹ Бронебойные ×8', 'boltarm', 8, 58],
+  ['🔥 Зажигат. ×6', 'boltfir', 6, 72],
+  ['💥 Разрывные ×4', 'boltbom', 4, 105],
+];
+function shopGrid(list, y, w) {
+  let x = 24;
+  for (const [label, id, n, price] of list) {
+    if (x + w > CW - 20) { x = 24; y += 23; }
+    btn(x, y, w, 20, label + ' — ' + price + '💰', () => buy(id, n, price), null, gold < price,
+        'Нужно ' + price + ' крон, у тебя ' + Math.floor(gold));
+    x += w + 3;
+  }
+  return y + 20;
+}
 function drawShop() {
   const H = goodInfo(hotGood);
   txt('Скупщик берёт вещи за 60% цены.', 24, 96, 10, '#98a2ae');
   txt('Сегодня в цене: ' + H.ico + ' ' + H.n + ' — платит ПОЛНУЮ (' + H.price + '💰 за штуку)',
       24, 110, 10, '#f2b134');
 
-  txt('Купить:', 24, 130, 10, '#e8d9a8');
-  let sx = 24, sy = 140;
-  for (const [label, id, n, price] of SHOP) {
-    btn(sx, sy, 116, 20, label + ' — ' + price + '💰', () => buy(id, n, price), null, gold < price,
-        'Нужно ' + price + ' крон, у тебя ' + Math.floor(gold));
-    sx += 119;
-    if (sx + 116 > CW - 20) { sx = 24; sy += 23; }
-  }
+  txt('Припасы:', 24, 130, 10, '#e8d9a8');
+  let sy = shopGrid(SHOP, 140, 116);
 
-  // рюкзаки: предел веса носят на спине, а не выдают свыше
-  let by2 = sy + 30;
-  txt('Рюкзаки (предел веса сейчас ' + capacity() + ' кг):', 24, by2, 10, '#e8d9a8');
-  by2 += 10;
-  let bx = 24;
-  for (const id of ['hide', 'hunter', 'master']) {
-    const B = BAGS[id], mine = P.bag === id;
-    btn(bx, by2, 152, 20, B.ico + ' ' + B.n + (mine ? ' — на тебе' : ' — ' + B.price + '💰'),
-        () => buyBag(id), mine ? 'rgba(60,80,50,.9)' : null, mine || gold < B.price,
-        mine ? 'Этот уже за спиной' : 'Нужно ' + B.price + ' крон, у тебя ' + Math.floor(gold));
-    txt(B.desc, bx + 4, by2 + 30, 8, '#6c7683');
-    bx += 156;
-  }
+  const cur = STUFF[boltInfo()];
+  txt('Болты (в жёлобе ' + cur.ico + ' ' + cur.n.toLowerCase() + ' ×' + countStack(boltInfo()) + ', переключает B):',
+      24, sy + 22, 10, '#e8d9a8');
+  sy = shopGrid(SHOP_BOLTS, sy + 32, 152);
 
-  let y = by2 + 46;
+  let y = sy + 26;
   const stacks = inv.filter(i => i.k === 'stack');
   txt('Продать из сумки:', 24, y, 10, '#e8d9a8');
-  txt(stacks.length ? 'всё лишнее — в кроны' : 'припасов нет', CW - 24, y, 9, '#6c7683', 'right');
+  /* Сортов припасов стало больше, чем строк на экране: список катается тем
+     же колесом, что и остальные. Раньше нижние связки просто уезжали под
+     нижний край панели, и продать их было нельзя.
+     Строку прокрутки и присказку справа рисуем ПООЧЕРЁДНО: они делят одно
+     место, и вместе наползали бы друг на друга. */
+  const v = listView(stacks.length, y + 12, CH - 70, 24, benchScroll);
+  benchScroll = v.from;
+  if (v.max > 0) scrollBtns(y, v, () => benchScroll, n => { benchScroll = clamp(n, 0, v.max); });
+  else txt(stacks.length ? 'всё лишнее — в кроны' : 'припасов нет', CW - 24, y, 9, '#6c7683', 'right');
   y += 12;
-  for (const it of stacks) {
+  for (const it of stacks.slice(v.from, v.from + v.vis)) {
     const one = stackPrice(it.id, 1), all = stackPrice(it.id, it.n), hot = it.id === hotGood;
     ctx.fillStyle = hot ? 'rgba(50,42,20,.85)' : 'rgba(20,18,15,.75)';
     ctx.fillRect(24, y, CW - 48, 22);
@@ -2297,6 +2496,51 @@ function drawShop() {
     y += 24;
   }
   panelFooter('U или ✕ — закрыть · товар «в цене» меняется после каждого контракта');
+}
+
+/* Оружейник: арбалеты и рюкзаки. Отдельной вкладкой, потому что тут про
+   каждую вещь надо прочитать три строки, а не выбрать из списка цену. */
+function drawArmory() {
+  const xb = P.xbow;
+  txt('🏹 Арбалеты. Тип решает урон, перезарядку и полёт болта — и это разные ремёсла.',
+      24, 96, 9, '#98a2ae');
+  txt(xb ? 'За спиной: ' + fullName(xb) + ' · урон ' + Math.round(XBOW[xb.type].dmg * TIERS[xb.tier].m) +
+           ' · взвод ' + XBOW[xb.type].cd.toFixed(2) + ' с'
+         : 'За спиной пусто — стрелять нечем',
+      24, 110, 10, xb ? '#f2d59a' : '#ff7a6a');
+
+  let y = 122;
+  for (const id of XBOW_KEYS) {
+    const X = XBOW[id], mine = xb && xb.type === id;
+    ctx.fillStyle = mine ? 'rgba(34,30,22,.85)' : 'rgba(20,18,15,.75)';
+    ctx.fillRect(24, y, CW - 48, 34);
+    if (mine) { ctx.fillStyle = 'rgba(201,162,39,.7)'; ctx.fillRect(24, y, 3, 34); }
+    txt(X.ico + ' ' + X.n, 32, y + 10, 10, mine ? '#f2d59a' : '#e6ebf2');
+    txt('урон ' + X.dmg + ' · взвод ' + X.cd.toFixed(2) + ' с · болт ' + X.spd + ' шагов/с · ' +
+        Math.round(X.spd * X.life) + ' шагов вдаль · ' + X.w + ' кг', 32, y + 21, 8, '#98a2ae');
+    txt(X.bon, 32, y + 30, 8, '#6c7683');
+    btn(CW - 116, y + 8, 92, 18, mine ? 'за спиной' : 'купить ' + X.price + '💰',
+        () => buyXbow(id), mine ? 'rgba(60,80,50,.9)' : null, mine || gold < X.price,
+        mine ? 'Такой уже за спиной. Улучшать его — на вкладке «Железо»'
+             : 'Нужно ' + X.price + ' крон, у тебя ' + Math.floor(gold));
+    y += 36;
+  }
+
+  // рюкзаки: предел веса носят на спине, а не выдают свыше
+  y += 12;
+  txt('🎒 Рюкзаки (предел веса сейчас ' + capacity() + ' кг):', 24, y, 10, '#e8d9a8');
+  y += 10;
+  let bx = 24;
+  const bw = Math.min(152, Math.floor((CW - 48 - 8) / 3));
+  for (const id of ['hide', 'hunter', 'master']) {
+    const B = BAGS[id], mine = P.bag === id;
+    btn(bx, y, bw, 20, B.ico + ' ' + B.n + (mine ? ' — на тебе' : ' — ' + B.price + '💰'),
+        () => buyBag(id), mine ? 'rgba(60,80,50,.9)' : null, mine || gold < B.price,
+        mine ? 'Этот уже за спиной' : 'Нужно ' + B.price + ' крон, у тебя ' + Math.floor(gold));
+    txt(B.desc, bx + 4, y + 30, 8, '#6c7683');
+    bx += bw + 4;
+  }
+  panelFooter('U или ✕ — закрыть · купленный арбалет улучшают и чаруют на вкладке «Железо»');
 }
 
 function render() {
@@ -2437,6 +2681,9 @@ document.addEventListener('keydown', e => {
   }
   if (paused) return;
   if (e.code === 'KeyQ') { swapHand(); return; }
+  // B катает болты только вперёд: Shift занят увёртыванием, и «назад»
+  // через Shift+B означало бы прыжок в кусты вместо смены болта
+  if (e.code === 'KeyB') { cycleBolt(1); return; }
   if (e.code === 'KeyO') { applyOil(activeSword()); return; }
   if (e.code === 'KeyR') { toggleMutation(); return; }
   if (e.code === 'KeyE') { interact(); return; }
@@ -2483,7 +2730,9 @@ requestAnimationFrame(frame);
 if (typeof globalThis !== 'undefined') globalThis.__W = {
   reset, update, render, startContract, finishContract, spawnFoe, castRune, drink, upgrade, enchant, sell, buy,
   equip, addStack, countStack, dropItem, swordDamage, damageTaken, hurtFoe, hurtPlayer, toggleMutation,
-  carried, capacity, loadState, itemWeight, itemPrice, fullName, mkSword, mkArmor, mkStack, lootFrom,
+  carried, capacity, loadState, itemWeight, itemPrice, fullName, mkSword, mkArmor, mkXbow, mkStack, lootFrom,
+  XBOW, BOLTS, BOLT_IDS, SHOP_BOLTS, buyXbow, cycleBolt, boltHit, xbowDamage, randomGear,
+  getBolt: () => P.boltSel, setBolt: v => { P.boltSel = v; },
   getP: () => P, getFoes: () => foes, setFoes: v => { foes = v; }, getInv: () => inv, setInv: v => { inv = v; },
   getGold: () => gold, setGold: v => { gold = v; }, getDrops: () => drops, getShots: () => shots,
   getPhase: () => phase, setPhase: v => { phase = v; }, getOver: () => over, getCi: () => ci, setCi: v => { ci = v; },
