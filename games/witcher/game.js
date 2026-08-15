@@ -83,6 +83,17 @@ const STUFF = {
 const OIL_MUL = 1.4;
 function oilFor(metal) { return metal === 'silver' ? 'oilsil' : 'oilste'; }
 
+/* Рюкзаки. Предел веса был намертво прибит к семидесяти килограммам, и
+   единственным ответом на «не поднять» было «выброси». Теперь предел
+   носят на спине: сам мешок тоже весит, так что самый большой не всегда
+   самый выгодный. */
+const BAGS = {
+  none:   { n: 'Заплечный мешок',  ico: '🎒', cap: 0,  w: 0,   price: 0,   desc: 'то, с чем вышел из дому' },
+  hide:   { n: 'Кожаный ранец',    ico: '🧳', cap: 25, w: 2.0, price: 130, desc: '+25 кг, сам весит 2' },
+  hunter: { n: 'Охотничий короб',  ico: '🛄', cap: 45, w: 4.0, price: 280, desc: '+45 кг, сам весит 4' },
+  master: { n: 'Ведьмачий вьюк',   ico: '🧰', cap: 70, w: 6.5, price: 520, desc: '+70 кг, сам весит 6.5' },
+};
+
 // Руны (знаки). Тратят энергию.
 const RUNES = [
   { k: 'igni',  n: 'Игни',  ico: '🔥', mp: 20, cd: 1.1, desc: 'конус огня, поджигает' },
@@ -103,12 +114,18 @@ const FOES = {
   boar:    { n: 'Кабан',     ico: '🐗', fam: 'mortal',  hp: 58,  sp: 84, dmg: 14, r: 10, atk: 1.0, reach: 21 },
 };
 
-/* =====================  МЕСТА  =====================
-   Контракт берут не «вообще», а КУДА-ТО. Место решает, как ты там ходишь,
-   далеко ли видишь и кто в нём хозяин: в болоте утопец быстрее тебя, на
-   тракте лучник простреливает всё поле, в чаще не видно дальше вытянутой
-   руки. Про место написано у костра ЗАРАНЕЕ — чтобы было что собирать. */
+/* =====================  МЕСТА И МИР  =====================
+   Мир один и сплошной: шесть краёв на общей карте, между ними ХОДЯТ ногами.
+   Никаких переносов «взял контракт — очнулся в болоте»: взял работу у доски,
+   вышел из лагеря и потопал. Экран — это окно в мир, оно едет за ведьмаком.
+
+   Место решает, как ты там ходишь, далеко ли видишь и кто в нём хозяин:
+   в болоте утопец быстрее тебя, на тракте лучник простреливает всё поле,
+   в чаще не видно дальше вытянутой руки. */
 const LOCS = {
+  field:  { n: 'Перелесок', ico: '🌾', ground: '#161c14', sp1: '#1d2519', sp2: '#1a2217',
+            veg: '🌳', rock: '🪨', obst: 7, rmin: 11, rmax: 18, spd: 1,
+            note: 'ничего особенного — просто дорога между местами' },
   camp:   { n: 'Лагерь', ico: '🏕', ground: '#141a12', sp1: '#1a2318', sp2: '#18211a',
             veg: '🌲', rock: '🪨', obst: 12, rmin: 12, rmax: 21, spd: 1,
             note: 'костёр, верстак и ни одной твари' },
@@ -129,6 +146,36 @@ const LOCS = {
             home: 'nekker',
             note: 'камни всюду — не разбежишься и не увернёшься толком' },
 };
+
+/* Карта мира: три края в ряд, два ряда. Лагерь посередине снизу, от него
+   до любого места — минута ходьбы, а не загрузка. */
+const CELL_W = 520, CELL_H = 490;
+const MAP = [
+  ['swamp', 'woods', 'barrow'],
+  ['field', 'camp',  'road'],
+];
+const MAP_W = MAP[0].length, MAP_H = MAP.length;
+const WORLD_W = CELL_W * MAP_W, WORLD_H = CELL_H * MAP_H;
+function cellAt(x, y) {
+  const cx = clamp(Math.floor(x / CELL_W), 0, MAP_W - 1);
+  const cy = clamp(Math.floor(y / CELL_H), 0, MAP_H - 1);
+  return { cx, cy, id: MAP[cy][cx] };
+}
+function locAt(x, y) { return cellAt(x, y).id; }
+function cellOf(id) {
+  for (let r = 0; r < MAP_H; r++) for (let c = 0; c < MAP_W; c++) if (MAP[r][c] === id) return { cx: c, cy: r };
+  return { cx: 1, cy: 1 };
+}
+function cellRect(id) {
+  const c = cellOf(id);
+  return { x0: c.cx * CELL_W, y0: c.cy * CELL_H, x1: (c.cx + 1) * CELL_W, y1: (c.cy + 1) * CELL_H,
+           mx: (c.cx + 0.5) * CELL_W, my: (c.cy + 0.5) * CELL_H };
+}
+// костёр, верстак и доска работ стоят в лагере на своих местах
+const CAMP = cellRect('camp');
+const FIRE = { x: CAMP.mx, y: CAMP.my + 40 };
+const BENCH = { x: CAMP.mx - 96, y: CAMP.my + 40 };
+const BOARD = { x: CAMP.mx + 96, y: CAMP.my + 40 };
 
 /* =====================  ДОСКА КОНТРАКТОВ  =====================
    Работы, из которых складывается выбор у костра. d — тяжесть: она же
@@ -180,8 +227,18 @@ function rollBoard(k) {
 /* =====================  СОСТОЯНИЕ  ===================== */
 
 let P, foes, drops, shots, parts, obst, inv, gold, contract, ci, phase, over, cause;
-let curLoc = 'camp', campObst = [];      // поле лагеря живёт отдельно: оно одно на весь поход
+let curLoc = 'camp';                     // где ведьмак стоит ПРЯМО СЕЙЧАС — считается по координатам
 let offers = [];                         // три работы на доске у костра
+/* Экран — окно в мир, а не сам мир. Камера едет за ведьмаком и упирается
+   в края карты, чтобы за границей не зияла чернота. */
+const cam = { x: 0, y: 0 };
+function syncCam() {
+  cam.x = clamp(P.x - WW / 2, 0, Math.max(0, WORLD_W - WW));
+  cam.y = clamp(P.y - WH / 2, 0, Math.max(0, WORLD_H - WH));
+}
+const sx = wx => wx - cam.x + WX0;       // мир → экран
+const sy = wy => wy - cam.y + WY0;
+function mw() { return { x: mouse.x - WX0 + cam.x, y: mouse.y - WY0 + cam.y }; }   // экран → мир
 const L = () => LOCS[curLoc] || LOCS.camp;
 let killsLeft, msg, msgT, panel, uiHit = [], anim = 0, lastFrame = null, paused = false;
 let keys = {}, mouse = { x: CW / 2, y: 300, down: false }, best = 0;
@@ -219,12 +276,13 @@ function itemPrice(it) {
   return (POTIONS[it.id] || STUFF[it.id]).price * it.n;
 }
 function carried() {
-  let w = 0;
+  let w = bagWeight();                                 // сам мешок тоже на спине
   for (const it of inv) w += itemWeight(it);
   for (const s of [P.steel, P.silver, P.armor]) if (s) w += itemWeight(s);
   return w;
 }
-function capacity() { return 70; }
+function capacity() { return 70 + (P.bag ? BAGS[P.bag].cap : 0); }
+function bagWeight() { return P.bag ? BAGS[P.bag].w : 0; }
 // перегруз: до предела — ничего, дальше вязнешь, а увернуться уже нельзя
 function loadState() {
   const c = carried(), cap = capacity();
@@ -481,11 +539,12 @@ function castRune(i) {
     const MAXR = 150;
     let tx, ty;
     if (mouseInWorld()) {
-      const dx = mouse.x - P.x, dy = mouse.y - P.y, d = Math.hypot(dx, dy) || 1;
+      const m = mw();
+      const dx = m.x - P.x, dy = m.y - P.y, d = Math.hypot(dx, dy) || 1;
       const k = Math.min(1, MAXR / d);
       tx = P.x + dx * k; ty = P.y + dy * k;
     } else { tx = P.x + Math.cos(a) * 70; ty = P.y + Math.sin(a) * 70; }
-    P.yrden = { x: clamp(tx, WX0 + 10, WX1 - 10), y: clamp(ty, WY0 + 10, WY1 - 10), t: 7, r: 58 };
+    P.yrden = { x: clamp(tx, 10, WORLD_W - 10), y: clamp(ty, 10, WORLD_H - 10), t: 7, r: 58 };
     message('🧿 Ирден поставлен');
   }
 }
@@ -538,7 +597,7 @@ function freeSpot(x, y) {
         x = o.x + Math.cos(a) * need; y = o.y + Math.sin(a) * need; moved = true;
       }
     }
-    x = clamp(x, WX0 + 8, WX1 - 8); y = clamp(y, WY0 + 8, WY1 - 8);
+    x = clamp(x, 8, WORLD_W - 8); y = clamp(y, 8, WORLD_H - 8);
     if (!moved) break;
   }
   return { x, y };
@@ -580,7 +639,7 @@ function stepFoe(f, dt) {
   if (Math.abs(f.kx) + Math.abs(f.ky) > 1) {
     f.x += f.kx * dt; f.y += f.ky * dt;
     f.kx *= 0.86; f.ky *= 0.86;
-    f.x = clamp(f.x, WX0 + f.r, WX1 - f.r); f.y = clamp(f.y, WY0 + f.r, WY1 - f.r);
+    f.x = clamp(f.x, f.r, WORLD_W - f.r); f.y = clamp(f.y, f.r, WORLD_H - f.r);
   }
   if (f.stun > 0) { f.stun -= dt; return; }
 
@@ -622,36 +681,35 @@ function stepFoe(f, dt) {
   /* Деревья и камни держат и нечисть тоже. Раньше игрок обегал сосну,
      а утопец шёл сквозь неё напрямик — укрытий в игре просто не было. */
   for (const o of obst) {
+    if (Math.abs(o.x - f.x) > 60 || Math.abs(o.y - f.y) > 60) continue;
     const need = o.r + f.r * 0.7, d = Math.hypot(f.x - o.x, f.y - o.y);
     if (d < need && d > 0.01) {
       const a = Math.atan2(f.y - o.y, f.x - o.x);
       f.x = o.x + Math.cos(a) * need; f.y = o.y + Math.sin(a) * need;
     }
   }
-  f.x = clamp(f.x, WX0 + f.r, WX1 - f.r); f.y = clamp(f.y, WY0 + f.r, WY1 - f.r);
+  f.x = clamp(f.x, f.r, WORLD_W - f.r); f.y = clamp(f.y, f.r, WORLD_H - f.r);
 }
 
 /* =====================  КОНТРАКТЫ  ===================== */
 
-/* Поле под место: своя гуща, свои камни. Пятачок вокруг ведьмака оставляем
-   чистым — иначе он окажется замурован в камнях в первый же миг. */
-function buildField(id, px, py) {
-  const S = LOCS[id] || LOCS.camp, out = [];
-  for (let i = 0; i < S.obst; i++) {
-    const o = { x: WX0 + 26 + rnd(WW - 52), y: WY0 + 26 + rnd(WH - 52),
-                r: S.rmin + rnd(S.rmax - S.rmin), tree: Math.random() < (id === 'barrow' ? 0.25 : 0.6) };
-    if (Math.hypot(o.x - px, o.y - py) < 80) continue;
-    out.push(o);
+/* Гуща и камни для ВСЕГО мира разом, у каждого края своя густота.
+   Пятачок вокруг костра оставляем чистым — иначе верстак зарастёт. */
+function buildWorld() {
+  const out = [];
+  for (let r = 0; r < MAP_H; r++) for (let c = 0; c < MAP_W; c++) {
+    const id = MAP[r][c], S = LOCS[id], x0 = c * CELL_W, y0 = r * CELL_H;
+    for (let i = 0; i < S.obst; i++) {
+      const o = { x: x0 + 26 + rnd(CELL_W - 52), y: y0 + 26 + rnd(CELL_H - 52),
+                  r: S.rmin + rnd(S.rmax - S.rmin), tree: Math.random() < (id === 'barrow' ? 0.25 : 0.6) };
+      if (Math.hypot(o.x - FIRE.x, o.y - FIRE.y) < 150) continue;
+      out.push(o);
+    }
   }
   return out;
 }
-function goTo(id, ex, ey) {
-  curLoc = id;
-  if (ex !== undefined) { P.x = ex; P.y = ey; }        // пришёл — встань, где вошёл
-  obst = id === 'camp' ? campObst : buildField(id, P.x, P.y);
-  // добыча, оставшаяся с прошлого места, не должна оказаться в новом дереве
-  for (const d of drops) { const s = freeSpot(d.x, d.y); d.x = s.x; d.y = s.y; }
-}
+/* Взял работу — никто тебя никуда не переносит. Ты стоишь там, где стоял,
+   а до места идёшь сам. Отсюда и стрелка на краю экрана, и метка на карте. */
 function startContract(c) {
   contract = c || offers[0] || makeContract(JOBS[0], ci);
   phase = 'FIGHT';
@@ -659,37 +717,40 @@ function startContract(c) {
   killsLeft = contract.n;
   spawnQueue = contract.n;
   spawnT = 0;
-  goTo(contract.loc || 'woods', CW / 2, WY1 - 40);
-  message('📜 ' + L().ico + ' ' + L().n + ': ' + contract.t + ' — целей ' + contract.n + '. ' + L().note);
+  const S = LOCS[contract.loc] || LOCS.woods;
+  message('📜 ' + contract.t + ': иди в ' + S.ico + ' ' + S.n.toLowerCase() + ' — целей ' + contract.n + '. ' + S.note);
 }
 let spawnQueue = 0, spawnT = 0;
 function spawnTick(dt) {
-  if (spawnQueue <= 0) return;
+  if (spawnQueue <= 0 || !contract) return;
+  // твари водятся у себя дома: пока не пришёл — и драться не с кем
+  if (locAt(P.x, P.y) !== contract.loc) return;
   spawnT -= dt;
   if (spawnT > 0) return;
   spawnT = 0.85;
-  // появляются по краям, но не в лицо игроку
+  const R = cellRect(contract.loc);
   let x, y, tries = 0;
-  do {
-    if (Math.random() < 0.5) { x = Math.random() < 0.5 ? WX0 + 14 : WX1 - 14; y = WY0 + rnd(WH); }
-    else { x = WX0 + rnd(WW); y = Math.random() < 0.5 ? WY0 + 14 : WY1 - 14; }
-  } while (Math.hypot(x - P.x, y - P.y) < 130 && ++tries < 30);
+  do {                                                 // где-то в этом краю, но не в лицо
+    x = R.x0 + 20 + rnd(CELL_W - 40); y = R.y0 + 20 + rnd(CELL_H - 40);
+  } while (Math.hypot(x - P.x, y - P.y) < 215 && ++tries < 40);
   spawnFoe(pick(contract.pool), x, y);
   spawnQueue--;
 }
 function finishContract() {
-  if (!contract) { phase = 'CAMP'; goTo('camp'); return; }   // без контракта закрывать нечего
+  if (!contract) { phase = 'CAMP'; return; }           // без контракта закрывать нечего
   const bonus = contract.gold;
   gold += bonus;
   phase = 'CAMP';
-  goTo('camp', CW / 2, WY1 - 34);                      // вернулся к костру
   ci++;
   offers = rollBoard(ci);                              // на доске новые работы
   rollHotGood();                                       // и у скупщика новый спрос
   if (ci > best) { best = ci; try { localStorage.setItem('witcher_best', String(best)); } catch (e) {} }
-  drop(CW / 2, WY1 - 60, mkStack('ore', 1 + ri(3)));
-  drop(CW / 2, WY1 - 60, mkStack('hide', 1 + ri(3)));
-  message('✅ Контракт закрыт! Награда ' + bonus + ' крон. У костра: E — следующий, U — верстак.');
+  /* Награду кладём В СУМКУ. Раньше руда и шкуры падали на землю у костра —
+     а костёр теперь на другом конце карты, и трофеи оставались лежать
+     чёрт знает где. */
+  const ore = 1 + ri(3), hide = 1 + ri(3);
+  addStack('ore', ore); addStack('hide', hide);
+  message('✅ Контракт закрыт! ' + bonus + ' крон, ⛏' + ore + ' и 🧵' + hide + ' — сразу в сумку. За новой работой — к доске в лагере.');
   saveRun();
 }
 
@@ -754,6 +815,17 @@ function sell(it) {
   message('💰 Продано за ' + p);
   saveRun();
 }
+function buyBag(id) {
+  const B = BAGS[id];
+  if (!B) return;
+  if (P.bag === id) { message('Такой уже за спиной'); return; }
+  if (gold < B.price) { message('Нужно ' + B.price + ' крон, у тебя ' + Math.floor(gold)); return; }
+  gold -= B.price;
+  const old = P.bag ? BAGS[P.bag].n.toLowerCase() : null;
+  P.bag = id;
+  message('🎒 ' + B.n + ': предел веса теперь ' + capacity() + ' кг' + (old ? ' (' + old + ' ушёл в уплату)' : ''));
+  saveRun();
+}
 function buy(id, n, price) {
   if (gold < price) { message('Не хватает крон: нужно ' + price); return; }
   gold -= price; addStack(id, n);
@@ -773,6 +845,7 @@ function saveRun() {
     localStorage.setItem(SAVE_KEY, JSON.stringify({
       v: 1, ci, gold, hp: P.hp, tox: P.tox, mutGauge: P.mutGauge, hand: P.hand, potSel: P.potSel,
       steel: P.steel, silver: P.silver, armor: P.armor, inv, offers, hot: hotGood,
+      x: P.x, y: P.y, bag: P.bag,
     }));
   } catch (e) {}
 }
@@ -821,6 +894,11 @@ function loadRun() {
   }));
   if (!offers.length) offers = rollBoard(ci);
   hotGood = TRADEABLE.indexOf(s.hot) >= 0 ? s.hot : hotGood;
+  if (isFinite(+s.x) && isFinite(+s.y)) {           // где стоял, там и встанешь
+    P.x = clamp(+s.x, 9, WORLD_W - 9); P.y = clamp(+s.y, 9, WORLD_H - 9);
+  }
+  P.bag = BAGS[s.bag] && s.bag !== 'none' ? s.bag : null;
+  curLoc = locAt(P.x, P.y); syncCam();
   return true;
 }
 function okOffer(o) {
@@ -834,23 +912,24 @@ function message(t) { msg = t; msgT = 4; }
 
 function reset() {
   P = {
-    x: CW / 2, y: WY1 - 70, hp: 100, mp: 100, tox: 0, hand: 'steel',
+    x: FIRE.x, y: FIRE.y + 60, hp: 100, mp: 100, tox: 0, hand: 'steel',
     steel: mkSword('steel', 0, null), silver: mkSword('silver', 0, null), armor: mkArmor('light', 0, null),
     atkCd: 0, boltCd: 0, dodge: 0, dodgeCd: 0, dx: 0, dy: 0, inv: 0, swing: null,
     runeCd: [0, 0, 0, 0], quen: 0, quenT: 0, yrden: null, mut: 0, mutGauge: 0,
     regen: 0, buffThunder: 0, biz: 0, slow: 0, shake: 0, face: -Math.PI / 2,
     potSel: 'swallow',        // после «Заново» выбор зелья не должен слетать в никуда
+    bag: null,                // рюкзак покупается у торговца и поднимает предел веса
   };
   P.hp = maxHP();
   inv = [mkStack('bolt', 20), mkStack('swallow', 2), mkStack('honey', 1)];
   gold = 120; ci = 0; foes = []; drops = []; shots = []; parts = []; floaties = [];
   contract = null; phase = 'CAMP'; over = false; cause = ''; panel = null; paused = false;
   killsLeft = 0; spawnQueue = 0;
-  // лагерь один на весь поход: его поле строим раз и потом возвращаем как есть
-  campObst = buildField('camp', CW / 2, WY1 - 70);
-  curLoc = 'camp'; obst = campObst;
+  // мир строится один раз на весь поход и больше не перетасовывается
+  obst = buildWorld();
+  curLoc = 'camp'; syncCam();
   offers = rollBoard(0); rollHotGood(); benchTab = 'work';
-  message('Костёр. E у костра — доска работ, U — верстак, I — сумка.');
+  message('Лагерь. 📜 доска работ — E, ⚒ верстак — U. До мест идти ногами.');
   updateButtons();
 }
 function endGame(why) {
@@ -896,16 +975,19 @@ function update(dt) {
     const l = Math.hypot(mx, my), s = moveSpeed();
     P.x += mx / l * s * dt; P.y += my / l * s * dt;
   }
-  P.x = clamp(P.x, WX0 + 9, WX1 - 9); P.y = clamp(P.y, WY0 + 9, WY1 - 9);
-  // препятствия
+  P.x = clamp(P.x, 9, WORLD_W - 9); P.y = clamp(P.y, 9, WORLD_H - 9);
+  // препятствия (перебираем только те, что рядом: их на весь мир под сотню)
   for (const o of obst) {
+    if (Math.abs(o.x - P.x) > 60 || Math.abs(o.y - P.y) > 60) continue;
     const d = Math.hypot(P.x - o.x, P.y - o.y);
     if (d < o.r + 9 && d > 0) {
       const a = Math.atan2(P.y - o.y, P.x - o.x);
       P.x = o.x + Math.cos(a) * (o.r + 9); P.y = o.y + Math.sin(a) * (o.r + 9);
     }
   }
-  if (mouseInWorld()) P.face = Math.atan2(mouse.y - P.y, mouse.x - P.x);
+  curLoc = locAt(P.x, P.y);                            // где стоим — то и правила
+  syncCam();
+  if (mouseInWorld()) { const m = mw(); P.face = Math.atan2(m.y - P.y, m.x - P.x); }
 
   // --- взмах меча ---
   if (P.swing) {
@@ -933,7 +1015,7 @@ function update(dt) {
   // --- снаряды ---
   for (const s of shots) {
     s.x += s.vx * dt; s.y += s.vy * dt; s.life -= dt;
-    if (s.x < WX0 || s.x > WX1 || s.y < WY0 || s.y > WY1) s.life = 0;
+    if (s.x < 0 || s.x > WORLD_W || s.y < 0 || s.y > WORLD_H) s.life = 0;
     if (s.mine) {
       for (const f of foes) {
         if (f.dead || dist(s, f) > f.r + 4) continue;
@@ -1001,27 +1083,43 @@ function blood(x, y, n) {
 }
 
 function drawWorld() {
-  // земля — своя у каждого места
+  /* Всё, что ниже, рисуется в МИРОВЫХ координатах: сдвигаем холст на
+     камеру и подрезаем окном. Поэтому дальше можно писать o.x, f.y — как
+     будто мира ровно столько, сколько его есть. */
   const S = L();
-  ctx.fillStyle = S.ground; ctx.fillRect(WX0, WY0, WW, WH);
-  if (S.open) {                                        // накатанная колея через всё поле
-    ctx.fillStyle = '#241f17'; ctx.fillRect(WX0, WY0 + WH * 0.42, WW, WH * 0.16);
-    ctx.fillStyle = 'rgba(0,0,0,.25)';
-    ctx.fillRect(WX0, WY0 + WH * 0.46, WW, 2); ctx.fillRect(WX0, WY0 + WH * 0.53, WW, 2);
-  }
-  ctx.globalAlpha = 0.5;
-  for (let i = 0; i < 70; i++) {
-    const x = WX0 + ((i * 97) % WW), y = WY0 + ((i * 131) % WH);
-    ctx.fillStyle = i % 3 ? S.sp1 : S.sp2;
-    ctx.fillRect(x, y, 9, 5);
-  }
-  ctx.globalAlpha = 1;
-  if (S.pools) {                                       // лужи стоячей воды
-    for (let i = 0; i < 7; i++) {
-      const x = WX0 + ((i * 173 + 40) % (WW - 80)), y = WY0 + ((i * 211 + 30) % (WH - 60));
-      ctx.fillStyle = 'rgba(70,110,120,.16)';
-      ctx.beginPath(); ctx.ellipse(x + 40, y + 30, 34 + (i % 3) * 9, 15 + (i % 2) * 6, 0, 0, 6.3); ctx.fill();
+  ctx.save();
+  ctx.beginPath(); ctx.rect(WX0, WY0, WW, WH); ctx.clip();
+  ctx.translate(WX0 - cam.x, WY0 - cam.y);
+
+  // земля: рисуем только те края, что попали в окно
+  const c0 = Math.max(0, Math.floor(cam.x / CELL_W)), c1 = Math.min(MAP_W - 1, Math.floor((cam.x + WW) / CELL_W));
+  const r0 = Math.max(0, Math.floor(cam.y / CELL_H)), r1 = Math.min(MAP_H - 1, Math.floor((cam.y + WH) / CELL_H));
+  for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
+    const id = MAP[r][c], G = LOCS[id], x0 = c * CELL_W, y0 = r * CELL_H;
+    ctx.fillStyle = G.ground; ctx.fillRect(x0, y0, CELL_W, CELL_H);
+    if (G.open) {                                      // накатанная колея
+      ctx.fillStyle = '#241f17'; ctx.fillRect(x0, y0 + CELL_H * 0.42, CELL_W, CELL_H * 0.16);
+      ctx.fillStyle = 'rgba(0,0,0,.25)';
+      ctx.fillRect(x0, y0 + CELL_H * 0.46, CELL_W, 2); ctx.fillRect(x0, y0 + CELL_H * 0.53, CELL_W, 2);
     }
+    ctx.globalAlpha = 0.5;
+    for (let i = 0; i < 70; i++) {
+      ctx.fillStyle = i % 3 ? G.sp1 : G.sp2;
+      ctx.fillRect(x0 + ((i * 97) % CELL_W), y0 + ((i * 131) % CELL_H), 9, 5);
+    }
+    ctx.globalAlpha = 1;
+    if (G.pools) {                                     // лужи стоячей воды
+      for (let i = 0; i < 7; i++) {
+        ctx.fillStyle = 'rgba(70,110,120,.16)';
+        ctx.beginPath();
+        ctx.ellipse(x0 + 40 + ((i * 173 + 40) % (CELL_W - 80)), y0 + 30 + ((i * 211 + 30) % (CELL_H - 60)),
+                    34 + (i % 3) * 9, 15 + (i % 2) * 6, 0, 0, 6.3);
+        ctx.fill();
+      }
+    }
+    // межа между краями — видно, что мир не однородная каша
+    ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 2;
+    ctx.strokeRect(x0 + 1, y0 + 1, CELL_W - 2, CELL_H - 2);
   }
 
   // ловушка Ирдена
@@ -1031,26 +1129,21 @@ function drawWorld() {
     ctx.fillStyle = 'rgba(140,90,220,.14)'; ctx.fill();
   }
 
-  // костёр и верстак — только в лагере
-  if (phase === 'CAMP') {
-    const fx = CW / 2, fy = WY1 - 70;
-    ctx.font = '26px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('🔥', fx, fy + Math.sin(anim * 6) * 1.5);
-    ctx.fillText('⚒', fx - 70, fy);
-    txt('E — доска работ', fx, fy + 26, 10, '#c9a227', 'center');
-    txt('U — верстак', fx - 70, fy + 24, 10, '#98a2ae', 'center');
-    /* Доска у костра. Смысл всей затеи с местами: ты ЗАРАНЕЕ знаешь, куда
-       идёшь и чем там неудобно, — и потому есть что решать до выхода. */
-    ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fillRect(WX0 + 6, WY0 + 4, WW - 12, 32);
-    txt('📜 На доске три работы — нажми E у костра и выбирай', CW / 2, WY0 + 14, 10, '#e8d9a8', 'center');
-    txt(offers.map(o => (LOCS[o.loc] || LOCS.woods).ico + ' ' + o.t + ' · ' + o.gold + '💰').join('    '),
-        CW / 2, WY0 + 28, 8, '#c9a227', 'center');
-  }
+  // лагерь: костёр, верстак и доска работ стоят на своих местах в мире
+  ctx.font = '26px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('🔥', FIRE.x, FIRE.y + Math.sin(anim * 6) * 1.5);
+  ctx.fillText('⚒', BENCH.x, BENCH.y);
+  ctx.fillText('📜', BOARD.x, BOARD.y);
+  txt('костёр', FIRE.x, FIRE.y + 24, 9, '#98a2ae', 'center');
+  txt('U — верстак', BENCH.x, BENCH.y + 24, 10, '#98a2ae', 'center');
+  txt('E — доска работ', BOARD.x, BOARD.y + 24, 10, '#c9a227', 'center');
 
-  // гуща и камни — тоже свои: в болоте камыш, в кургане истуканы
+  // гуща и камни: у каждого края свои
   for (const o of obst) {
+    if (o.x < cam.x - 40 || o.x > cam.x + WW + 40 || o.y < cam.y - 40 || o.y > cam.y + WH + 40) continue;
+    const G = LOCS[locAt(o.x, o.y)];
     ctx.font = (o.r * 1.9 | 0) + 'px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(o.tree ? S.veg : S.rock, o.x, o.y);
+    ctx.fillText(o.tree ? G.veg : G.rock, o.x, o.y);
   }
 
   // добыча
@@ -1148,28 +1241,66 @@ function drawWorld() {
     ctx.globalAlpha = 1;
   }
 
-  /* Темнота чащи и туман болота. Рисуем ПОВЕРХ всего, но строго внутри
-     поля: это не украшение, а правило места — в чаще тварь видно, только
-     когда она уже близко. */
+  /* Темнота чащи и туман болота — по тому краю, где СТОИШЬ ТЫ. Это не
+     украшение, а правило места: в чаще тварь видно, только когда она рядом. */
   if (S.dark) {
-    ctx.save(); ctx.beginPath(); ctx.rect(WX0, WY0, WW, WH); ctx.clip();
     const g = ctx.createRadialGradient(P.x, P.y, 105, P.x, P.y, 290);
     g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.84)');
-    ctx.fillStyle = g; ctx.fillRect(WX0, WY0, WW, WH);
-    ctx.restore();
+    ctx.fillStyle = g; ctx.fillRect(cam.x, cam.y, WW, WH);
   }
   if (S.fog) {
-    ctx.save(); ctx.beginPath(); ctx.rect(WX0, WY0, WW, WH); ctx.clip();
-    ctx.fillStyle = 'rgba(150,170,175,.07)'; ctx.fillRect(WX0, WY0, WW, WH);
+    ctx.fillStyle = 'rgba(150,170,175,.07)'; ctx.fillRect(cam.x, cam.y, WW, WH);
     for (let i = 0; i < 3; i++) {                      // ползущие полосы марева
-      const y = WY0 + ((anim * (5 + i * 3) + i * 170) % (WH + 120)) - 60;
-      ctx.fillStyle = 'rgba(175,195,200,.05)'; ctx.fillRect(WX0, y, WW, 44);
+      const y = cam.y + ((anim * (5 + i * 3) + i * 170) % (WH + 120)) - 60;
+      ctx.fillStyle = 'rgba(175,195,200,.05)'; ctx.fillRect(cam.x, y, WW, 44);
     }
-    ctx.restore();
   }
+  ctx.restore();                                       // конец мировых координат
 
+  drawCompass();
   ctx.strokeStyle = 'rgba(201,162,39,.18)'; ctx.lineWidth = 1;
   ctx.strokeRect(WX0 - 0.5, WY0 - 0.5, WW + 1, WH + 1);
+}
+
+/* Карта мира и стрелка к цели — прямо в окне, в правом верхнем углу.
+   В открытом мире без них теряешься: где лагерь, куда идти по контракту. */
+function drawCompass() {
+  const w = 96, h = 64, x = WX1 - w - 8, y = WY0 + 8;
+  const cw = w / MAP_W, ch = h / MAP_H;
+  ctx.globalAlpha = 0.85;
+  ctx.fillStyle = 'rgba(8,7,6,.75)'; ctx.fillRect(x - 2, y - 2, w + 4, h + 4);
+  for (let r = 0; r < MAP_H; r++) for (let c = 0; c < MAP_W; c++) {
+    const id = MAP[r][c];
+    ctx.fillStyle = LOCS[id].ground;
+    ctx.fillRect(x + c * cw, y + r * ch, cw - 1, ch - 1);
+    if (contract && phase === 'FIGHT' && id === contract.loc) {   // куда идти
+      ctx.strokeStyle = '#ff7a5a'; ctx.lineWidth = 2;
+      ctx.strokeRect(x + c * cw + 1, y + r * ch + 1, cw - 3, ch - 3);
+    }
+    ctx.font = '9px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(LOCS[id].ico, x + c * cw + cw / 2, y + r * ch + ch / 2);
+  }
+  // где ты
+  ctx.fillStyle = '#f2d59a';
+  ctx.beginPath(); ctx.arc(x + (P.x / WORLD_W) * w, y + (P.y / WORLD_H) * h, 2.5, 0, 6.3); ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // стрелка к цели, если она за краем экрана
+  let goal = null;
+  if (phase === 'FIGHT' && contract && locAt(P.x, P.y) !== contract.loc) goal = cellRect(contract.loc);
+  else if (phase === 'CAMP' && locAt(P.x, P.y) !== 'camp') goal = { mx: BOARD.x, my: BOARD.y };
+  if (!goal) return;
+  const a = Math.atan2(goal.my - P.y, goal.mx - P.x);
+  const cx = WX0 + WW / 2, cy = WY0 + WH / 2, rr = Math.min(WW, WH) * 0.42;
+  const ax = cx + Math.cos(a) * rr, ay = cy + Math.sin(a) * rr;
+  ctx.save(); ctx.translate(ax, ay); ctx.rotate(a);
+  ctx.fillStyle = 'rgba(242,177,52,.85)';
+  ctx.beginPath(); ctx.moveTo(10, 0); ctx.lineTo(-6, -6); ctx.lineTo(-6, 6); ctx.closePath(); ctx.fill();
+  ctx.restore();
+  const dist2 = Math.round(Math.hypot(goal.mx - P.x, goal.my - P.y));
+  txt(phase === 'FIGHT' ? (LOCS[contract.loc].ico + ' ' + LOCS[contract.loc].n + ' · ' + dist2 + ' шагов')
+                        : ('🏕 лагерь · ' + dist2 + ' шагов'),
+      ax, ay + 14, 9, '#f2d59a', 'center');
 }
 
 function drawHUD() {
@@ -1206,11 +1337,15 @@ function drawHUD() {
     ld.lvl === 0 ? '#98a2ae' : ld.lvl === 1 ? '#ffb43a' : '#ff5a4a', 'right');
   txt('➶ болты: ' + countStack('bolt'), rx, 41, 9, '#98a2ae', 'right');
 
-  // контракт
+  // где ты и что делаешь. Место читается по ногам, а не по фазе игры
+  const here = L().ico + ' ' + L().n;
   if (phase === 'FIGHT' && contract) {
-    txt(L().ico + ' ' + L().n + ' · ' + contract.t + ' — осталось ' + Math.max(0, killsLeft), CW / 2, 50, 11, '#e8d9a8', 'center');
+    const there = locAt(P.x, P.y) === contract.loc;
+    txt(here + ' · ' + contract.t + (there ? ' — осталось ' + Math.max(0, killsLeft)
+                                           : ' — иди в ' + (LOCS[contract.loc] || LOCS.woods).n.toLowerCase()),
+        CW / 2, 50, 11, there ? '#e8d9a8' : '#f2b134', 'center');
   } else {
-    txt('🏕 Лагерь · контракт ' + (ci + 1) + ' · рекорд: ' + best, CW / 2, 50, 10, '#98a2ae', 'center');
+    txt(here + ' · контракт ' + (ci + 1) + ' · рекорд: ' + best, CW / 2, 50, 10, '#98a2ae', 'center');
   }
 
   // --- нижний пояс: руны, арбалет, зелья ---
@@ -1385,6 +1520,9 @@ function drawBag() {
   panelBox('🎒 СУМКА');
   let y = drawEquipRow(70);
   if (P.armor) txt(ARMOR[P.armor.type].bon, 24, y - 6, 9, '#7fd6a0');
+  const B = P.bag ? BAGS[P.bag] : BAGS.none;
+  txt(B.ico + ' ' + B.n + ' — предел ' + capacity() + ' кг' + (P.bag ? ' (сам весит ' + B.w + ')' : ' · рюкзаки продаются в лавке'),
+      CW - 24, y - 6, 9, P.bag ? '#f2d59a' : '#6c7683', 'right');
   y += 6;
   const top = y + 14, bottom = CH - 56;
   const v = listView(inv.length, top, bottom, 24, bagScroll);
@@ -1563,7 +1701,21 @@ function drawShop() {
     if (sx + 116 > CW - 20) { sx = 24; sy += 23; }
   }
 
-  let y = sy + 34;
+  // рюкзаки: предел веса носят на спине, а не выдают свыше
+  let by2 = sy + 30;
+  txt('Рюкзаки (предел веса сейчас ' + capacity() + ' кг):', 24, by2, 10, '#e8d9a8');
+  by2 += 10;
+  let bx = 24;
+  for (const id of ['hide', 'hunter', 'master']) {
+    const B = BAGS[id], mine = P.bag === id;
+    btn(bx, by2, 152, 20, B.ico + ' ' + B.n + (mine ? ' — на тебе' : ' — ' + B.price + '💰'),
+        () => buyBag(id), mine ? 'rgba(60,80,50,.9)' : null, mine || gold < B.price,
+        mine ? 'Этот уже за спиной' : 'Нужно ' + B.price + ' крон, у тебя ' + Math.floor(gold));
+    txt(B.desc, bx + 4, by2 + 30, 8, '#6c7683');
+    bx += 156;
+  }
+
+  let y = by2 + 46;
   const stacks = inv.filter(i => i.k === 'stack');
   txt('Продать из сумки:', 24, y, 10, '#e8d9a8');
   txt(stacks.length ? 'всё лишнее — в кроны' : 'припасов нет', CW - 24, y, 9, '#6c7683', 'right');
@@ -1642,7 +1794,7 @@ function canvasPos(e) {
 canvas.addEventListener('pointermove', e => { const p = canvasPos(e); mouse.x = p.x; mouse.y = p.y; });
 canvas.addEventListener('pointerdown', e => {
   const p = canvasPos(e); mouse.x = p.x; mouse.y = p.y;
-  if (mouseInWorld() && P) P.face = Math.atan2(mouse.y - P.y, mouse.x - P.x);   // бьём сразу туда, куда ткнули
+  if (mouseInWorld() && P) { const m = mw(); P.face = Math.atan2(m.y - P.y, m.x - P.x); }   // бьём сразу туда, куда ткнули
   if (over) { reset(); return; }
   for (let i = uiHit.length - 1; i >= 0; i--) {
     const b = uiHit[i];
@@ -1666,14 +1818,13 @@ canvas.addEventListener('contextmenu', e => e.preventDefault());
 function interact() {
   if (panel === 'board') { panel = null; return; }      // E у доски — и закрыть тоже
   if (panel) return;
-  if (phase === 'CAMP') {
-    const fx = CW / 2, fy = WY1 - 70;
-    if (Math.hypot(P.x - fx, P.y - fy) < 46) {
-      if (!offers.length) offers = rollBoard(ci);
-      panel = 'board'; return;
-    }
-    if (Math.hypot(P.x - (fx - 70), P.y - fy) < 40) { panel = 'bench'; return; }
+  // доска и верстак стоят в мире: подошёл — работает, ушёл — нет
+  if (Math.hypot(P.x - BOARD.x, P.y - BOARD.y) < 52) {
+    if (phase === 'FIGHT') { message('Работа уже взята: ' + contract.t + ' — сперва доделай'); return; }
+    if (!offers.length) offers = rollBoard(ci);
+    panel = 'board'; return;
   }
+  if (Math.hypot(P.x - BENCH.x, P.y - BENCH.y) < 46) { panel = 'bench'; return; }
   if (P.potSel) drink(P.potSel);
   else message('Выбери зелье в поясе внизу');
 }
@@ -1691,8 +1842,13 @@ document.addEventListener('keydown', e => {
   if (e.repeat) return;
   if (e.code === 'KeyI') { panel = panel === 'bag' ? null : 'bag'; bagScroll = 0; return; }
   if (e.code === 'KeyU') {
-    if (phase !== 'CAMP') { message('Верстак остался в лагере'); return; }
-    panel = panel === 'bench' ? null : 'bench'; benchScroll = 0; return;
+    if (panel === 'bench') { panel = null; return; }
+    // верстак стоит в лагере и никуда за тобой не ходит
+    if (Math.hypot(P.x - BENCH.x, P.y - BENCH.y) > 46) {
+      message('⚒ Верстак в лагере — до него ' + Math.round(Math.hypot(P.x - BENCH.x, P.y - BENCH.y)) + ' шагов');
+      return;
+    }
+    panel = 'bench'; benchScroll = 0; return;
   }
   // в открытой панели стрелки катают список, а не героя
   if (panel) {
@@ -1754,7 +1910,10 @@ if (typeof globalThis !== 'undefined') globalThis.__W = {
   getPhase: () => phase, setPhase: v => { phase = v; }, getOver: () => over, getCi: () => ci, setCi: v => { ci = v; },
   getKillsLeft: () => killsLeft, setPanel: v => { panel = v; }, setMouse: (x, y) => { mouse.x = x; mouse.y = y; },
   swing, shootBolt, applyOil, swapHand, saveRun, loadRun, clearRun, freeSpot,
-  LOCS, JOBS, SHOP, goTo, buildField, compareNote, rollBoard, makeContract, jobFam,
+  LOCS, JOBS, SHOP, MAP, CELL_W, CELL_H, WORLD_W, WORLD_H, FIRE, BENCH, BOARD,
+  buildWorld, locAt, cellRect, compareNote, rollBoard, makeContract, jobFam, syncCam,
+  BAGS, buyBag, capacity,
+  getCam: () => cam,
   sellStack, stackPrice, rollHotGood, getHot: () => hotGood, setHot: v => { hotGood = v; },
   setBenchTab: v => { benchTab = v; }, getBenchTab: () => benchTab,
   getLoc: () => curLoc, getObst: () => obst, getOffers: () => offers, setOffers: v => { offers = v; },
