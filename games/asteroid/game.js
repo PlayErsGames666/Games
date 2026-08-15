@@ -899,7 +899,7 @@ canvas.addEventListener('pointerdown', e=>{
   if(over){ reset(); return; }
   if(paused) return;
   aimAt(canvasPos(e)); drilling = true;
-  canvas.setPointerCapture && canvas.setPointerCapture(e.pointerId);
+  try { canvas.setPointerCapture && canvas.setPointerCapture(e.pointerId); } catch (err) {}   // палец мог уже уйти — тогда захват просто не нужен
 });
 canvas.addEventListener('pointerup', ()=>{ drilling = false; });
 canvas.addEventListener('pointercancel', ()=>{ drilling = false; });

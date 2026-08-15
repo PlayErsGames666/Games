@@ -587,7 +587,7 @@ canvas.addEventListener('pointerdown', e => {
   if(e.button === 2){
     demolish(c.x, c.y);
     drag = { last:c, btn:2 };
-    canvas.setPointerCapture && canvas.setPointerCapture(e.pointerId);
+    try { canvas.setPointerCapture && canvas.setPointerCapture(e.pointerId); } catch (err) {}   // палец мог уже уйти — тогда захват просто не нужен
     return;
   }
   // клик по сортировщику меняет фильтр — так его настраивают
@@ -600,7 +600,7 @@ canvas.addEventListener('pointerdown', e => {
   }
   place(c.x, c.y);
   drag = { last:c, btn:e.button };
-  canvas.setPointerCapture && canvas.setPointerCapture(e.pointerId);
+  try { canvas.setPointerCapture && canvas.setPointerCapture(e.pointerId); } catch (err) {}   // палец мог уже уйти — тогда захват просто не нужен
 });
 canvas.addEventListener('pointermove', e => {
   const p = canvasPos(e);
