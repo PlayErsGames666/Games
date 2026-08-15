@@ -120,7 +120,14 @@
       else { (document.exitFullscreen||document.webkitExitFullscreen).call(document); }
     }catch(e){ fail(e && e.message ? e.message : 'ошибка'); }
   }
-  if(btn){ btn.addEventListener("click",function(){ btn.blur(); toggle(); }); var nav=btn.closest&&btn.closest(".controls"); if(nav) nav.classList.add("fs-hide"); }
+  /* Ряд с кнопкой ⛶ помечаем fs-bar: в полном экране он не исчезает, а
+     уезжает в угол экрана (см. base.css). Иначе там не остаётся ни паузы,
+     ни «заново», ни выхода — только клавиши, которых игрок может не знать. */
+  if(btn){
+    btn.addEventListener("click",function(){ btn.blur(); toggle(); });
+    var nav=btn.closest&&btn.closest(".controls");
+    if(nav){ nav.classList.add("fs-bar"); nav.classList.remove("fs-hide"); }
+  }
   document.addEventListener("fullscreenchange",upd);
   document.addEventListener("webkitfullscreenchange",upd);
   window.addEventListener("resize",function(){ if(isFs()) refit(); });

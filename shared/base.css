@@ -33,12 +33,27 @@ html.fs-on { background:#07080f; overflow:hidden; }
 :fullscreen body, body:fullscreen { background:#07080f; padding:0; justify-content:center; }
 html.fs-on body { background:#07080f; padding:0; justify-content:center; }
 
-/* заголовок, навигация, справочник, подсказки.
-   .fs-hide вешает скрипт на ряд с кнопкой ⛶ — игровые кнопки остаются */
+/* заголовок, справочник, подсказки и всё с .fs-hide (строка сети) — убираем */
 :fullscreen h1, :fullscreen .fs-hide, :fullscreen .guide-panel, :fullscreen .hint,
 :fullscreen footer, :fullscreen .sub,
 html.fs-on h1, html.fs-on .fs-hide, html.fs-on .guide-panel, html.fs-on .hint,
 html.fs-on footer, html.fs-on .sub { display:none !important; }
+
+/* А ряд с ⛶ Пауза Заново Меню (скрипт вешает на него .fs-bar) НЕ прячем.
+   Раньше прятали — и в полном экране паузу нельзя было поставить ничем,
+   кроме клавиши, а клавиши паузы есть дай бог в трети игр.
+
+   Уводим в угол через position:fixed: так ряд выпадает из потока, и
+   подгонка размера его не считает — картинка от этого не уменьшается.
+   Полупрозрачный, чтобы не мозолил глаза; навёл мышь — обычный. */
+:fullscreen .fs-bar, html.fs-on .fs-bar {
+  position:fixed; top:6px; right:8px; z-index:60; margin:0; padding:0;
+  display:flex; gap:6px; width:auto; max-width:none; opacity:.34; transition:opacity .18s;
+}
+:fullscreen .fs-bar:hover, html.fs-on .fs-bar:hover,
+:fullscreen .fs-bar:focus-within, html.fs-on .fs-bar:focus-within { opacity:1; }
+:fullscreen .fs-bar button, :fullscreen .fs-bar .btn,
+html.fs-on .fs-bar button, html.fs-on .fs-bar .btn { font-size:12px; padding:4px 9px; }
 
 :fullscreen .stage { gap:0; align-items:center; justify-content:center; min-height:100vh; }
 :fullscreen .game-col { justify-content:center; }
