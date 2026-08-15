@@ -501,6 +501,7 @@ function rollBoard(k) {
 
 let P, foes, drops, shots, parts, obst, inv, gold, contract, ci, phase, over, cause;
 let curLoc = 'camp';                     // где ведьмак стоит ПРЯМО СЕЙЧАС — считается по координатам
+let deaths = 0;                          // сколько раз падал: смерть больше не конец, но счёт ведём
 let offers = [];                         // три работы на доске у костра
 /* Экран — окно в мир, а не сам мир. Камера едет за ведьмаком и упирается
    в края карты, чтобы за границей не зияла чернота. */
@@ -1209,16 +1210,22 @@ function buy(id, n, price) {
 /* =====================  СОХРАНЕНИЕ ПОХОДА  =====================
    Контракты идут долго, а закладка закрывается быстро. Пишем поход в
    localStorage, но ТОЛЬКО в лагере: бой не сохраняется, значит и досохраниться
-   до победы посреди драки нельзя. Смерть стирает запись. */
+   до победы посреди драки нельзя. Смерть запись больше НЕ стирает. */
 const SAVE_KEY = 'witcher_run';
 let saveT = 0;
 function saveRun() {
-  if (over || phase !== 'CAMP' || !P) return;
+  if (phase !== 'CAMP' || !P) return;
+  /* Если пишем, пока ведьмак лежит, — пишем так, будто он уже поднялся:
+     иначе закрытая посреди счёта вкладка возвращала бы его на месте гибели
+     с единицей здоровья, а то и вовсе отменяла бы плату за лечение. */
+  const downed = over;
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify({
-      v: 1, ci, gold, hp: P.hp, tox: P.tox, mutGauge: P.mutGauge, hand: P.hand, potSel: P.potSel,
+      v: 1, ci, gold, hp: downed ? maxHP() * 0.5 : P.hp,
+      tox: downed ? 0 : P.tox, mutGauge: downed ? 0 : P.mutGauge, hand: P.hand, potSel: P.potSel,
       steel: P.steel, silver: P.silver, armor: P.armor, inv, offers, hot: hotGood,
-      x: P.x, y: P.y, bag: P.bag, story: storyIdx,
+      x: downed ? FIRE.x : P.x, y: downed ? FIRE.y + 60 : P.y,
+      bag: P.bag, story: storyIdx, deaths,
     }));
   } catch (e) {}
 }
@@ -1272,6 +1279,7 @@ function loadRun() {
   }
   P.bag = BAGS[s.bag] && s.bag !== 'none' ? s.bag : null;
   storyIdx = clamp(Math.floor(+s.story) || 0, 0, STORY.length);
+  deaths = clamp(Math.floor(+s.deaths) || 0, 0, 99999);
   curLoc = locAt(P.x, P.y); syncCam();
   return true;
 }
@@ -1303,13 +1311,43 @@ function reset() {
   obst = buildWorld();
   curLoc = 'camp'; syncCam();
   offers = rollBoard(0); rollHotGood(); benchTab = 'work'; storyIdx = 0;
+  deaths = 0; downT = 0; downLost = 0;
   message('Лагерь. 📜 доска работ — E, ⚒ верстак — U. До мест идти ногами.');
   updateButtons();
 }
+/* =====================  СМЕРТЬ И ВОЗВРАЩЕНИЕ  =====================
+   Раньше смерть кончала поход: запись стиралась, сюжет обнулялся, и потерять
+   его на тринадцатом задании было обиднее всего в игре. Теперь ведьмак не
+   умирает насовсем — его подбирают у костра. Но не сразу и не даром:
+
+     · лежишь DOWN_TIME секунд, и это видно на экране;
+     · работа сорвана, твари расходятся;
+     · четверть кошеля уходит тем, кто тебя тащил и латал;
+     · встаёшь у костра с половиной здоровья.
+
+   Снаряжение, сумка, сюжет и счёт закрытых контрактов остаются. */
+const DOWN_TIME = 8;
+let downT = 0, downLost = 0;
 function endGame(why) {
   if (over) return;
   over = true; cause = why; panel = null;
-  clearRun();                                          // смерть — конец похода, продолжать нечего
+  downT = DOWN_TIME;
+  downLost = Math.round(gold * 0.25);
+  gold -= downLost;
+  deaths++;
+  contract = null; phase = 'CAMP'; killsLeft = 0; spawnQueue = 0;
+  foes = []; shots = [];
+  saveRun();                                           // плата за лечение должна пережить закрытую вкладку
+}
+function rise() {
+  over = false; downT = 0;
+  P.x = FIRE.x; P.y = FIRE.y + 60;
+  P.hp = maxHP() * 0.5; P.mp = maxMP() * 0.5;
+  P.tox = 0; P.mut = 0; P.mutGauge = 0; P.regen = 0; P.buffThunder = 0; P.biz = 0;
+  P.quen = 0; P.quenT = 0; P.yrden = null; P.slow = 0; P.dodge = 0; P.inv = 1.5;
+  curLoc = locAt(P.x, P.y); syncCam();
+  message('🔥 Очнулся у костра. Работа сорвана, ' + downLost + ' крон ушло за лечение. Снаряжение и сюжет целы.');
+  saveRun();
 }
 
 function update(dt) {
@@ -1319,6 +1357,8 @@ function update(dt) {
   floaties = floaties.filter(f => f.t < 1.1);
   for (const p of parts) { p.t += dt; p.x += (p.vx || 0) * dt; p.y += (p.vy || 0) * dt; }
   parts = parts.filter(p => p.t < (p.life || 0.6));
+  // пока лежишь — время идёт, но играть нечем. Пауза останавливает и это
+  if (over && !paused) { downT -= dt; if (downT <= 0) rise(); return; }
   if (over || paused || panel) return;
 
   // --- таймеры игрока ---
@@ -1426,7 +1466,7 @@ function update(dt) {
   if (phase === 'FIGHT') {
     spawnTick(dt);
     if (killsLeft <= 0 && !foes.length && spawnQueue <= 0) finishContract();
-  } else if (!over) {
+  } else {
     saveT -= dt;
     if (saveT <= 0) { saveT = 2; saveRun(); }           // в лагере поход пишется сам
   }
@@ -2197,11 +2237,18 @@ function render() {
   }
   if (over) {
     ctx.fillStyle = 'rgba(20,6,6,.9)'; ctx.fillRect(0, 0, CW, CH);
-    txt('☠ ВЕДЬМАК ПАЛ', CW / 2, CH / 2 - 60, 28, '#ff6a4a', 'center');
-    txt(cause, CW / 2, CH / 2 - 28, 12, '#e6ebf2', 'center');
-    txt('Закрыто контрактов: ' + ci + '   ·   крон: ' + gold, CW / 2, CH / 2, 12, '#c2cad2', 'center');
-    txt('Рекорд: ' + best + ' контрактов', CW / 2, CH / 2 + 22, 12, '#c2cad2', 'center');
-    txt('Enter / тап — новый ведьмак', CW / 2, CH / 2 + 56, 13, '#f2b134', 'center');
+    txt('☠ ВЕДЬМАК ПАЛ', CW / 2, CH / 2 - 76, 28, '#ff6a4a', 'center');
+    txt(cause, CW / 2, CH / 2 - 46, 12, '#e6ebf2', 'center');
+    txt('Работа сорвана · за лечение отдано ' + downLost + ' крон', CW / 2, CH / 2 - 22, 12, '#c2cad2', 'center');
+    txt('Снаряжение, сумка и сюжет (' + storyIdx + '/' + STORY.length + ') остаются при тебе',
+        CW / 2, CH / 2 + 2, 11, '#7fd6a0', 'center');
+    // шкала «приходит в себя»: видно, что это не конец, а пауза
+    const k = clamp(1 - downT / DOWN_TIME, 0, 1);
+    bar(CW / 2 - 110, CH / 2 + 26, 220, 12, k, '#b5423f');
+    txt('приходит в себя… ' + Math.max(0, downT).toFixed(1) + ' с', CW / 2, CH / 2 + 32, 11, '#ffd9d0', 'center');
+    txt('Закрыто контрактов: ' + ci + '   ·   рекорд: ' + best + '   ·   падений: ' + deaths,
+        CW / 2, CH / 2 + 60, 11, '#98a2ae', 'center');
+    txt('«Заново» — начать поход с нуля', CW / 2, CH / 2 + 82, 10, '#6c7683', 'center');
   }
 }
 
@@ -2223,7 +2270,7 @@ canvas.addEventListener('pointermove', e => { const p = canvasPos(e); mouse.x = 
 canvas.addEventListener('pointerdown', e => {
   const p = canvasPos(e); mouse.x = p.x; mouse.y = p.y;
   if (mouseInWorld() && P) { const m = mw(); P.face = Math.atan2(m.y - P.y, m.x - P.x); }   // бьём сразу туда, куда ткнули
-  if (over) { reset(); return; }
+  if (over) return;                                    // лежачего не поднять тычком — встанет сам
   for (let i = uiHit.length - 1; i >= 0; i--) {
     const b = uiHit[i];
     if (p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h) { b.fn(); return; }
@@ -2260,7 +2307,7 @@ function interact() {
 document.addEventListener('keydown', e => {
   if (e.target && e.target.tagName === 'INPUT') return;
   keys[e.code] = true;
-  if (over) { if (e.code === 'Enter') reset(); return; }
+  if (over) return;                                    // ждём, пока отлежится
   // в полном экране Esc выходит из него, а не ставит паузу
   if (e.code === 'Escape' && (document.fullscreenElement || document.webkitFullscreenElement)) return;
   if (e.code === 'KeyP' || e.code === 'Escape') {
@@ -2342,6 +2389,7 @@ if (typeof globalThis !== 'undefined') globalThis.__W = {
   buildWorld, buildRegions, locAt, regionSpot, onPath, inCamp, questGoal, takeStory, storyNow,
   compareNote, rollBoard, makeContract, jobFam, syncCam,
   getStory: () => storyIdx, setStory: v => { storyIdx = v; },
+  getDown: () => downT, getDeaths: () => deaths, rise,
   BAGS, buyBag, capacity,
   getCam: () => cam,
   sellStack, stackPrice, rollHotGood, getHot: () => hotGood, setHot: v => { hotGood = v; },
