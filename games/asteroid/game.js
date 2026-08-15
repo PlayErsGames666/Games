@@ -336,6 +336,7 @@ function sparks(x,y,col){
 
 function reset(){
   genAsteroid();
+  bakeAll();                                          // новый астероид — новая печёная карта
   cargo = { rego:0, ice:0, iron:0, titan:0, cryst:0 };
   built = { iron:0, titan:0, cryst:0 };
   reserve = 34; timeLeft = TOTAL_TIME;
@@ -532,27 +533,61 @@ const TCOL = [];
 TCOL[ROCK]='#4b4a52'; TCOL[ICE]='#6fb6da'; TCOL[IRON]='#a9713f';
 TCOL[TITAN]='#aab6c2'; TCOL[CRYST]='#a86fd8'; TCOL[GAS]='#5fbf78'; TCOL[HARD]='#6d7280'; TCOL[PAD]='#2f6f8f';
 
-function drawTile(x,y,sx,sy,t){
-  ctx.fillStyle = TCOL[t];
-  ctx.fillRect(sx,sy,T,T);
+/* Плитка рисуется в ЛЮБОЙ холст: тот же код печёт карту заранее и
+   подрисовывает живьём то, что мигает. */
+function drawTile(g,x,y,sx,sy,t){
+  g.fillStyle = TCOL[t];
+  g.fillRect(sx,sy,T,T);
   if(t===ROCK || t===HARD){
-    ctx.fillStyle = ((x+y)&1) ? 'rgba(255,255,255,.045)' : 'rgba(0,0,0,.10)';
-    ctx.fillRect(sx,sy,T,T);
-    if(t===HARD){ ctx.fillStyle='rgba(255,255,255,.13)'; ctx.fillRect(sx+3,sy+3,2,2); ctx.fillRect(sx+8,sy+9,2,2); }
+    g.fillStyle = ((x+y)&1) ? 'rgba(255,255,255,.045)' : 'rgba(0,0,0,.10)';
+    g.fillRect(sx,sy,T,T);
+    if(t===HARD){ g.fillStyle='rgba(255,255,255,.13)'; g.fillRect(sx+3,sy+3,2,2); g.fillRect(sx+8,sy+9,2,2); }
   } else if(t===PAD){
-    ctx.fillStyle = '#3f8fb4'; ctx.fillRect(sx,sy,T,3);
-    ctx.fillStyle = ((anim*3|0)%2) ? '#ffd166' : '#8a6a2a'; ctx.fillRect(sx+T/2-1, sy+5, 2, 2);
+    g.fillStyle = '#3f8fb4'; g.fillRect(sx,sy,T,3);
+    g.fillStyle = ((anim*3|0)%2) ? '#ffd166' : '#8a6a2a'; g.fillRect(sx+T/2-1, sy+5, 2, 2);
   } else {
     // руда: порода с вкраплениями — не пёстрый леденец, но заметно
-    ctx.fillStyle = '#44434b'; ctx.fillRect(sx,sy,T,T);
-    ctx.fillStyle = TCOL[t];
-    ctx.beginPath(); ctx.arc(sx+T*0.37, sy+T*0.38, T*0.19, 0, 6.3); ctx.fill();
-    ctx.beginPath(); ctx.arc(sx+T*0.69, sy+T*0.67, T*0.13, 0, 6.3); ctx.fill();
-    if(t===GAS){ ctx.globalAlpha = 0.35+0.25*Math.sin(anim*4+x+y); ctx.fillRect(sx,sy,T,T); ctx.globalAlpha = 1; }
+    g.fillStyle = '#44434b'; g.fillRect(sx,sy,T,T);
+    g.fillStyle = TCOL[t];
+    g.beginPath(); g.arc(sx+T*0.37, sy+T*0.38, T*0.19, 0, 6.3); g.fill();
+    g.beginPath(); g.arc(sx+T*0.69, sy+T*0.67, T*0.13, 0, 6.3); g.fill();
+    if(t===GAS){ g.globalAlpha = 0.35+0.25*Math.sin(anim*4+x+y); g.fillRect(sx,sy,T,T); g.globalAlpha = 1; }
   }
   // тонкая огранка, чтобы читалась сетка
-  ctx.strokeStyle = 'rgba(0,0,0,.28)'; ctx.lineWidth = 1; ctx.strokeRect(sx+0.5,sy+0.5,T-1,T-1);
+  g.strokeStyle = 'rgba(0,0,0,.28)'; g.lineWidth = 1; g.strokeRect(sx+0.5,sy+0.5,T-1,T-1);
 }
+
+/* =====  ПЕЧЁНАЯ ПОРОДА  =====
+   Каждый кадр рисовалось около полутора тысяч плиток, и у каждой своя
+   обводка. Замер показал: 3.4 миллисекунды из 4.4 — то есть 78% кадра
+   уходило на камни, которые почти всегда одни и те же.
+
+   Теперь весь астероид печётся один раз в отдельный холст 1036x1036, а
+   в кадре кладётся одним куском. Пробурил клетку — перепекается ровно
+   она. Живьём поверх дорисовываются только мигающие: площадка и газ. */
+let bakeCv = null, bakeG = null;      // порода в натуральную величину
+let miniCv = null, miniG = null;      // она же для миникарты: клетка = пиксель
+function miniColor(t){ return (t===ROCK||t===HARD) ? '#3a3a42' : TCOL[t]; }
+function bakeAll(){
+  if(!bakeCv){ bakeCv = document.createElement('canvas'); bakeCv.width = GW*T; bakeCv.height = GH*T; bakeG = bakeCv.getContext('2d'); }
+  if(!miniCv){ miniCv = document.createElement('canvas'); miniCv.width = GW; miniCv.height = GH; miniG = miniCv.getContext('2d'); }
+  bakeG.clearRect(0,0,bakeCv.width,bakeCv.height);
+  miniG.clearRect(0,0,GW,GH);
+  if(!tiles) return;
+  for(let y=0;y<GH;y++) for(let x=0;x<GW;x++){
+    const t = tiles[gi(x,y)]; if(t===EMPTY) continue;
+    drawTile(bakeG, x,y, x*T, y*T, t);
+    miniG.fillStyle = miniColor(t); miniG.fillRect(x,y,1,1);
+  }
+}
+function bakeOne(x,y){
+  if(!bakeG || !inb(x,y)) return;
+  bakeG.clearRect(x*T, y*T, T, T);
+  miniG.clearRect(x, y, 1, 1);
+  const t = tiles[gi(x,y)];
+  if(t!==EMPTY){ drawTile(bakeG, x,y, x*T, y*T, t); miniG.fillStyle = miniColor(t); miniG.fillRect(x,y,1,1); }
+}
+function bakeIndex(i){ bakeOne(i % GW, (i / GW) | 0); }
 
 function bar(x,y,w,h,v,max,col){
   ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(x,y,w,h);
@@ -712,11 +747,14 @@ function drawMinimap(){
   const x0 = CW-MW-8, y0 = CH-MH-48;
   ctx.fillStyle = 'rgba(6,9,14,.8)'; ctx.fillRect(x0-3,y0-3,MW+6,MH+6);
   ctx.strokeStyle = 'rgba(255,255,255,.12)'; ctx.lineWidth=1; ctx.strokeRect(x0-3.5,y0-3.5,MW+7,MH+7);
-  for(let y=0;y<GH;y++) for(let x=0;x<GW;x++){
-    const t = tiles[gi(x,y)]; if(t===EMPTY) continue;
-    ctx.fillStyle = (t===ROCK||t===HARD) ? '#3a3a42' : TCOL[t];
-    ctx.fillRect(x0+x*S, y0+y*S, S, S);
-  }
+  /* Раньше здесь каждый кадр перебиралась ВСЯ сетка 74x74 — до пяти с
+     половиной тысяч заливок, и после ускорения породы именно миникарта
+     стала главным едоком времени (1.75 мс из 2.0). Теперь она печётся
+     вместе с породой, клетка в пиксель, и кладётся одним куском. */
+  if(!miniCv) bakeAll();
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(miniCv, 0,0, GW,GH, x0,y0, MW,MH);
+  ctx.imageSmoothingEnabled = true;
   ctx.fillStyle='#ffd166'; ctx.fillRect(x0+padX/T*S-2, y0+padY/T*S-2, 4, 4);
   ctx.fillStyle='#ffffff'; ctx.fillRect(x0+player.x/T*S-1.5, y0+player.y/T*S-1.5, 3, 3);
 }
@@ -770,12 +808,20 @@ function render(){
   ctx.beginPath(); ctx.arc(WCX-camX, WCY-camY, R_GRAV, 0, 6.3); ctx.stroke();
   ctx.setLineDash([]);
 
-  // порода
+  /* порода — одним куском из печёной карты. Кладём только ту часть, что
+     реально попала в окно, и в масштабе 1:1, иначе поедет привязка. */
+  if(!bakeCv) bakeAll();
+  const bx0 = Math.max(0, camX), by0 = Math.max(0, camY);
+  const bx1 = Math.min(GW*T, camX+CW), by1 = Math.min(GH*T, camY+CH);
+  if(bx1 > bx0 && by1 > by0)
+    ctx.drawImage(bakeCv, bx0, by0, bx1-bx0, by1-by0, bx0-camX, by0-camY, bx1-bx0, by1-by0);
+
+  // а мигающее (площадка и газ) — живьём поверх, их считанные штуки
   const c0 = Math.max(0, Math.floor(camX/T)), r0 = Math.max(0, Math.floor(camY/T));
   const c1 = Math.min(GW-1, Math.ceil((camX+CW)/T)), r1 = Math.min(GH-1, Math.ceil((camY+CH)/T));
   for(let y=r0;y<=r1;y++) for(let x=c0;x<=c1;x++){
-    const t = tiles[gi(x,y)]; if(t===EMPTY) continue;
-    drawTile(x,y, x*T-camX, y*T-camY, t);
+    const t = tiles[gi(x,y)];
+    if(t===PAD || t===GAS) drawTile(ctx, x,y, x*T-camX, y*T-camY, t);
   }
 
   drawModule();
@@ -942,7 +988,7 @@ function myPause(){
   else net.send({ t:'pause' });
 }
 let dirtyTiles = [];
-function tileChanged(i){ if(isNet() && net.isHost()) dirtyTiles.push(i); }
+function tileChanged(i){ bakeIndex(i); if(isNet() && net.isHost()) dirtyTiles.push(i); }
 
 function broadcast(){
   const pack = {
@@ -982,11 +1028,11 @@ net = NET.create({
       else if(m.t==='again'){ reset(); for(const sl of net.slots()) sendWorld(sl); }
       return;
     }
-    if(m.t==='world'){ tiles = m.tiles; padX = m.px; padY = m.py; return; }
+    if(m.t==='world'){ tiles = m.tiles; padX = m.px; padY = m.py; bakeAll(); return; }
     if(m.t!=='st') return;
     timeLeft = m.tl; cargo = m.cg; built = m.bt; reserve = m.rs;
     over = m.ov; win = m.wn; cause = m.cs; paused = m.pa; launching = m.lg; launchWho = m.lw|0; dug = m.dg;
-    if(m.dt) for(const i of m.dt) tiles[i] = EMPTY;
+    if(m.dt) for(const i of m.dt){ tiles[i] = EMPTY; bakeIndex(i); }
     for(let i=0;i<players.length;i++){
       const s = m.p[i]; if(!s) continue;
       const q = players[i];
