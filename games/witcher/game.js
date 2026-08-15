@@ -354,6 +354,7 @@ function storyNow() { return storyIdx < STORY.length ? STORY[storyIdx] : null; }
 function takeStory() {
   const q = storyNow();
   if (!q) { message('Сюжет пройден — остались работы с доски'); return; }
+  if (phase === 'FIGHT') { message('Сперва доделай: ' + contract.t); return; }
   startContract({ t: q.t, pool: q.pool.slice(), loc: q.loc, n: q.n, gold: q.gold,
                   fam: jobFam(q), story: true, spot: q.spot, unique: q.unique, reward: q.reward,
                   done: q.done, arrived: false });
@@ -394,6 +395,15 @@ const JOBS = [
   { t: 'Засада на большаке',   pool: ['archer', 'archer', 'bandit'], loc: 'road',   d: 1.2 },
   { t: 'Наёмники барона',      pool: ['merc', 'archer', 'bandit'],   loc: 'road',   d: 1.25 },
   { t: 'Дезертиры в чаще',     pool: ['merc', 'bandit', 'bandit'],   loc: 'woods',  d: 1.3 },
+  /* Руины, берег и перелесок появились вместе с большой картой — без
+     своих работ треть земли простаивала бы: доска гоняла бы только по
+     болоту, чаще, кургану и тракту. */
+  { t: 'Тати под стеной',      pool: ['bandit', 'archer'],           loc: 'ruins',  d: 0.95 },
+  { t: 'Кубло в руинах',       pool: ['bandit', 'nekker', 'bandit'], loc: 'ruins',  d: 1.1 },
+  { t: 'Утопцы на отмели',     pool: ['drowner', 'drowner'],         loc: 'shore',  d: 0.9 },
+  { t: 'Топляки на берегу',    pool: ['drowner', 'nekker', 'wolfen'],loc: 'shore',  d: 1.4 },
+  { t: 'Кабаны в перелеске',   pool: ['boar', 'boar', 'boar'],       loc: 'field',  d: 0.75 },
+  { t: 'Волки у околицы',      pool: ['wolfen', 'boar'],             loc: 'field',  d: 1.05 },
 ];
 function jobFam(j) {                                   // кем работа населена — от этого меч
   let m = 0;
@@ -1034,17 +1044,18 @@ function finishContract() {
   // сюжетная работа заканчивается не суммой, а тем, ЧТО выяснилось
   if (contract.story) {
     storyIdx = Math.min(STORY.length, storyIdx + 1);
+    let tail = '  ·  ' + bonus + ' крон в кошель.';
     if (contract.reward) {
       const R = contract.reward;
       const it = R.kind === 'sword' ? mkSword(R.metal, R.tier, R.ench || null)
                : R.kind === 'armor' ? mkArmor(R.type, R.tier, R.ench || null)
                : null;
-      if (it) { addItem(it); message('📖 ' + contract.done + '  ·  Награда: ' + fullName(it) + ' — в сумке'); }
-      else { addStack(R.id, R.n); message('📖 ' + contract.done + '  ·  Награда: ' + itemName({ k: 'stack', id: R.id }) + ' ×' + R.n); }
-    } else {
-      message('📖 ' + contract.done + '  ·  ' + bonus + ' крон в кошель.');
+      if (it) { addItem(it); tail = '  ·  Награда: ' + fullName(it) + ' — в сумке'; }
+      else { addStack(R.id, R.n); tail = '  ·  Награда: ' + itemName({ k: 'stack', id: R.id }) + ' ×' + R.n; }
     }
-    if (storyIdx >= STORY.length) message('📖 ' + contract.done + ' Сюжет пройден — дальше только работы с доски.');
+    // одно сообщение, а не два подряд: второе просто затирало первое
+    if (storyIdx >= STORY.length) tail += '  ·  Сюжет пройден, дальше — работы с доски.';
+    message('📖 ' + contract.done + tail);
   } else {
     message('✅ Контракт закрыт! ' + bonus + ' крон, ⛏' + ore + ' и 🧵' + hide + ' — сразу в сумку. За новой работой — к доске в лагере.');
   }
