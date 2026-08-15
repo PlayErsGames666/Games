@@ -108,15 +108,71 @@ const BOLTS = {
 const BOLT_IDS = Object.keys(BOLTS);
 const BOLT_COLOR = { bolt: '#e8d9a8', boltsil: '#cfe3ff', boltarm: '#9aa3ad', boltfir: '#ff9a4a', boltbom: '#ffd166' };
 
-// Доспехи: тип решает не только броню, но и повадку
+/* Доспехи. Тип решает не только броню, но и повадку.
+
+   Три первых — обычная справа: то, что снимают с наёмника и продают на
+   любом торгу. Дальше идут ВЕДЬМАЧЬИ ШКОЛЫ — доспех, скроенный под свой
+   способ драться, и у каждой школы своя цена за свою выгоду.
+
+   Главное: у школьного доспеха СТУПЕНЬ КАЧАЕТ НЕ ТОЛЬКО БРОНЮ. Чем выше
+   ступень, тем сильнее сама школа: гроссмейстерский кот вертится вдвое
+   охотнее обычного, гроссмейстерский грифон жжёт знаками вдвое дороже
+   себя же начального. Улучшать доспех стало ради чего, а не ради
+   двух-трёх единиц брони. */
 const ARMOR = {
-  light:  { n: 'Лёгкий доспех',  ico: '🥋', def: 5,  w: 6,  spd: 1.18, mpr: 1.55, c: '#9ad9a0',
+  light:  { n: 'Лёгкий доспех',  ico: '🥋', def: 5,  w: 6,  spd: 1.18, mpr: 1.55, c: '#9ad9a0', price: 90,
             bon: 'быстрее ходишь, энергия копится вдвое охотнее' },
-  medium: { n: 'Средний доспех',  ico: '🦺', def: 10, w: 13, spd: 1.06, mpr: 1.25, c: '#d8c07a',
+  medium: { n: 'Средний доспех',  ico: '🦺', def: 10, w: 13, spd: 1.06, mpr: 1.25, c: '#d8c07a', price: 170,
             bon: 'ровно посередине: и броня есть, и ноги ходят' },
-  heavy:  { n: 'Тяжёлый доспех',  ico: '🛡', def: 17, w: 23, spd: 0.86, mpr: 1.00, c: '#b8b8c4',
-            bon: 'держит удар и не даёт себя отбросить, но тяжёлый' },
+  heavy:  { n: 'Тяжёлый доспех',  ico: '🛡', def: 17, w: 23, spd: 0.86, mpr: 1.00, c: '#b8b8c4', price: 300,
+            bon: 'держит удар, но тяжёлый и медленный' },
+
+  cat:    { n: 'Доспех Школы Кота',     ico: '🐱', def: 7,  w: 5.5, spd: 1.24, mpr: 1.35, c: '#c9a0ff', price: 420,
+            school: 'dodge', bon: 'уворот перезаряжается быстрее и уносит дальше' },
+  griffin:{ n: 'Доспех Школы Грифона',  ico: '🦅', def: 9,  w: 10,  spd: 1.06, mpr: 1.65, c: '#7fd6ff', price: 520,
+            school: 'sign',  bon: 'знаки дешевле и бьют сильнее' },
+  bear:   { n: 'Доспех Школы Медведя',  ico: '🐻', def: 20, w: 26,  spd: 0.82, mpr: 0.95, c: '#d8a86a', price: 680,
+            school: 'tank',  bon: 'больше здоровья, и удар по тебе гасится сверх брони' },
+  wolf:   { n: 'Доспех Школы Волка',    ico: '🐺', def: 13, w: 15,  spd: 1.02, mpr: 1.25, c: '#b8c4d8', price: 600,
+            school: 'blade', bon: 'меч в руке бьёт сильнее' },
+  viper:  { n: 'Доспех Школы Змеи',     ico: '🐍', def: 11, w: 11,  spd: 1.12, mpr: 1.20, c: '#9ad9a0', price: 560,
+            school: 'brew',  bon: 'зелья держатся дольше, а отрава сходит быстрее' },
 };
+const ARMOR_KEYS = Object.keys(ARMOR);
+
+/* Насколько сильна школа НА ЭТОЙ СТУПЕНИ. Обычный — 1 шаг, гроссмейстер — 5:
+   ровно то, ради чего доспех и тащат на верстак. */
+function schoolStep(it) { return it ? (it.tier | 0) + 1 : 0; }
+function wornSchool() { return P && P.armor ? (ARMOR[P.armor.type].school || null) : null; }
+function schoolPow(kind) {                             // 0, если надето не то
+  return wornSchool() === kind ? schoolStep(P.armor) : 0;
+}
+/* Что именно школа даёт на этой ступени — одной строкой, с настоящими числами.
+   Без них «уворот быстрее» — просто обещание. */
+function schoolNote(it) {
+  if (!it || it.k !== 'armor') return '';
+  const A = ARMOR[it.type], s = schoolStep(it);
+  if (!A.school) return A.bon;
+  if (A.school === 'dodge') return 'уворот: откат −' + (s * 10) + '%, бросок +' + (s * 8) + '%';
+  if (A.school === 'sign')  return 'знаки: энергии −' + (s * 8) + '%, урон +' + (s * 12) + '%';
+  if (A.school === 'tank')  return 'здоровья +' + (s * 8) + ', входящий удар −' + (s * 5) + '%';
+  if (A.school === 'blade') return 'урон мечом +' + (s * 6) + '%';
+  if (A.school === 'brew')  return 'зелья держатся +' + (s * 15) + '%, отрава сходит +' + (s * 30) + '%';
+  return A.bon;
+}
+/* То же самое, но ОТ и ДО — для лавки, где выбирают доспех, которого ещё нет.
+   Целиком две строки «сейчас» и «гроссмейстерским» в строку не влезали и
+   обрезались ровно на том месте, ради которого их и читают. */
+function schoolRange(id) {
+  const A = ARMOR[id];
+  if (!A.school) return A.bon;
+  if (A.school === 'dodge') return 'уворот: откат −10%…−50%, бросок +8%…+40%';
+  if (A.school === 'sign')  return 'знаки: энергии −8%…−40%, урон +12%…+60%';
+  if (A.school === 'tank')  return 'здоровья +8…+40, входящий удар −5%…−25%';
+  if (A.school === 'blade') return 'урон мечом +6%…+30%';
+  if (A.school === 'brew')  return 'зелья держатся +15%…+75%, отрава сходит +30%…+150%';
+  return A.bon;
+}
 
 // Зелья. Каждое травит: токсичность — вторая цена любого глотка.
 const POTIONS = {
@@ -614,7 +670,7 @@ function itemIco(it) {
 }
 function itemPrice(it) {
   if (it.k === 'sword') return Math.round(SWORD[it.metal].dmg * 4 * TIERS[it.tier].m * (it.ench ? 1.6 : 1));
-  if (it.k === 'armor') return Math.round(ARMOR[it.type].def * 7 * TIERS[it.tier].m * (it.ench ? 1.6 : 1));
+  if (it.k === 'armor') return Math.round(ARMOR[it.type].price * TIERS[it.tier].m * (it.ench ? 1.6 : 1));
   if (it.k === 'xbow') return Math.round(XBOW[it.type].price * TIERS[it.tier].m * (it.ench ? 1.6 : 1));
   return (POTIONS[it.id] || STUFF[it.id]).price * it.n;
 }
@@ -643,6 +699,7 @@ function swordDamage(sw, fam) {
   const match = SWORD[sw.metal].fam === fam ? HIT_RIGHT : HIT_WRONG;
   let d = base * match;
   if (sw.oil > 0) d *= OIL_MUL;                        // смазанный клинок
+  d *= 1 + 0.06 * schoolPow('blade');                  // волчий доспех — про меч
   if (P.mut > 0) d *= 2.2;
   if (P.buffThunder > 0) d *= 1.45;
   return d;
@@ -666,6 +723,7 @@ function armorDef() {
 function damageTaken(raw) {
   const d = armorDef();
   let out = raw * (1 - d / (d + 42));                  // броня режет долю, а не «минус N»
+  out *= 1 - 0.05 * schoolPow('tank');                 // медведь гасит сверх брони
   if (P.mut > 0) out *= 1.4;                           // в мутации сам стеклянный
   return Math.max(1, out);
 }
@@ -689,7 +747,7 @@ function hasEnch(key) {
   for (const s of [P.steel, P.silver, P.armor, P.xbow]) if (s && s.ench === key) return true;
   return false;
 }
-function maxHP() { return 100 + (P.armor ? ARMOR[P.armor.type].def * 2 : 0); }
+function maxHP() { return 100 + (P.armor ? ARMOR[P.armor.type].def * 2 : 0) + 8 * schoolPow('tank'); }
 function maxMP() { return 100; }
 
 /* =====================  ИНВЕНТАРЬ  ===================== */
@@ -793,10 +851,12 @@ function drink(id) {
   if (!useStack(id, 1)) { message('Нет такого зелья'); return; }
   const p = POTIONS[id];
   P.tox = clamp(P.tox + p.tox, 0, 100);
-  if (id === 'swallow') P.regen = 8;
-  if (id === 'thunder') P.buffThunder = 20;
-  if (id === 'shit') { P.biz = 12; message('💼 Деловое предложение! Мечи в сторону — работаем.'); }
-  else message('Выпил: ' + p.n + (p.tox > 0 ? ' (токсичность +' + p.tox + ')' : ''));
+  const long = 1 + 0.15 * schoolPow('brew');           // змеиный доспех тянет действие
+  if (id === 'swallow') P.regen = 8 * long;
+  if (id === 'thunder') P.buffThunder = 20 * long;
+  if (id === 'shit') { P.biz = 12 * long; message('💼 Деловое предложение! Мечи в сторону — работаем.'); }
+  else message('Выпил: ' + p.n + (p.tox > 0 ? ' (токсичность +' + p.tox + ')' : '') +
+               (long > 1 ? ' · 🐍 держится дольше' : ''));
 }
 
 /* =====================  БОЙ  ===================== */
@@ -933,24 +993,31 @@ function hurtPlayer(raw, from) {
 
 /* =====================  РУНЫ  ===================== */
 
+/* Грифоний доспех считается ЗДЕСЬ: и в цене знака, и в его силе. Цену
+   берём через ту же функцию, что рисует кнопку в поясе, — иначе на кнопке
+   было бы написано одно, а списывалось другое. */
+function runeCost(R) { return Math.max(1, Math.round(R.mp * (1 - 0.08 * schoolPow('sign')))); }
+function runePower() { return 1 + 0.12 * schoolPow('sign'); }
 function castRune(i) {
   const R = RUNES[i]; if (!R) return;
   if (P.runeCd[i] > 0) return;
-  if (P.mp < R.mp) { message('Мало энергии для «' + R.n + '»'); return; }
-  P.mp -= R.mp; P.runeCd[i] = R.cd;
+  const cost = runeCost(R);
+  if (P.mp < cost) { message('Мало энергии для «' + R.n + '»'); return; }
+  P.mp -= cost; P.runeCd[i] = R.cd;
+  const pow = runePower();
   const a = faceAim();
   if (R.k === 'igni') {
     parts.push({ cone: true, x: P.x, y: P.y, a, t: 0, life: 0.35, c: '#ff8a3a', len: 120, w: 0.7 });
-    for (const f of foes) if (inCone(f, a, 120, 0.7)) { hurtFoe(f, 24, 'rune'); f.burn = 4; }
+    for (const f of foes) if (inCone(f, a, 120, 0.7)) { hurtFoe(f, 24 * pow, 'rune'); f.burn = 4; }
   } else if (R.k === 'aard') {
     parts.push({ cone: true, x: P.x, y: P.y, a, t: 0, life: 0.3, c: '#9fd8ff', len: 100, w: 0.8 });
     for (const f of foes) if (inCone(f, a, 100, 0.8)) {
-      hurtFoe(f, 7, 'rune');
+      hurtFoe(f, 7 * pow, 'rune');
       const d = Math.atan2(f.y - P.y, f.x - P.x);
       f.kx = Math.cos(d) * 260; f.ky = Math.sin(d) * 260; f.stun = Math.max(f.stun, 1.3);
     }
   } else if (R.k === 'quen') {
-    P.quen = 60 + armorDef() * 1.2; P.quenT = 9;
+    P.quen = (60 + armorDef() * 1.2) * pow; P.quenT = 9;
     message('🛡 Квен держит ' + Math.round(P.quen));
   } else if (R.k === 'yrden') {
     /* Ловушка ложилась ровно под курсор — где бы тот ни был. Курсор на поясе
@@ -1007,8 +1074,13 @@ function randomGear() {
   const tier = Math.min(TIERS.length - 1, ri(Math.min(4, 2 + Math.floor(ci / 2))));
   const ench = Math.random() < 0.3 ? pick(ENCH_KEYS) : null;
   const r = Math.random();
-  if (r < 0.44) return mkSword(pick(['steel', 'silver']), tier, ench);
-  if (r < 0.84) return mkArmor(pick(['light', 'medium', 'heavy']), tier, ench);
+  if (r < 0.42) return mkSword(pick(['steel', 'silver']), tier, ench);
+  if (r < 0.82) {
+    // школьный доспех — редкая находка: обычный попадается втрое чаще
+    const type = Math.random() < 0.25 ? pick(['cat', 'griffin', 'bear', 'wolf', 'viper'])
+                                      : pick(['light', 'medium', 'heavy']);
+    return mkArmor(type, tier, ench);
+  }
   // скорострел с трупа не снимают — его только покупают у оружейника
   return mkXbow(pick(['light', 'hunter', 'siege']), tier, ench);
 }
@@ -1294,7 +1366,9 @@ function upgrade(it) {
   if (countStack(c.matId) < c.mat) { message('Нужно ' + c.mat + ' × ' + STUFF[c.matId].n.toLowerCase()); return; }
   gold -= c.gold; useStack(c.matId, c.mat);
   it.tier++;
-  message('⚒ Теперь это ' + fullName(it));
+  // у школьного доспеха ступень качает саму школу — так и говорим, что вышло
+  const school = it.k === 'armor' && ARMOR[it.type].school;
+  message('⚒ Теперь это ' + fullName(it) + (school ? ' · ' + schoolNote(it) : ''));
   saveRun();
 }
 function enchant(it) {
@@ -1371,6 +1445,18 @@ function buyXbow(type) {
   const it = mkXbow(type, 0, null);
   if (!P.xbow) { P.xbow = it; message('🏹 ' + X.n + ' за спину: ' + X.bon); }
   else { inv.push(it); message('🏹 ' + X.n + ' — в сумке. «Надеть» на вкладке «Работа с железом»'); }
+  saveRun();
+}
+/* Доспех у бронника — по той же правде, что и арбалет: слот пуст, значит
+   надеваем сразу, занят — кладём в сумку, там его сравнят с нынешним. */
+function buyArmor(type) {
+  const A = ARMOR[type];
+  if (!A) return;
+  if (gold < A.price) { message('Нужно ' + A.price + ' крон, у тебя ' + Math.floor(gold)); return; }
+  gold -= A.price;
+  const it = mkArmor(type, 0, null);
+  if (!P.armor) { P.armor = it; P.hp = Math.min(P.hp, maxHP()); message('🛡 ' + A.n + ': ' + schoolNote(it)); }
+  else { inv.push(it); message('🛡 ' + A.n + ' — в сумке. «Надеть» на вкладке «Железо» или в сумке (I)'); }
   saveRun();
 }
 function buy(id, n, price) {
@@ -1555,7 +1641,7 @@ function update(dt) {
   if (P.slow > 0) P.slow -= dt;
   if (P.regen > 0) { P.regen -= dt; P.hp = Math.min(maxHP(), P.hp + 5.6 * dt); }
   P.mp = Math.min(maxMP(), P.mp + mpRegen() * dt);
-  P.tox = Math.max(0, P.tox - 1.2 * dt);
+  P.tox = Math.max(0, P.tox - 1.2 * (1 + 0.3 * schoolPow('brew')) * dt);   // 🐍 отрава сходит быстрее
   if (P.tox > 70) {                                    // передоз травит сам по себе
     P.hp -= (P.tox - 70) * 0.055 * dt * 3;
     if (P.hp <= 0) { endGame('Отравился зельями. Токсичность не прощает.'); return; }
@@ -2009,14 +2095,16 @@ function drawHUD() {
   // не обрабатывалось вовсе — человек тыкал, и «магия не показывалась».
   RUNES.forEach((R, i) => {
     const h = 30, y = by + 4, x = slot[i].x, w = slot[i].w;
-    const ready = P.runeCd[i] <= 0 && P.mp >= R.mp;
+    const cost = runeCost(R);                          // грифоний доспех делает знаки дешевле
+    const ready = P.runeCd[i] <= 0 && P.mp >= cost;
     uiHit.push({ x, y, w, h, fn: () => castRune(i) });
-    if (hov(x, y, w, h)) hint = R.ico + ' ' + R.n + ' — ' + R.desc + ' · ' + R.mp + ' энергии · клавиша ' + (i + 1);
+    if (hov(x, y, w, h)) hint = R.ico + ' ' + R.n + ' — ' + R.desc + ' · ' + cost + ' энергии' +
+      (cost < R.mp ? ' (вместо ' + R.mp + ' — 🦅 грифон)' : '') + ' · клавиша ' + (i + 1);
     ctx.fillStyle = ready ? 'rgba(60,80,110,.55)' : 'rgba(35,32,28,.9)';
     ctx.fillRect(x, y, w, h);
     ctx.strokeStyle = ready ? '#6aa6e8' : 'rgba(255,255,255,.1)'; ctx.lineWidth = 1; ctx.strokeRect(x + .5, y + .5, w - 1, h - 1);
     txt(clipText(R.ico + ' ' + R.n, w - 8, 10), x + 4, y + 10, 10, ready ? '#cfe3ff' : '#6c7683');
-    txt(clipText((i + 1) + ' · ' + R.mp + '✨', w - 8, 9), x + 4, y + 22, 9, '#98a2ae');
+    txt(clipText((i + 1) + ' · ' + cost + '✨', w - 8, 9), x + 4, y + 22, 9, cost < R.mp ? '#7fd6ff' : '#98a2ae');
     if (P.runeCd[i] > 0) { ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(x, y, w, h * clamp(P.runeCd[i] / R.cd, 0, 1)); }
   });
 
@@ -2162,6 +2250,7 @@ function drawEquipRow(y) {
               : it.k === 'xbow'  ? 'урон ' + Math.round(XBOW[it.type].dmg * TIERS[it.tier].m)
                                  : 'броня ' + Math.round(ARMOR[it.type].def * TIERS[it.tier].m);
       sub += ' · ' + itemWeight(it) + ' кг';
+      if (it.k === 'armor' && ARMOR[it.type].school) sub += ' ' + ARMOR[it.type].ico;
       if (it.ench) sub += ' ' + ENCH[it.ench].ico;
       if (it.oil > 0) sub += ' 🧴' + it.oil;
       txt(clipText(sub, w - 10, 8), x + 5, y + 29, 8, '#98a2ae');
@@ -2191,7 +2280,9 @@ function scrollBtns(y, v, get, set) {
 function drawBag() {
   panelBox('🎒 СУМКА');
   let y = drawEquipRow(70);
-  if (P.armor) txt(ARMOR[P.armor.type].bon, 24, y - 6, 9, '#7fd6a0');
+  // у школьного доспеха пишем не обещание, а что он даёт НА ЭТОЙ ступени
+  if (P.armor) txt(ARMOR[P.armor.type].ico + ' ' + schoolNote(P.armor), 24, y - 6, 9,
+                   ARMOR[P.armor.type].school ? ARMOR[P.armor.type].c : '#7fd6a0');
   const B = P.bag ? BAGS[P.bag] : BAGS.none;
   txt(B.ico + ' ' + B.n + ' — предел ' + capacity() + ' кг' + (P.bag ? ' (сам весит ' + B.w + ')' : ' · рюкзаки продаются в лавке'),
       CW - 24, y - 6, 9, P.bag ? '#f2d59a' : '#6c7683', 'right');
@@ -2374,9 +2465,9 @@ function drawMap() {
 
 function drawBench() {
   panelBox('⚒ ВЕРСТАК И ЛАВКА');
-  const tabs = [['work', '⚒ Железо'], ['shop', '💰 Припасы'], ['gear', '🏹 Оружейник']];
+  const tabs = [['work', '⚒ Железо'], ['shop', '💰 Припасы'], ['gear', '🏹 Оружейник'], ['armor', '🛡 Бронник']];
   let tx = 24;
-  const tw = Math.min(150, Math.floor((CW - 48 - 12) / 3));
+  const tw = Math.min(150, Math.floor((CW - 48 - 6 * (tabs.length - 1)) / tabs.length));
   for (const [id, label] of tabs) {
     const on = benchTab === id;
     btn(tx, 62, tw, 20, label, () => { benchTab = id; benchScroll = 0; },
@@ -2385,6 +2476,7 @@ function drawBench() {
   }
   if (benchTab === 'shop') { drawShop(); return; }
   if (benchTab === 'gear') { drawArmory(); return; }
+  if (benchTab === 'armor') { drawArmors(); return; }
 
   let y = 92;
   txt('Улучшение: обычный → улучшенный → отличный → мастерский → гроссмейстер', 24, y - 4, 9, '#98a2ae');
@@ -2561,6 +2653,37 @@ function drawArmory() {
   panelFooter('U или ✕ — закрыть · купленный арбалет улучшают и чаруют на вкладке «Железо»');
 }
 
+/* Бронник. Три обычных доспеха и пять ведьмачьих школ. У школьного доспеха
+   ступень качает не только броню, но и саму школу, поэтому под каждым
+   написано, что он даёт СЕЙЧАС (обычным) и что даст гроссмейстерским. */
+function drawArmors() {
+  const ar = P.armor;
+  txt('🛡 Доспехи. У ведьмачьих школ ступень качает не только броню, но и саму школу.',
+      24, 96, 9, '#98a2ae');
+  txt(ar ? 'На тебе: ' + fullName(ar) + ' · броня ' + Math.round(armorDef()) + ' · ' + schoolNote(ar)
+         : 'На тебе ничего — любой удар идёт в полную силу',
+      24, 110, 10, ar ? (ARMOR[ar.type].c || '#f2d59a') : '#ff7a6a');
+
+  let y = 122;
+  for (const id of ARMOR_KEYS) {
+    const A = ARMOR[id], mine = ar && ar.type === id;
+    ctx.fillStyle = mine ? 'rgba(34,30,22,.85)' : 'rgba(20,18,15,.75)';
+    ctx.fillRect(24, y, CW - 48, 32);
+    if (mine) { ctx.fillStyle = 'rgba(201,162,39,.7)'; ctx.fillRect(24, y, 3, 32); }
+    txt(A.ico + ' ' + A.n, 32, y + 10, 10, mine ? '#f2d59a' : (A.school ? A.c : '#e6ebf2'));
+    txt('броня ' + A.def + ' · вес ' + A.w + ' кг · шаг ×' + A.spd.toFixed(2) + ' · энергия ×' + A.mpr.toFixed(2),
+        32, y + 20, 8, '#98a2ae');
+    // обычному доспеху хвастать нечем, у школьного показываем рост «от и до»
+    txt(clipText(schoolRange(id), CW - 160, 8), 32, y + 29, 8, A.school ? A.c : '#6c7683');
+    btn(CW - 116, y + 7, 92, 18, mine ? 'на тебе' : 'купить ' + A.price + '💰',
+        () => buyArmor(id), mine ? 'rgba(60,80,50,.9)' : null, mine || gold < A.price,
+        mine ? 'Этот уже на тебе. Улучшать его — на вкладке «Железо»'
+             : 'Нужно ' + A.price + ' крон, у тебя ' + Math.floor(gold));
+    y += 34;
+  }
+  panelFooter('U или ✕ — закрыть · доспех улучшают шкурами 🧵 на вкладке «Железо» — школа растёт вместе со ступенью');
+}
+
 function render() {
   syncRes();
   uiHit = [];
@@ -2716,7 +2839,10 @@ document.addEventListener('keydown', e => {
     let mx = (keys['KeyD'] ? 1 : 0) - (keys['KeyA'] ? 1 : 0), my = (keys['KeyS'] ? 1 : 0) - (keys['KeyW'] ? 1 : 0);
     if (!mx && !my) { mx = Math.cos(P.face); my = Math.sin(P.face); }
     const l = Math.hypot(mx, my) || 1;
-    P.dodge = 0.2; P.dodgeCd = 0.75; P.dx = mx / l * 460; P.dy = my / l * 460;
+    // кошачий доспех: откат короче, бросок дальше — и то и другое от ступени
+    const cat = schoolPow('dodge');
+    const push = 460 * (1 + 0.08 * cat);
+    P.dodge = 0.2; P.dodgeCd = 0.75 * (1 - 0.10 * cat); P.dx = mx / l * push; P.dy = my / l * push;
   }
 });
 document.addEventListener('keyup', e => { keys[e.code] = false; });
@@ -2750,6 +2876,8 @@ if (typeof globalThis !== 'undefined') globalThis.__W = {
   equip, addStack, countStack, dropItem, swordDamage, damageTaken, hurtFoe, hurtPlayer, toggleMutation,
   carried, capacity, loadState, itemWeight, itemPrice, fullName, mkSword, mkArmor, mkXbow, mkStack, lootFrom,
   XBOW, BOLTS, BOLT_IDS, SHOP_BOLTS, buyXbow, cycleBolt, boltHit, xbowDamage, randomGear,
+  ARMOR_KEYS, buyArmor, schoolNote, schoolRange, schoolPow, schoolStep, wornSchool,
+  runeCost, runePower, armorDef, maxHP, mpRegen, moveSpeed,
   getBolt: () => P.boltSel, setBolt: v => { P.boltSel = v; },
   getP: () => P, getFoes: () => foes, setFoes: v => { foes = v; }, getInv: () => inv, setInv: v => { inv = v; },
   getGold: () => gold, setGold: v => { gold = v; }, getDrops: () => drops, getShots: () => shots,
