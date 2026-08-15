@@ -685,6 +685,7 @@ function finishContract() {
   goTo('camp', CW / 2, WY1 - 34);                      // вернулся к костру
   ci++;
   offers = rollBoard(ci);                              // на доске новые работы
+  rollHotGood();                                       // и у скупщика новый спрос
   if (ci > best) { best = ci; try { localStorage.setItem('witcher_best', String(best)); } catch (e) {} }
   drop(CW / 2, WY1 - 60, mkStack('ore', 1 + ri(3)));
   drop(CW / 2, WY1 - 60, mkStack('hide', 1 + ri(3)));
@@ -718,6 +719,30 @@ function enchant(it) {
   message('✨ ' + ENCH[e].n + ': ' + ENCH[e].desc);
   saveRun();
 }
+/* =====================  ЛАВКА  =====================
+   Скупщик берёт всё за 60% цены — кроме одного товара, на который у него
+   сегодня спрос: за него платит полную. Товар меняется от контракта к
+   контракту, так что руду и шкуры иногда выгоднее попридержать.
+
+   Купить у него всегда дороже, чем продать ему же (даже по полной), —
+   иначе на разнице делались бы деньги из воздуха. */
+const TRADE_RATE = 0.6;
+let hotGood = 'hide';
+const TRADEABLE = ['ore', 'hide', 'essence', 'bolt', 'oilsil', 'oilste', 'swallow', 'thunder', 'honey', 'shit'];
+function rollHotGood() { hotGood = pick(TRADEABLE); }
+function goodInfo(id) { return POTIONS[id] || STUFF[id]; }
+function sellRate(id) { return id === hotGood ? 1 : TRADE_RATE; }
+function stackPrice(id, n) { return Math.max(1, Math.round(goodInfo(id).price * n * sellRate(id))); }
+function sellStack(id, n) {
+  const have = countStack(id);
+  n = Math.min(n | 0, have);
+  if (n <= 0) { message('Нечего продавать'); return; }
+  const p = stackPrice(id, n);
+  useStack(id, n); gold += p;
+  message('💰 ' + goodInfo(id).n + ' ×' + n + ' → ' + p + ' крон' + (id === hotGood ? ' (сегодня в цене!)' : ''));
+  saveRun();
+}
+
 function sell(it) {
   // надетое не продаём: раньше indexOf давал -1, и splice(-1,1) сносил
   // ПОСЛЕДНИЙ предмет сумки — чужой и ни в чём не виноватый
@@ -747,7 +772,7 @@ function saveRun() {
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify({
       v: 1, ci, gold, hp: P.hp, tox: P.tox, mutGauge: P.mutGauge, hand: P.hand, potSel: P.potSel,
-      steel: P.steel, silver: P.silver, armor: P.armor, inv, offers,
+      steel: P.steel, silver: P.silver, armor: P.armor, inv, offers, hot: hotGood,
     }));
   } catch (e) {}
 }
@@ -795,6 +820,7 @@ function loadRun() {
     n: clamp(Math.floor(+o.n), 1, 199), gold: clamp(Math.floor(+o.gold), 0, 9e5), d: +o.d || 1,
   }));
   if (!offers.length) offers = rollBoard(ci);
+  hotGood = TRADEABLE.indexOf(s.hot) >= 0 ? s.hot : hotGood;
   return true;
 }
 function okOffer(o) {
@@ -823,7 +849,7 @@ function reset() {
   // лагерь один на весь поход: его поле строим раз и потом возвращаем как есть
   campObst = buildField('camp', CW / 2, WY1 - 70);
   curLoc = 'camp'; obst = campObst;
-  offers = rollBoard(0);
+  offers = rollBoard(0); rollHotGood(); benchTab = 'work';
   message('Костёр. E у костра — доска работ, U — верстак, I — сумка.');
   updateButtons();
 }
@@ -1438,16 +1464,30 @@ function drawBoard() {
   panelFooter('E или ✕ — закрыть · плата тем больше, чем злее работа');
 }
 
+/* Верстак и лавка разъехались по вкладкам. Раньше они делили одну панель:
+   список железа упирался в полку с товаром, а продавать припасы было
+   негде вовсе — руда и лишние зелья просто копили вес. */
+let benchTab = 'work';
 function drawBench() {
-  panelBox('⚒ ВЕРСТАК И ТОРГ');
-  let y = drawEquipRow(70);
+  panelBox('⚒ ВЕРСТАК И ЛАВКА');
+  const tabs = [['work', '⚒ Работа с железом'], ['shop', '💰 Лавка']];
+  let tx = 24;
+  for (const [id, label] of tabs) {
+    const on = benchTab === id;
+    btn(tx, 62, 150, 20, label, () => { benchTab = id; benchScroll = 0; },
+        on ? 'rgba(96,78,36,.95)' : 'rgba(34,31,26,.9)');
+    tx += 156;
+  }
+  if (benchTab === 'shop') { drawShop(); return; }
+
+  let y = 92;
   txt('Улучшение: обычный → улучшенный → отличный → мастерский → гроссмейстер', 24, y - 4, 9, '#98a2ae');
-  y += 8;
+  y += 12;
 
   const gear = [P.steel, P.silver, P.armor].concat(inv.filter(i => i.k !== 'stack')).filter(Boolean);
   // список железа тоже катается: раньше показывались первые шесть, и седьмой
   // меч нельзя было ни улучшить, ни продать — он просто не отображался
-  const v = listView(gear.length, y, CH - 160, 28, benchScroll);
+  const v = listView(gear.length, y, CH - 70, 28, benchScroll);
   benchScroll = v.from;
   scrollBtns(y - 12, v, () => benchScroll, n => { benchScroll = clamp(n, 0, v.max); });
   for (const it of gear.slice(v.from, v.from + v.vis)) {
@@ -1495,26 +1535,52 @@ function drawBench() {
     y += 28;
   }
 
-  y += 4;
-  txt('Купить:', 24, y + 6, 10, '#e8d9a8');
-  /* Руда и шкуры продаются здесь же. Без этого золото копилось мёртвым
-     грузом: улучшение упирается в материалы, а материалы падали только
-     с трупов — и полторы тысячи крон нечем было потратить. */
-  const shop = [
-    ['⛏ Руда ×3', 'ore', 3, 66], ['🧵 Шкуры ×3', 'hide', 3, 54],
-    ['✨ Эссенция', 'essence', 1, 34], ['➶ болты ×10', 'bolt', 10, 20],
-    ['🧪 Ласточка', 'swallow', 1, 40], ['⚗ Гром', 'thunder', 1, 55],
-    ['🍯 Белый мёд', 'honey', 1, 35], ['💩 Зелье гавна', 'shit', 1, 90],
-    ['🧴 Масло: нечисть', 'oilsil', 1, 45], ['🛢 Масло: люди', 'oilste', 1, 45],
-  ];
-  let sx = 24, sy = y + 16;
-  for (const [label, id, n, price] of shop) {
+  panelFooter('U или ✕ — закрыть · зачарование даёт случайное свойство (120💰 + 2✨)');
+}
+
+/* Лавка: купить и — впервые — ПРОДАТЬ припасы.
+   Раньше продать можно было только меч или доспех, а руда, шкуры, лишние
+   зелья и болты копились мёртвым весом: выбросить жалко, деть некуда. */
+const SHOP = [
+  ['⛏ Руда ×3', 'ore', 3, 66], ['🧵 Шкуры ×3', 'hide', 3, 54],
+  ['✨ Эссенция', 'essence', 1, 34], ['➶ болты ×10', 'bolt', 10, 20],
+  ['🧪 Ласточка', 'swallow', 1, 40], ['⚗ Гром', 'thunder', 1, 55],
+  ['🍯 Белый мёд', 'honey', 1, 35], ['💩 Зелье гавна', 'shit', 1, 90],
+  ['🧴 Масло: нечисть', 'oilsil', 1, 45], ['🛢 Масло: люди', 'oilste', 1, 45],
+];
+function drawShop() {
+  const H = goodInfo(hotGood);
+  txt('Скупщик берёт вещи за 60% цены.', 24, 96, 10, '#98a2ae');
+  txt('Сегодня в цене: ' + H.ico + ' ' + H.n + ' — платит ПОЛНУЮ (' + H.price + '💰 за штуку)',
+      24, 110, 10, '#f2b134');
+
+  txt('Купить:', 24, 130, 10, '#e8d9a8');
+  let sx = 24, sy = 140;
+  for (const [label, id, n, price] of SHOP) {
     btn(sx, sy, 116, 20, label + ' — ' + price + '💰', () => buy(id, n, price), null, gold < price,
         'Нужно ' + price + ' крон, у тебя ' + Math.floor(gold));
     sx += 119;
     if (sx + 116 > CW - 20) { sx = 24; sy += 23; }
   }
-  panelFooter('U или ✕ — закрыть · зачарование даёт случайное свойство (120💰 + 2✨)');
+
+  let y = sy + 34;
+  const stacks = inv.filter(i => i.k === 'stack');
+  txt('Продать из сумки:', 24, y, 10, '#e8d9a8');
+  txt(stacks.length ? 'всё лишнее — в кроны' : 'припасов нет', CW - 24, y, 9, '#6c7683', 'right');
+  y += 12;
+  for (const it of stacks) {
+    const one = stackPrice(it.id, 1), all = stackPrice(it.id, it.n), hot = it.id === hotGood;
+    ctx.fillStyle = hot ? 'rgba(50,42,20,.85)' : 'rgba(20,18,15,.75)';
+    ctx.fillRect(24, y, CW - 48, 22);
+    if (hot) { ctx.fillStyle = 'rgba(242,177,52,.75)'; ctx.fillRect(24, y, 3, 22); }
+    txt(itemIco(it) + '  ' + itemName(it) + ' ×' + it.n, 32, y + 11, 10, hot ? '#f2d59a' : '#e6ebf2');
+    txt(one + '💰 за штуку', CW - 190, y + 11, 9, hot ? '#f2b134' : '#98a2ae', 'right');
+    txt(itemWeight(it).toFixed(1) + ' кг', CW - 128, y + 11, 9, '#6c7683', 'right');
+    btn(CW - 120, y + 3, 44, 16, '×1', () => sellStack(it.id, 1), 'rgba(70,60,30,.9)');
+    btn(CW - 72, y + 3, 48, 16, 'всё ' + all + '💰', () => sellStack(it.id, it.n), 'rgba(70,60,30,.9)');
+    y += 24;
+  }
+  panelFooter('U или ✕ — закрыть · товар «в цене» меняется после каждого контракта');
 }
 
 function render() {
@@ -1688,7 +1754,9 @@ if (typeof globalThis !== 'undefined') globalThis.__W = {
   getPhase: () => phase, setPhase: v => { phase = v; }, getOver: () => over, getCi: () => ci, setCi: v => { ci = v; },
   getKillsLeft: () => killsLeft, setPanel: v => { panel = v; }, setMouse: (x, y) => { mouse.x = x; mouse.y = y; },
   swing, shootBolt, applyOil, swapHand, saveRun, loadRun, clearRun, freeSpot,
-  LOCS, JOBS, goTo, buildField, compareNote, rollBoard, makeContract, jobFam,
+  LOCS, JOBS, SHOP, goTo, buildField, compareNote, rollBoard, makeContract, jobFam,
+  sellStack, stackPrice, rollHotGood, getHot: () => hotGood, setHot: v => { hotGood = v; },
+  setBenchTab: v => { benchTab = v; }, getBenchTab: () => benchTab,
   getLoc: () => curLoc, getObst: () => obst, getOffers: () => offers, setOffers: v => { offers = v; },
   SWORD, ARMOR, TIERS, FOES, POTIONS, STUFF, RUNES, ENCH, WX0, WY0, WX1, WY1,
   getScroll: () => ({ bag: bagScroll, bench: benchScroll }),
