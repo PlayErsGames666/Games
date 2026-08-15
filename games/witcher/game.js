@@ -1321,7 +1321,13 @@ const TRADEABLE = ['ore', 'hide', 'essence', 'bolt', 'boltsil', 'boltarm', 'bolt
 function rollHotGood() { hotGood = pick(TRADEABLE); }
 function goodInfo(id) { return POTIONS[id] || STUFF[id]; }
 function sellRate(id) { return id === hotGood ? 1 : TRADE_RATE; }
-function stackPrice(id, n) { return Math.max(1, Math.round(goodInfo(id).price * n * sellRate(id))); }
+/* Цена за ШТУКУ округляется один раз, и связка — просто штука × количество.
+   Раньше округлялась вся связка целиком, и арифметика в лавке не сходилась:
+   строка говорила «4💰 за штуку», а кнопка «всё» за семь давала 25 вместо 28.
+   Хуже того, продать семь раз по одной выходило дороже, чем всё разом, —
+   лавка превращалась в кнопочную ферму. */
+function unitPrice(id) { return Math.max(1, Math.round(goodInfo(id).price * sellRate(id))); }
+function stackPrice(id, n) { return unitPrice(id) * Math.max(0, n | 0); }
 function sellStack(id, n) {
   const have = countStack(id);
   n = Math.min(n | 0, have);
@@ -1988,24 +1994,35 @@ function drawHUD() {
   const hov = (x, y, w, h) => mouse.x >= x && mouse.x <= x + w && mouse.y >= y && mouse.y <= y + h;
   let hint = '';
 
+  /* Раскладка пояса. Раньше все восемь кнопок стояли по вбитым в код
+     координатам и кончались ровно на 510-м пикселе — впритык к окну в 520.
+     Но в полный экран на узком мониторе (телефон в портрете) игра ужимается
+     до 480, и «мутация» уезжала за правый край: кнопка есть, нажать нельзя.
+     Теперь ряд считается от ширины: не влезает — ужимаем всё разом. */
+  const BELT = [56, 56, 56, 56, 76, 40, 85, 47];       // 4 руны, арбалет, болт, масло, мутация
+  const BELT_GAP = 4;
+  const beltNat = BELT.reduce((a, b) => a + b, 0) + BELT_GAP * (BELT.length - 1);
+  const bk = Math.min(1, (CW - 20) / beltNat);
+  const slot = []; { let sx = 10; for (const w of BELT) { slot.push({ x: sx, w: w * bk }); sx += (w + BELT_GAP) * bk; } }
+
   // РУНЫ. Раньше это были просто картинки: нарисованы кнопкой, а нажатие
   // не обрабатывалось вовсе — человек тыкал, и «магия не показывалась».
   RUNES.forEach((R, i) => {
-    const w = 56, h = 30, y = by + 4, x = 10 + i * 60;
+    const h = 30, y = by + 4, x = slot[i].x, w = slot[i].w;
     const ready = P.runeCd[i] <= 0 && P.mp >= R.mp;
     uiHit.push({ x, y, w, h, fn: () => castRune(i) });
     if (hov(x, y, w, h)) hint = R.ico + ' ' + R.n + ' — ' + R.desc + ' · ' + R.mp + ' энергии · клавиша ' + (i + 1);
     ctx.fillStyle = ready ? 'rgba(60,80,110,.55)' : 'rgba(35,32,28,.9)';
     ctx.fillRect(x, y, w, h);
     ctx.strokeStyle = ready ? '#6aa6e8' : 'rgba(255,255,255,.1)'; ctx.lineWidth = 1; ctx.strokeRect(x + .5, y + .5, w - 1, h - 1);
-    txt(R.ico + ' ' + R.n, x + 4, y + 10, 10, ready ? '#cfe3ff' : '#6c7683');
-    txt((i + 1) + ' · ' + R.mp + '✨', x + 4, y + 22, 9, '#98a2ae');
+    txt(clipText(R.ico + ' ' + R.n, w - 8, 10), x + 4, y + 10, 10, ready ? '#cfe3ff' : '#6c7683');
+    txt(clipText((i + 1) + ' · ' + R.mp + '✨', w - 8, 9), x + 4, y + 22, 9, '#98a2ae');
     if (P.runeCd[i] > 0) { ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(x, y, w, h * clamp(P.runeCd[i] / R.cd, 0, 1)); }
   });
 
   // АРБАЛЕТ: показывает, ЧТО именно за спиной — от типа зависит всё
   {
-    const x = 252, y = by + 4, w = 76, h = 30;
+    const x = slot[4].x, w = slot[4].w, y = by + 4, h = 30;
     const X = P.xbow ? XBOW[P.xbow.type] : null;
     const ready = !!X && bhave > 0;
     uiHit.push({ x, y, w, h, fn: () => shootBolt() });
@@ -2016,13 +2033,13 @@ function drawHUD() {
     ctx.fillRect(x, y, w, h);
     ctx.strokeStyle = ready ? '#c9a227' : 'rgba(255,255,255,.1)'; ctx.strokeRect(x + .5, y + .5, w - 1, h - 1);
     txt(clipText(X ? X.ico + ' ' + X.sn : '🏹 нет', w - 8, 10), x + 4, y + 10, 10, ready ? '#f2d59a' : '#6c7683');
-    txt(X ? 'ПКМ · взвод ' + X.cd.toFixed(2) : 'купи в лавке', x + 4, y + 22, 8, ready ? '#98a2ae' : '#ff7a6a');
+    txt(clipText(X ? 'ПКМ · взвод ' + X.cd.toFixed(2) : 'купи в лавке', w - 8, 8), x + 4, y + 22, 8, ready ? '#98a2ae' : '#ff7a6a');
     if (P.boltCd > 0 && X) { ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(x, y, w, h * clamp(P.boltCd / X.cd, 0, 1)); }
   }
 
   // БОЛТ В ЖЁЛОБЕ: клик или B — следующий сорт из тех, что есть в колчане
   {
-    const x = 331, y = by + 4, w = 40, h = 30;
+    const x = slot[5].x, w = slot[5].w, y = by + 4, h = 30;
     uiHit.push({ x, y, w, h, fn: () => cycleBolt(1) });
     if (hov(x, y, w, h)) hint = bsel.ico + ' ' + bsel.n + ' ×' + bhave + ' — ' + bsel.desc + ' · клик или B — следующие';
     ctx.fillStyle = bhave ? 'rgba(60,60,80,.55)' : 'rgba(35,32,28,.9)';
@@ -2034,7 +2051,7 @@ function drawHUD() {
 
   // МАСЛО на клинок, что сейчас в руке
   {
-    const x = 374, y = by + 4, w = 86, h = 30;
+    const x = slot[6].x, w = slot[6].w, y = by + 4, h = 30;
     const sw2 = activeSword();
     const oilId = sw2 ? oilFor(sw2.metal) : 'oilste';
     const have = countStack(oilId), left = sw2 && sw2.oil > 0 ? sw2.oil : 0;
@@ -2044,14 +2061,14 @@ function drawHUD() {
     ctx.fillStyle = left ? 'rgba(50,90,60,.55)' : can ? 'rgba(60,70,45,.55)' : 'rgba(35,32,28,.9)';
     ctx.fillRect(x, y, w, h);
     ctx.strokeStyle = left ? '#7fd6a0' : can ? '#9ab04a' : 'rgba(255,255,255,.1)'; ctx.strokeRect(x + .5, y + .5, w - 1, h - 1);
-    txt(STUFF[oilId].ico + ' Масло (O)', x + 4, y + 10, 10, can || left ? '#e0f0c0' : '#6c7683');
-    txt(left ? 'на клинке ' + left + ' уд.' : 'в сумке ' + have + ' · +40%',
+    txt(clipText(STUFF[oilId].ico + ' Масло (O)', w - 8, 10), x + 4, y + 10, 10, can || left ? '#e0f0c0' : '#6c7683');
+    txt(clipText(left ? 'на клинке ' + left + ' уд.' : 'в сумке ' + have + ' · +40%', w - 8, 8),
         x + 4, y + 22, 8, left ? '#7fd6a0' : have ? '#98a2ae' : '#6c7683');
   }
 
   // МУТАЦИЯ: в полном экране кнопок под игрой не видно, а R знают не все
   {
-    const x = 463, y = by + 4, w = 47, h = 30;
+    const x = slot[7].x, w = slot[7].w, y = by + 4, h = 30;
     const ready = P.mut > 0 || P.mutGauge >= 100;
     uiHit.push({ x, y, w, h, fn: () => toggleMutation() });
     if (hov(x, y, w, h)) hint = '🩸 Кровавая ебатня — копится с убийств. Урон вдвое и чужая кровь лечит, но и по тебе бьёт больнее · клавиша R';
@@ -2059,7 +2076,8 @@ function drawHUD() {
     ctx.fillRect(x, y, w, h);
     ctx.strokeStyle = ready ? '#ff6a5a' : 'rgba(255,255,255,.1)'; ctx.strokeRect(x + .5, y + .5, w - 1, h - 1);
     txt('🩸 R', x + 4, y + 10, 10, ready ? '#ffb0a8' : '#6c7683');
-    txt(P.mut > 0 ? P.mut.toFixed(1) + 'с' : Math.round(P.mutGauge) + '/100', x + 4, y + 22, 8, ready ? '#ffb0a8' : '#98a2ae');
+    txt(clipText(P.mut > 0 ? P.mut.toFixed(1) + 'с' : Math.round(P.mutGauge) + '/100', w - 8, 8),
+        x + 4, y + 22, 8, ready ? '#ffb0a8' : '#98a2ae');
   }
   /* ЗЕЛЬЯ. Одним рядом: во второй ряд пояс не помещается. Клик — выбрать,
      двойной клик или E — выпить. Что зелье делает, написано в строке
@@ -2484,7 +2502,7 @@ function drawShop() {
   else txt(stacks.length ? 'всё лишнее — в кроны' : 'припасов нет', CW - 24, y, 9, '#6c7683', 'right');
   y += 12;
   for (const it of stacks.slice(v.from, v.from + v.vis)) {
-    const one = stackPrice(it.id, 1), all = stackPrice(it.id, it.n), hot = it.id === hotGood;
+    const one = unitPrice(it.id), all = stackPrice(it.id, it.n), hot = it.id === hotGood;
     ctx.fillStyle = hot ? 'rgba(50,42,20,.85)' : 'rgba(20,18,15,.75)';
     ctx.fillRect(24, y, CW - 48, 22);
     if (hot) { ctx.fillStyle = 'rgba(242,177,52,.75)'; ctx.fillRect(24, y, 3, 22); }
@@ -2745,7 +2763,7 @@ if (typeof globalThis !== 'undefined') globalThis.__W = {
   getDown: () => downT, getDeaths: () => deaths, rise,
   BAGS, buyBag, capacity,
   getCam: () => cam,
-  sellStack, stackPrice, rollHotGood, getHot: () => hotGood, setHot: v => { hotGood = v; },
+  sellStack, stackPrice, unitPrice, rollHotGood, getHot: () => hotGood, setHot: v => { hotGood = v; },
   setBenchTab: v => { benchTab = v; }, getBenchTab: () => benchTab,
   getLoc: () => curLoc, getObst: () => obst, getOffers: () => offers, setOffers: v => { offers = v; },
   SWORD, ARMOR, TIERS, FOES, POTIONS, STUFF, RUNES, ENCH, WX0, WY0, WX1, WY1,
