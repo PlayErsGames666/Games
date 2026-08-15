@@ -1,7 +1,26 @@
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
-const CW = 480, CH = 360, CELL = 30;
-const CX = CW / 2, CY = CH / 2;
+/* Логический размер экрана. В окне он такой, как в разметке, а в ПОЛНЫЙ
+   ЭКРАН игра перестраивается под монитор: высота остаётся прежней (буквы
+   и полоски не едут), а ширина считается из пропорции экрана — видно
+   больше мира, а не крупнее. Раньше картинка просто уезжала целиком и на
+   широком мониторе стояла столбиком посреди чёрного поля. */
+let CW = 480, CH = 360;
+const CELL = 30, BASE_W = CW, BASE_H = CH;
+let CX = CW / 2, CY = CH / 2;
+function setLogicalSize(w, h) {
+  CW = Math.round(w); CH = Math.round(h);
+  /* Переставляем и саму битмапу: в css у холста height:auto, и высота
+     считается из её пропорции. Не тронешь — после выхода из полного
+     экрана холст в окне сплющится. */
+  canvas.width = CW; canvas.height = CH;
+  CX = CW / 2; CY = CH / 2;                            // плот держится посередине
+}
+window.__fsResize = function (sw, sh) {
+  const w = Math.round(BASE_H * sw / Math.max(1, sh));
+  setLogicalSize(Math.max(BASE_W, Math.min(BASE_W * 3, w)), BASE_H);
+};
+window.__fsRestore = function () { setLogicalSize(BASE_W, BASE_H); };
 
 // --- баланс ---
 const THIRST_RATE = 1.5, HUNGER_RATE = 1.2;

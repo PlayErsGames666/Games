@@ -4,7 +4,25 @@
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
-const CW = canvas.width, CH = canvas.height;
+/* Логический размер экрана. В окне он такой, как в разметке, а в ПОЛНЫЙ
+   ЭКРАН игра перестраивается под монитор: высота остаётся прежней (буквы
+   и полоски не едут), а ширина считается из пропорции экрана — видно
+   больше мира, а не крупнее. Раньше картинка просто уезжала целиком и на
+   широком мониторе стояла столбиком посреди чёрного поля. */
+let CW = canvas.width, CH = canvas.height;
+const BASE_W = CW, BASE_H = CH;
+function setLogicalSize(w, h) {
+  CW = Math.round(w); CH = Math.round(h);
+  /* Переставляем и саму битмапу: в css у холста height:auto, и высота
+     считается из её пропорции. Не тронешь — после выхода из полного
+     экрана холст в окне сплющится. */
+  canvas.width = CW; canvas.height = CH;
+}
+window.__fsResize = function (sw, sh) {
+  const w = Math.round(BASE_H * sw / Math.max(1, sh));
+  setLogicalSize(Math.max(BASE_W, Math.min(BASE_W * 3, w)), BASE_H);
+};
+window.__fsRestore = function () { setLogicalSize(BASE_W, BASE_H); };
 const T = 14, GW = 74, GH = 74;                       // тайл и сетка астероида
 const WCX = GW*T/2, WCY = GH*T/2;                     // центр астероида в пикселях
 
