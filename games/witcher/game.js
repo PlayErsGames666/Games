@@ -68,13 +68,20 @@ const POTIONS = {
   shit:    { n: 'Зелье гавна',  ico: '💩', c: '#8a6a3a', tox: 30, w: 0.6, price: 90, desc: '12 секунд ты БИЗНЕСМЭН: вместо меча договоры, золота втрое, брони вдвое меньше' },
 };
 
-// Материалы и припасы
+// Материалы и припасы. Масла лежат тут же: по смыслу это расходник к мечу,
+// а не зелье — токсичности от них нет, пить их незачем.
 const STUFF = {
   bolt:    { n: 'Болты',     ico: '➶', w: 0.05, price: 2,  desc: 'снаряды для арбалета' },
   ore:     { n: 'Руда',      ico: '⛏', w: 1.0,  price: 14, desc: 'на улучшение мечей' },
   hide:    { n: 'Шкура',     ico: '🧵', w: 0.8,  price: 12, desc: 'на улучшение доспехов' },
   essence: { n: 'Эссенция',  ico: '✨', w: 0.2,  price: 30, desc: 'на зачарование' },
+  oilsil:  { n: 'Масло от нечисти', ico: '🧴', w: 0.3, price: 45, oil: 'silver', hits: 25,
+             desc: 'мажется на серебряный меч: +40% урона на 25 ударов' },
+  oilste:  { n: 'Масло от людей',   ico: '🛢', w: 0.3, price: 45, oil: 'steel',  hits: 25,
+             desc: 'мажется на стальной меч: +40% урона на 25 ударов' },
 };
+const OIL_MUL = 1.4;
+function oilFor(metal) { return metal === 'silver' ? 'oilsil' : 'oilste'; }
 
 // Руны (знаки). Тратят энергию.
 const RUNES = [
@@ -170,9 +177,20 @@ function swordDamage(sw, fam) {
   const base = SWORD[sw.metal].dmg * TIERS[sw.tier].m;
   const match = SWORD[sw.metal].fam === fam ? HIT_RIGHT : HIT_WRONG;
   let d = base * match;
+  if (sw.oil > 0) d *= OIL_MUL;                        // смазанный клинок
   if (P.mut > 0) d *= 2.2;
   if (P.buffThunder > 0) d *= 1.45;
   return d;
+}
+/* Масло. Ведьмачья подготовка: полезли на нечисть — смажь серебро.
+   Мажется на тот меч, что сейчас в руке, и тратится только на ударах
+   мечом (не на арбалете и не на рунах). */
+function applyOil(sw) {
+  if (!sw || sw.k !== 'sword') { message('Мазать нечего — в руке нет меча'); return; }
+  const id = oilFor(sw.metal), S = STUFF[id];
+  if (!useStack(id, 1)) { message('Нет масла «' + S.n.toLowerCase() + '» — купи у костра (U)'); return; }
+  sw.oil = S.hits;
+  message('🧴 ' + SWORD[sw.metal].n + ' смазан: +40% урона на ' + S.hits + ' ударов');
 }
 function armorDef() {
   if (!P.armor) return 0;
@@ -225,27 +243,33 @@ function addItem(it) { inv.push(it); }
 function dropItem(it) {
   const i = inv.indexOf(it); if (i < 0) return;
   inv.splice(i, 1);
-  drops.push({ x: P.x + rnd(24) - 12, y: P.y + rnd(24) - 12, it, t: 0 });
+  drop(P.x, P.y, it);
   message('Выбросил: ' + itemName(it));
 }
 
-/* Надеть. Меч встаёт в свой слот по металлу, снятое падает в сумку. */
+/* Надеть. Меч встаёт в свой слот по металлу, снятое падает в сумку.
+   Индекс проверяем ДО splice: у indexOf нет предмета — это -1, а splice(-1,1)
+   выкидывает последнюю вещь сумки, ни в чём не виноватую. Ровно на этом
+   когда-то погорела продажа. */
 function equip(it) {
+  const at = inv.indexOf(it);
+  if (at < 0) { message(it === P.steel || it === P.silver || it === P.armor ? 'Это и так на тебе' : 'Этого нет в сумке'); return; }
   if (it.k === 'sword') {
     const slot = it.metal;
     const old = slot === 'steel' ? P.steel : P.silver;
-    inv.splice(inv.indexOf(it), 1);
+    inv.splice(at, 1);
     if (slot === 'steel') P.steel = it; else P.silver = it;
     if (old) inv.push(old);
     message('Взял в руку: ' + fullName(it));
   } else if (it.k === 'armor') {
     const old = P.armor;
-    inv.splice(inv.indexOf(it), 1);
+    inv.splice(at, 1);
     P.armor = it;
     if (old) inv.push(old);
     P.hp = Math.min(P.hp, maxHP());
     message('Надел: ' + fullName(it));
   }
+  saveRun();
 }
 function fullName(it) {
   if (it.k === 'stack') return itemName(it) + ' ×' + it.n;
@@ -296,6 +320,7 @@ function shootBolt() {
 }
 
 function hurtFoe(f, dmg, src) {
+  if (f.dead) return;                                  // добивать труп — значит дважды снять его с контракта
   const armor = FOES[f.t].armor || 0;
   const real = Math.max(1, dmg - armor);
   f.hp -= real;
@@ -354,7 +379,18 @@ function castRune(i) {
     P.quen = 60 + armorDef() * 1.2; P.quenT = 9;
     message('🛡 Квен держит ' + Math.round(P.quen));
   } else if (R.k === 'yrden') {
-    P.yrden = { x: mouse.x, y: mouse.y, t: 7, r: 58 };
+    /* Ловушка ложилась ровно под курсор — где бы тот ни был. Курсор на поясе
+       (а он там и есть, если Ирден жмут кнопкой) — и 22 единицы энергии
+       уходили за нижний край поля, в никуда. Теперь: не дальше 150 шагов,
+       всегда внутри поля, а без курсора над полем — прямо перед собой. */
+    const MAXR = 150;
+    let tx, ty;
+    if (mouseInWorld()) {
+      const dx = mouse.x - P.x, dy = mouse.y - P.y, d = Math.hypot(dx, dy) || 1;
+      const k = Math.min(1, MAXR / d);
+      tx = P.x + dx * k; ty = P.y + dy * k;
+    } else { tx = P.x + Math.cos(a) * 70; ty = P.y + Math.sin(a) * 70; }
+    P.yrden = { x: clamp(tx, WX0 + 10, WX1 - 10), y: clamp(ty, WY0 + 10, WY1 - 10), t: 7, r: 58 };
     message('🧿 Ирден поставлен');
   }
 }
@@ -393,14 +429,38 @@ function randomGear() {
   return Math.random() < 0.5 ? mkSword(pick(['steel', 'silver']), tier, ench)
                              : mkArmor(pick(['light', 'medium', 'heavy']), tier, ench);
 }
-function drop(x, y, it) {
-  drops.push({ x: clamp(x + rnd(20) - 10, WX0 + 8, WX1 - 8), y: clamp(y + rnd(20) - 10, WY0 + 8, WY1 - 8), it, t: 0 });
+/* Место для добычи. Куст и камень игрок обходит по дуге r+9, а радиус
+   подбора всего 18 — значит вещь, упавшая в середину дерева, недостижима
+   навсегда. Раньше в дерево улетало больше трети выпавшего с тех, кто
+   умер под кроной. Выталкиваем наружу. */
+function freeSpot(x, y) {
+  for (let k = 0; k < 12; k++) {
+    let moved = false;
+    for (const o of obst) {
+      const d = Math.hypot(x - o.x, y - o.y), need = o.r + 12;
+      if (d < need) {
+        const a = d > 0.01 ? Math.atan2(y - o.y, x - o.x) : rnd(6.3);
+        x = o.x + Math.cos(a) * need; y = o.y + Math.sin(a) * need; moved = true;
+      }
+    }
+    x = clamp(x, WX0 + 8, WX1 - 8); y = clamp(y, WY0 + 8, WY1 - 8);
+    if (!moved) break;
+  }
+  return { x, y };
 }
+function drop(x, y, it) {
+  const s = freeSpot(x + rnd(20) - 10, y + rnd(20) - 10);
+  drops.push({ x: s.x, y: s.y, it, t: 0 });
+}
+let heavyT = 0;                                        // чтобы отказ не забивал строку сообщений каждый кадр
 function pickUp(d) {
   const it = d.it;
   if (it.k === 'gold') { gold += it.n; floaties.push({ x: d.x, y: d.y, txt: '+' + it.n + '💰', t: 0, c: '#f2b134' }); return true; }
   // тяжёлое не поднимаем молча: иначе перегруз наступает незаметно
-  if (carried() + itemWeight(it) > capacity() * 1.5) { message('Слишком тяжело — не поднять'); return false; }
+  if (carried() + itemWeight(it) > capacity() * 1.5) {
+    if (heavyT <= 0) { message('Слишком тяжело — не поднять. Выбрось лишнее (I) или продай у костра'); heavyT = 3; }
+    return false;
+  }
   if (it.k === 'stack') addStack(it.id, it.n); else addItem(it);
   floaties.push({ x: d.x, y: d.y, txt: '+' + (it.k === 'stack' ? itemName(it) + ' ×' + it.n : itemName(it)), t: 0, c: '#7fd6a0' });
   return true;
@@ -461,6 +521,15 @@ function stepFoe(f, dt) {
       f.x += Math.cos(a) * push; f.y += Math.sin(a) * push;
     }
   }
+  /* Деревья и камни держат и нечисть тоже. Раньше игрок обегал сосну,
+     а утопец шёл сквозь неё напрямик — укрытий в игре просто не было. */
+  for (const o of obst) {
+    const need = o.r + f.r * 0.7, d = Math.hypot(f.x - o.x, f.y - o.y);
+    if (d < need && d > 0.01) {
+      const a = Math.atan2(f.y - o.y, f.x - o.x);
+      f.x = o.x + Math.cos(a) * need; f.y = o.y + Math.sin(a) * need;
+    }
+  }
   f.x = clamp(f.x, WX0 + f.r, WX1 - f.r); f.y = clamp(f.y, WY0 + f.r, WY1 - f.r);
 }
 
@@ -497,6 +566,7 @@ function spawnTick(dt) {
   spawnQueue--;
 }
 function finishContract() {
+  if (!contract) { phase = 'CAMP'; return; }           // без контракта закрывать нечего
   const bonus = contract.gold;
   gold += bonus;
   phase = 'CAMP';
@@ -505,6 +575,7 @@ function finishContract() {
   drop(CW / 2, WY1 - 60, mkStack('ore', 1 + ri(3)));
   drop(CW / 2, WY1 - 60, mkStack('hide', 1 + ri(3)));
   message('✅ Контракт закрыт! Награда ' + bonus + ' крон. У костра: E — следующий, U — верстак.');
+  saveRun();
 }
 
 /* =====================  ВЕРСТАК  ===================== */
@@ -521,6 +592,7 @@ function upgrade(it) {
   gold -= c.gold; useStack(c.matId, c.mat);
   it.tier++;
   message('⚒ Теперь это ' + fullName(it));
+  saveRun();
 }
 function enchant(it) {
   const price = 120, need = 2;
@@ -530,6 +602,7 @@ function enchant(it) {
   let e; do { e = pick(ENCH_KEYS); } while (e === it.ench && ENCH_KEYS.length > 1);
   it.ench = e;
   message('✨ ' + ENCH[e].n + ': ' + ENCH[e].desc);
+  saveRun();
 }
 function sell(it) {
   // надетое не продаём: раньше indexOf давал -1, и splice(-1,1) сносил
@@ -540,11 +613,69 @@ function sell(it) {
   inv.splice(i, 1);
   gold += p;
   message('💰 Продано за ' + p);
+  saveRun();
 }
 function buy(id, n, price) {
   if (gold < price) { message('Не хватает крон: нужно ' + price); return; }
   gold -= price; addStack(id, n);
   message('Куплено: ' + (POTIONS[id] || STUFF[id]).n + ' ×' + n);
+  saveRun();
+}
+
+/* =====================  СОХРАНЕНИЕ ПОХОДА  =====================
+   Контракты идут долго, а закладка закрывается быстро. Пишем поход в
+   localStorage, но ТОЛЬКО в лагере: бой не сохраняется, значит и досохраниться
+   до победы посреди драки нельзя. Смерть стирает запись. */
+const SAVE_KEY = 'witcher_run';
+let saveT = 0;
+function saveRun() {
+  if (over || phase !== 'CAMP' || !P) return;
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify({
+      v: 1, ci, gold, hp: P.hp, tox: P.tox, mutGauge: P.mutGauge, hand: P.hand, potSel: P.potSel,
+      steel: P.steel, silver: P.silver, armor: P.armor, inv,
+    }));
+  } catch (e) {}
+}
+function clearRun() { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} }
+
+/* Из localStorage приходит что угодно — хоть правленое руками. Поэтому вещи
+   не берём как есть, а собираем заново из проверенных полей: чужой ключ
+   металла или ступень 99 уронили бы отрисовку намертво. */
+function reviveItem(it) {
+  if (!it || typeof it !== 'object') return null;
+  if (it.k === 'stack') {
+    if (!(POTIONS[it.id] || STUFF[it.id])) return null;
+    const n = Math.floor(+it.n); if (!(n > 0)) return null;
+    return mkStack(it.id, Math.min(n, 9999));
+  }
+  const tier = clamp(Math.floor(+it.tier) || 0, 0, TIERS.length - 1);
+  const ench = it.ench && ENCH[it.ench] ? it.ench : null;
+  if (it.k === 'sword' && SWORD[it.metal]) {
+    const g = mkSword(it.metal, tier, ench);
+    g.oil = clamp(Math.floor(+it.oil) || 0, 0, 99);
+    return g;
+  }
+  if (it.k === 'armor' && ARMOR[it.type]) return mkArmor(it.type, tier, ench);
+  return null;
+}
+function loadRun() {
+  let s = null;
+  try { s = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); } catch (e) { s = null; }
+  if (!s || s.v !== 1 || !Array.isArray(s.inv)) return false;
+  const sw = (raw, metal) => { const g = reviveItem(raw); return g && g.k === 'sword' && g.metal === metal ? g : null; };
+  ci = clamp(Math.floor(+s.ci) || 0, 0, 9999);
+  gold = clamp(Math.floor(+s.gold) || 0, 0, 9e6);
+  P.steel = sw(s.steel, 'steel');
+  P.silver = sw(s.silver, 'silver');
+  const ar = reviveItem(s.armor); P.armor = ar && ar.k === 'armor' ? ar : null;
+  inv = s.inv.slice(0, 300).map(reviveItem).filter(Boolean);
+  P.hand = s.hand === 'silver' ? 'silver' : 'steel';
+  P.potSel = POTIONS[s.potSel] ? s.potSel : 'swallow';
+  P.tox = clamp(+s.tox || 0, 0, 100);
+  P.mutGauge = clamp(+s.mutGauge || 0, 0, 100);
+  P.hp = clamp(+s.hp || maxHP(), 1, maxHP());
+  return true;
 }
 
 /* =====================  ЦИКЛ  ===================== */
@@ -577,6 +708,7 @@ function reset() {
 function endGame(why) {
   if (over) return;
   over = true; cause = why; panel = null;
+  clearRun();                                          // смерть — конец похода, продолжать нечего
 }
 
 function update(dt) {
@@ -642,6 +774,7 @@ function update(dt) {
         const sw = activeSword();
         const right = sw && SWORD[sw.metal].fam === FOES[f.t].fam;
         hurtFoe(f, swordDamage(sw, FOES[f.t].fam), right ? 'sword' : 'wrong');
+        if (sw && sw.oil > 0 && --sw.oil <= 0) message('🧴 Масло сошло с клинка');
       }
     }
     if (P.swing.t > 0.3) P.swing = null;
@@ -670,9 +803,17 @@ function update(dt) {
   foes = foes.filter(f => !f.dead);
 
   // --- подбор добычи ---
+  if (heavyT > 0) heavyT -= dt;
   for (const d of drops) {
     d.t += dt;
-    if (Math.hypot(d.x - P.x, d.y - P.y) < 18) { if (pickUp(d)) d.gone = true; }
+    const dd = Math.hypot(d.x - P.x, d.y - P.y);
+    // кроны сами прыгают в карман: иначе после боя приходится вручную
+    // объезжать поле по монетке, а забытое золото копится мусором
+    if (d.it.k === 'gold' && dd < 95 && dd > 1) {
+      const k = Math.min(1, (300 - dd) / 300) * 260 * dt;
+      d.x += (P.x - d.x) / dd * k; d.y += (P.y - d.y) / dd * k;
+    }
+    if (dd < 18) { if (pickUp(d)) d.gone = true; }
   }
   drops = drops.filter(d => !d.gone);
 
@@ -680,6 +821,9 @@ function update(dt) {
   if (phase === 'FIGHT') {
     spawnTick(dt);
     if (killsLeft <= 0 && !foes.length && spawnQueue <= 0) finishContract();
+  } else if (!over) {
+    saveT -= dt;
+    if (saveT <= 0) { saveT = 2; saveRun(); }           // в лагере поход пишется сам
   }
 }
 
@@ -857,12 +1001,15 @@ function drawHUD() {
   bar(mx, 10, 92, 9, P.mut > 0 ? P.mut / 10 : P.mutGauge / 100, P.mut > 0 ? '#ff3a3a' : '#8a2a30');
   txt(P.mut > 0 ? '🩸 ЕБАТНЯ ' + P.mut.toFixed(1) + 'с' : '🩸 ' + Math.round(P.mutGauge) + '/100 (R)', mx + 2, 15, 8, '#ffb0a8');
 
-  // меч в руке
+  // меч в руке. По коробке можно щёлкнуть — это тот же Q: в полном экране
+  // кнопка «Сменить меч» под игрой не показывается, а меч меняют постоянно.
   const sw = activeSword();
+  uiHit.push({ x: mx, y: 23, w: 92, h: 21, fn: swapHand });
   ctx.fillStyle = 'rgba(40,36,30,.9)'; ctx.fillRect(mx, 23, 92, 21);
   ctx.strokeStyle = sw ? TIERS[sw.tier].c : '#555'; ctx.lineWidth = 1; ctx.strokeRect(mx + .5, 23.5, 91, 20);
   txt(sw ? SWORD[sw.metal].ico + ' ' + (sw.metal === 'silver' ? 'СЕРЕБРО' : 'СТАЛЬ') : 'без меча', mx + 5, 30, 10, sw ? SWORD[sw.metal].c : '#888');
-  txt(sw ? TIERS[sw.tier].n + (sw.ench ? ' ' + ENCH[sw.ench].ico : '') : 'Q — сменить', mx + 5, 40, 8, '#98a2ae');
+  txt('Q ⇄', mx + 87, 30, 8, '#98a2ae', 'right');
+  txt(sw ? TIERS[sw.tier].n + (sw.ench ? ' ' + ENCH[sw.ench].ico : '') + (sw.oil > 0 ? ' 🧴' + sw.oil : '') : 'Q — сменить', mx + 5, 40, 8, sw && sw.oil > 0 ? '#7fd6a0' : '#98a2ae');
 
   // золото, вес, болты
   const rx = CW - 10;
@@ -911,6 +1058,36 @@ function drawHUD() {
     ctx.strokeStyle = bolts ? '#c9a227' : 'rgba(255,255,255,.1)'; ctx.strokeRect(x + .5, y + .5, w - 1, h - 1);
     txt('🏹 Арбалет', x + 4, y + 10, 10, bolts ? '#f2d59a' : '#6c7683');
     txt('ПКМ · болтов ' + bolts, x + 4, y + 22, 9, bolts ? '#98a2ae' : '#ff7a6a');
+  }
+
+  // МАСЛО на клинок, что сейчас в руке
+  {
+    const x = 338, y = by + 4, w = 104, h = 30;
+    const sw2 = activeSword();
+    const oilId = sw2 ? oilFor(sw2.metal) : 'oilste';
+    const have = countStack(oilId), left = sw2 && sw2.oil > 0 ? sw2.oil : 0;
+    const can = !!sw2 && have > 0;
+    uiHit.push({ x, y, w, h, fn: () => applyOil(activeSword()) });
+    if (hov(x, y, w, h)) hint = '🧴 ' + STUFF[oilId].n + ' — ' + STUFF[oilId].desc + ' · клавиша O · в сумке ' + have;
+    ctx.fillStyle = left ? 'rgba(50,90,60,.55)' : can ? 'rgba(60,70,45,.55)' : 'rgba(35,32,28,.9)';
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = left ? '#7fd6a0' : can ? '#9ab04a' : 'rgba(255,255,255,.1)'; ctx.strokeRect(x + .5, y + .5, w - 1, h - 1);
+    txt(STUFF[oilId].ico + ' Масло (O)', x + 4, y + 10, 10, can || left ? '#e0f0c0' : '#6c7683');
+    txt(left ? 'на клинке: ' + left + ' ударов' : 'в сумке ' + have + ' · +40% урона',
+        x + 4, y + 22, 9, left ? '#7fd6a0' : have ? '#98a2ae' : '#6c7683');
+  }
+
+  // МУТАЦИЯ: в полном экране кнопок под игрой не видно, а R знают не все
+  {
+    const x = 448, y = by + 4, w = 62, h = 30;
+    const ready = P.mut > 0 || P.mutGauge >= 100;
+    uiHit.push({ x, y, w, h, fn: () => toggleMutation() });
+    if (hov(x, y, w, h)) hint = '🩸 Кровавая ебатня — копится с убийств. Урон вдвое и чужая кровь лечит, но и по тебе бьёт больнее · клавиша R';
+    ctx.fillStyle = P.mut > 0 ? 'rgba(140,30,30,.6)' : ready ? 'rgba(110,40,40,.55)' : 'rgba(35,32,28,.9)';
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = ready ? '#ff6a5a' : 'rgba(255,255,255,.1)'; ctx.strokeRect(x + .5, y + .5, w - 1, h - 1);
+    txt('🩸 R', x + 4, y + 10, 10, ready ? '#ffb0a8' : '#6c7683');
+    txt(P.mut > 0 ? P.mut.toFixed(1) + 'с' : Math.round(P.mutGauge) + '/100', x + 4, y + 22, 9, ready ? '#ffb0a8' : '#98a2ae');
   }
   /* ЗЕЛЬЯ. Одним рядом: во второй ряд пояс не помещается. Клик — выбрать,
      двойной клик или E — выпить. Что зелье делает, написано в строке
@@ -991,6 +1168,7 @@ function drawEquipRow(y) {
         ? 'урон ' + Math.round(SWORD[it.metal].dmg * TIERS[it.tier].m) + ' · ' + itemWeight(it) + ' кг'
         : 'броня ' + Math.round(ARMOR[it.type].def * TIERS[it.tier].m) + ' · ' + itemWeight(it) + ' кг';
       if (it.ench) sub += ' · ' + ENCH[it.ench].ico;
+      if (it.oil > 0) sub += ' · 🧴' + it.oil;
       txt(sub, x + 5, y + 29, 8, '#98a2ae');
     } else txt('пусто', x + 5, y + 20, 10, '#5a616b');
     x += w + 6;
@@ -1034,6 +1212,9 @@ function drawBag() {
     txt(itemIco(it) + '  ' + fullName(it), 30, rowY + 11, 10, it.k === 'stack' ? '#e6ebf2' : TIERS[it.tier].c);
     txt(itemWeight(it).toFixed(1) + ' кг', CW - 150, rowY + 11, 9, '#98a2ae', 'right');
     if (it.k === 'stack' && POTIONS[it.id]) btn(CW - 142, rowY + 3, 52, 16, 'выпить', () => drink(it.id));
+    // масло мажется на СВОЙ меч, какой бы ни был сейчас в руке
+    else if (it.k === 'stack' && STUFF[it.id] && STUFF[it.id].oil)
+      btn(CW - 142, rowY + 3, 52, 16, 'смазать', () => applyOil(STUFF[it.id].oil === 'silver' ? P.silver : P.steel));
     else if (it.k !== 'stack') btn(CW - 142, rowY + 3, 52, 16, 'надеть', () => equip(it));
     btn(CW - 86, rowY + 3, 58, 16, 'выбросить', () => dropItem(it), 'rgba(70,40,40,.9)');
     y += 24;
@@ -1114,6 +1295,7 @@ function drawBench() {
     ['✨ Эссенция', 'essence', 1, 34], ['➶ болты ×10', 'bolt', 10, 20],
     ['🧪 Ласточка', 'swallow', 1, 40], ['⚗ Гром', 'thunder', 1, 55],
     ['🍯 Белый мёд', 'honey', 1, 35], ['💩 Зелье гавна', 'shit', 1, 90],
+    ['🧴 Масло: нечисть', 'oilsil', 1, 45], ['🛢 Масло: люди', 'oilste', 1, 45],
   ];
   let sx = 24, sy = y + 16;
   for (const [label, id, n, price] of shop) {
@@ -1241,7 +1423,8 @@ document.addEventListener('keydown', e => {
     return;
   }
   if (paused) return;
-  if (e.code === 'KeyQ') { P.hand = P.hand === 'steel' ? 'silver' : 'steel'; message(P.hand === 'silver' ? '⚔ Серебро — против нечисти' : '🗡 Сталь — против людей и зверья'); return; }
+  if (e.code === 'KeyQ') { swapHand(); return; }
+  if (e.code === 'KeyO') { applyOil(activeSword()); return; }
   if (e.code === 'KeyR') { toggleMutation(); return; }
   if (e.code === 'KeyE') { interact(); return; }
   if (e.code.startsWith('Digit')) {
@@ -1260,18 +1443,24 @@ document.addEventListener('keydown', e => {
 });
 document.addEventListener('keyup', e => { keys[e.code] = false; });
 
+function swapHand() {
+  P.hand = P.hand === 'steel' ? 'silver' : 'steel';
+  const s = activeSword();
+  message((P.hand === 'silver' ? '⚔ Серебро — против нечисти' : '🗡 Сталь — против людей и зверья') +
+          (s && s.oil > 0 ? ' · смазан, ' + s.oil + ' ударов' : ''));
+}
 function onBtn(id, fn) { const b = document.getElementById(id); if (b) b.addEventListener('click', () => { b.blur(); fn(); }); }
-onBtn('swapBtn', () => { P.hand = P.hand === 'steel' ? 'silver' : 'steel'; });
+onBtn('swapBtn', swapHand);
 onBtn('bagBtn', () => { panel = panel === 'bag' ? null : 'bag'; bagScroll = 0; });
 onBtn('mutBtn', () => toggleMutation());
 onBtn('pause', () => { if (!over) { paused = !paused; updateButtons(); } });
-onBtn('restart', () => reset());
+onBtn('restart', () => { clearRun(); reset(); message('Новый ведьмак, новый поход.'); });
 function updateButtons() { const b = document.getElementById('pause'); if (b) b.textContent = paused ? '▶ Продолжить' : '⏸ Пауза'; }
 
 window.__fsFail = function (why) { message('⛶ Полный экран не открылся: ' + why); };
 
 reset();
-P.potSel = 'swallow';
+if (loadRun()) message('📜 Поход продолжен: впереди контракт ' + (ci + 1) + '. «Заново» — начать сначала.');
 requestAnimationFrame(frame);
 
 // ручки для проверки: тесты гоняют бой без мышки и без ожидания
@@ -1283,7 +1472,8 @@ if (typeof globalThis !== 'undefined') globalThis.__W = {
   getGold: () => gold, setGold: v => { gold = v; }, getDrops: () => drops, getShots: () => shots,
   getPhase: () => phase, setPhase: v => { phase = v; }, getOver: () => over, getCi: () => ci, setCi: v => { ci = v; },
   getKillsLeft: () => killsLeft, setPanel: v => { panel = v; }, setMouse: (x, y) => { mouse.x = x; mouse.y = y; },
-  swing, shootBolt, SWORD, ARMOR, TIERS, FOES, POTIONS, STUFF, RUNES, ENCH, WX0, WY0, WX1, WY1,
+  swing, shootBolt, applyOil, swapHand, saveRun, loadRun, clearRun, freeSpot,
+  SWORD, ARMOR, TIERS, FOES, POTIONS, STUFF, RUNES, ENCH, WX0, WY0, WX1, WY1,
   getScroll: () => ({ bag: bagScroll, bench: benchScroll }),
   setScroll: (b, n) => { if (b === 'bag') bagScroll = n; else benchScroll = n; },
   getHits: () => uiHit,
