@@ -145,37 +145,235 @@ const LOCS = {
             veg: '🗿', rock: '🪨', obst: 20, rmin: 10, rmax: 16, spd: 1,
             home: 'nekker',
             note: 'камни всюду — не разбежишься и не увернёшься толком' },
+  ruins:  { n: 'Руины', ico: '🏚', ground: '#171513', sp1: '#211d19', sp2: '#1d1a17',
+            veg: '🏚', rock: '🧱', obst: 16, rmin: 11, rmax: 19, spd: 1,
+            home: 'bandit',
+            note: 'битый камень и стены по пояс — есть где спрятаться обоим' },
+  shore:  { n: 'Берег', ico: '🏞', ground: '#101a1e', sp1: '#152229', sp2: '#131e24',
+            veg: '🌾', rock: '🪨', obst: 6, rmin: 10, rmax: 16, spd: 0.94,
+            pools: true, home: 'drowner',
+            note: 'мокрый песок и камыш: место открытое, но под ногами хлюпает' },
 };
 
-/* Карта мира: три края в ряд, два ряда. Лагерь посередине снизу, от него
-   до любого места — минута ходьбы, а не загрузка. */
-const CELL_W = 520, CELL_H = 490;
-const MAP = [
-  ['swamp', 'woods', 'barrow'],
-  ['field', 'camp',  'road'],
+/* =====================  КАРТА  =====================
+   Мир не из квадратов. Края разложены по земле опорными точками, а что
+   к какому краю относится — решает ближайшая точка со СМЕЩЕНИЕМ ПО ШУМУ:
+   от этого межа получается кривой и рваной, как в жизни, а не по линейке.
+
+   Генерация ЗАКРЕПЛЁННАЯ: и шум, и деревья считаются от постоянного зерна,
+   поэтому мир у всех один и тот же и не перетасовывается между походами.
+   Болото всегда там же, где было вчера. */
+const WORLD_W = 3200, WORLD_H = 2200;
+const WORLD_SEED = 20260815;
+
+// дешёвый воспроизводимый шум: хеш по решётке + сглаживание
+function hash2(ix, iy) {
+  let h = (ix | 0) * 374761393 + (iy | 0) * 668265263 + WORLD_SEED;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967295;
+}
+function noise2(x, y) {
+  const ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy;
+  const u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy);
+  const a = hash2(ix, iy), b = hash2(ix + 1, iy), c = hash2(ix, iy + 1), d = hash2(ix + 1, iy + 1);
+  return (a * (1 - u) + b * u) * (1 - v) + (c * (1 - u) + d * u) * v;
+}
+function mulberry(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/* Опорные точки краёв. Расставлены руками, как рисуют карту: лагерь в
+   середине, тракт через всю землю, за ним холмы с курганами, на западе
+   низина с болотом и берегом, на севере чащи. */
+const SEEDS = [
+  { id: 'camp',   x: 1580, y: 1180 },
+  { id: 'road',   x: 1560, y: 1560 }, { id: 'road',   x: 2340, y: 1500 }, { id: 'road', x: 820, y: 1500 },
+  { id: 'field',  x: 1180, y: 900 },  { id: 'field',  x: 2050, y: 1050 }, { id: 'field', x: 1600, y: 1900 },
+  { id: 'woods',  x: 800,  y: 420 },  { id: 'woods',  x: 2100, y: 380 },  { id: 'woods', x: 2650, y: 900 },
+  { id: 'swamp',  x: 480,  y: 1150 }, { id: 'swamp',  x: 700,  y: 1850 },
+  { id: 'shore',  x: 220,  y: 1600 },
+  { id: 'barrow', x: 2900, y: 1450 }, { id: 'barrow', x: 2600, y: 1950 },
+  { id: 'ruins',  x: 2500, y: 620 },  { id: 'ruins',  x: 1150, y: 1950 },
 ];
-const MAP_W = MAP[0].length, MAP_H = MAP.length;
-const WORLD_W = CELL_W * MAP_W, WORLD_H = CELL_H * MAP_H;
-function cellAt(x, y) {
-  const cx = clamp(Math.floor(x / CELL_W), 0, MAP_W - 1);
-  const cy = clamp(Math.floor(y / CELL_H), 0, MAP_H - 1);
-  return { cx, cy, id: MAP[cy][cx] };
+
+/* Тропы: настоящие дороги от места к месту. По ним и ходится быстрее, и
+   глазу есть за что зацепиться — мир перестаёт быть однородной кашей. */
+const PATHS = [
+  [{ x: 1580, y: 1180 }, { x: 1560, y: 1560 }, { x: 900, y: 1560 }, { x: 520, y: 1640 }],
+  [{ x: 1580, y: 1180 }, { x: 1900, y: 1100 }, { x: 2350, y: 1250 }, { x: 2820, y: 1420 }],
+  [{ x: 1580, y: 1180 }, { x: 1450, y: 880 },  { x: 1900, y: 620 },  { x: 2440, y: 640 }],
+  [{ x: 1450, y: 880 },  { x: 1050, y: 760 },  { x: 820, y: 480 }],
+  [{ x: 1560, y: 1560 }, { x: 1400, y: 1900 }, { x: 1180, y: 1950 }],
+];
+const PATH_W = 30;                                   // ширина утоптанного
+
+/* Приметные места. К ним ведут сюжетные задания, они же — ориентиры. */
+const SPOTS = {
+  camp:   { n: 'Лагерь',            ico: '🔥', x: 1580, y: 1180 },
+  cart:   { n: 'Разбитая телега',   ico: '🛒', x: 1900, y: 1100 },
+  ford:   { n: 'Брод',              ico: '🌊', x: 640,  y: 1700 },
+  chapel: { n: 'Часовня в руинах',  ico: '⛪', x: 2500, y: 620 },
+  gully:  { n: 'Волчья балка',      ico: '🐺', x: 830,  y: 470 },
+  mound:  { n: 'Курганный вход',    ico: '🪦', x: 2900, y: 1450 },
+  gate:   { n: 'Застава на тракте', ico: '🚧', x: 2350, y: 1500 },
+  heart:  { n: 'Сердце чащи',       ico: '🌳', x: 2100, y: 330 },
+};
+const FIRE = { x: SPOTS.camp.x, y: SPOTS.camp.y + 30 };
+const BENCH = { x: SPOTS.camp.x - 96, y: SPOTS.camp.y + 30 };
+const BOARD = { x: SPOTS.camp.x + 96, y: SPOTS.camp.y + 30 };
+const CAMP_R = 300;                                  // круг лагеря: сюда нечисть не заходит
+
+/* Карта краёв считается один раз в клетки по 24 пикселя — дальше поиск
+   места по точке стоит одно обращение в массив, а не перебор опорных. */
+const TILE = 24;
+const TW = Math.ceil(WORLD_W / TILE), TH = Math.ceil(WORLD_H / TILE);
+let regionTiles = null;
+function seedAt(x, y) {
+  let best = 0, bd = Infinity;
+  for (let i = 0; i < SEEDS.length; i++) {
+    const s = SEEDS[i];
+    // смещение по шуму — оно и делает межу кривой
+    const wx = x + (noise2(x * 0.0026 + i * 11.3, y * 0.0026 - i * 5.7) - 0.5) * 460;
+    const wy = y + (noise2(x * 0.0026 - i * 7.9, y * 0.0026 + i * 3.1) - 0.5) * 460;
+    const dx = wx - s.x, dy = wy - s.y, d = dx * dx + dy * dy;
+    if (d < bd) { bd = d; best = i; }
+  }
+  return best;
 }
-function locAt(x, y) { return cellAt(x, y).id; }
-function cellOf(id) {
-  for (let r = 0; r < MAP_H; r++) for (let c = 0; c < MAP_W; c++) if (MAP[r][c] === id) return { cx: c, cy: r };
-  return { cx: 1, cy: 1 };
+function buildRegions() {
+  regionTiles = new Uint8Array(TW * TH);
+  for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) {
+    regionTiles[ty * TW + tx] = seedAt(tx * TILE + TILE / 2, ty * TILE + TILE / 2);
+  }
+  // лагерь всегда сплошным пятном: у костра не должно быть болота
+  for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) {
+    const x = tx * TILE + TILE / 2, y = ty * TILE + TILE / 2;
+    if (Math.hypot(x - SPOTS.camp.x, y - SPOTS.camp.y) < CAMP_R) regionTiles[ty * TW + tx] = 0;
+  }
 }
-function cellRect(id) {
-  const c = cellOf(id);
-  return { x0: c.cx * CELL_W, y0: c.cy * CELL_H, x1: (c.cx + 1) * CELL_W, y1: (c.cy + 1) * CELL_H,
-           mx: (c.cx + 0.5) * CELL_W, my: (c.cy + 0.5) * CELL_H };
+function locAt(x, y) {
+  if (!regionTiles) buildRegions();
+  const tx = clamp(Math.floor(x / TILE), 0, TW - 1), ty = clamp(Math.floor(y / TILE), 0, TH - 1);
+  return SEEDS[regionTiles[ty * TW + tx]].id;
 }
-// костёр, верстак и доска работ стоят в лагере на своих местах
-const CAMP = cellRect('camp');
-const FIRE = { x: CAMP.mx, y: CAMP.my + 40 };
-const BENCH = { x: CAMP.mx - 96, y: CAMP.my + 40 };
-const BOARD = { x: CAMP.mx + 96, y: CAMP.my + 40 };
+function inCamp(x, y) { return Math.hypot(x - SPOTS.camp.x, y - SPOTS.camp.y) < CAMP_R; }
+// середина ближайшего к лагерю куска нужного края — туда и ведёт стрелка
+function regionSpot(id) {
+  let best = null, bd = Infinity;
+  for (const s of SEEDS) {
+    if (s.id !== id) continue;
+    const d = Math.hypot(s.x - SPOTS.camp.x, s.y - SPOTS.camp.y);
+    if (d < bd) { bd = d; best = s; }
+  }
+  return best ? { mx: best.x, my: best.y } : { mx: WORLD_W / 2, my: WORLD_H / 2 };
+}
+// расстояние до ближайшей тропы: по утоптанному идётся легче
+function onPath(x, y) {
+  for (const p of PATHS) for (let i = 1; i < p.length; i++) {
+    const a = p[i - 1], b = p[i];
+    const vx = b.x - a.x, vy = b.y - a.y, wx = x - a.x, wy = y - a.y;
+    const L2 = vx * vx + vy * vy;
+    let t = L2 ? (wx * vx + wy * vy) / L2 : 0;
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    const dx = x - (a.x + vx * t), dy = y - (a.y + vy * t);
+    if (dx * dx + dy * dy < PATH_W * PATH_W) return true;
+  }
+  return false;
+}
+
+/* =====================  СЮЖЕТ  =====================
+   Работы с доски — это заработок. Сюжет — это то, ради чего ведьмак здесь
+   вообще оказался: цепочка из семи заданий, каждое в своём приметном месте
+   и с продолжением. Берётся у той же доски, но идёт особняком и по порядку.
+
+   Устройство простое и оттого крепкое: дойди до места (стрелка ведёт),
+   на месте начинается драка, перебил — читаешь, чем всё обернулось. */
+const STORY = [
+  { t: 'Разбитая телега', spot: 'cart', loc: 'field',
+    brief: ['Купец не доехал до заставы. Телегу нашли на полдороге — пустую,',
+            'с обрубленными постромками, и ни возницы, ни груза.',
+            'Староста платит за головы, а не за поиски. Иди и посмотри сам.'],
+    pool: ['bandit', 'bandit', 'archer'], n: 5, gold: 130,
+    done: 'На борту клеймо барона. Эти знали, что везут: кто-то им сказал.' },
+
+  { t: 'Топляки у брода', spot: 'ford', loc: 'swamp',
+    brief: ['Брод перестали переходить: за неделю трое не вышли на тот берег.',
+            'Староста божится, что вода тут ни при чём.',
+            'Утопцы. Бери серебро и не лезь в воду по колено.'],
+    pool: ['drowner', 'drowner', 'nekker'], n: 7, gold: 190,
+    done: 'В иле — сумка возницы с той телеги. Кто-то сбросил её в воду.' },
+
+  { t: 'Часовня в руинах', spot: 'chapel', loc: 'ruins',
+    brief: ['Сумка привела к старой часовне. Там давно не молятся —',
+            'зато кто-то жёг костры и стаскивал добро под стены.',
+            'Логово. Ступай и вычисти.'],
+    pool: ['bandit', 'archer', 'merc'], n: 9, gold: 260,
+    reward: { kind: 'stack', id: 'essence', n: 3 },
+    done: 'Под алтарём — расписка на серебряный меч, сданный в залог. Твой почерк, ведьмак?' },
+
+  { t: 'Волчья балка', spot: 'gully', loc: 'woods',
+    brief: ['Пока ты копался в руинах, в балке задрали двоих.',
+            'Следы волчьи, но шаг длинный — не волк.',
+            'Волколак. И, судя по всему, старый и умный.'],
+    pool: ['wolfen', 'wolfen', 'nekker'], n: 7, gold: 340,
+    unique: { t: 'wolfen', name: 'Седой', hpMul: 2.6 },
+    done: 'На шее Седого — обрывок цепи с клеймом заставы. Его держали.' },
+
+  { t: 'Курганный вор', spot: 'mound', loc: 'barrow',
+    brief: ['Расписка вела в курганы: серебро сдали хранителю входа.',
+            'Хранителя давно съели, а меч так и лежит там, под камнем.',
+            'Накеры не отдадут просто так.'],
+    pool: ['nekker', 'nekker', 'wolfen'], n: 11, gold: 420,
+    reward: { kind: 'sword', metal: 'silver', tier: 3, ench: 'vamp' },
+    done: 'Меч нашёлся. Мастерская работа, и на клинке чужое имя — не твоё.' },
+
+  { t: 'Застава барона', spot: 'gate', loc: 'road',
+    brief: ['Цепь, клеймо, расписка — всё сходится на заставе.',
+            'Барон держал волколака на цепи и грабил своих же купцов.',
+            'Наёмники встретят тебя раньше, чем барон выйдет говорить.'],
+    pool: ['merc', 'archer', 'bandit'], n: 13, gold: 560,
+    done: 'Барон ушёл лесом, бросив людей. В чащу, к самому сердцу.' },
+
+  { t: 'Сердце чащи', spot: 'heart', loc: 'woods',
+    brief: ['Барон бежал туда, куда местные не ходят даже за дровами.',
+            'В глубине чащи живёт то, чему он, похоже, и платил.',
+            'Последняя работа. Возьми всё, что у тебя есть.'],
+    pool: ['leshy', 'wolfen', 'nekker'], n: 12, gold: 900,
+    unique: { t: 'leshy', name: 'ЛЕШАК', hpMul: 2.2 },
+    reward: { kind: 'armor', type: 'medium', tier: 4, ench: 'ward' },
+    done: 'Лешак осел трухой, а под ним — то, что осталось от барона. Работа кончена.' },
+];
+let storyIdx = 0;
+function storyNow() { return storyIdx < STORY.length ? STORY[storyIdx] : null; }
+function takeStory() {
+  const q = storyNow();
+  if (!q) { message('Сюжет пройден — остались работы с доски'); return; }
+  startContract({ t: q.t, pool: q.pool.slice(), loc: q.loc, n: q.n, gold: q.gold,
+                  fam: jobFam(q), story: true, spot: q.spot, unique: q.unique, reward: q.reward,
+                  done: q.done, arrived: false });
+}
+/* Куда сейчас идти: сюжетное место, край работы или обратно к доске. */
+function questGoal() {
+  if (phase === 'FIGHT' && contract) {
+    if (contract.story && !contract.arrived) {
+      const s = SPOTS[contract.spot];
+      if (s) return { mx: s.x, my: s.y, n: s.ico + ' ' + s.n };
+    }
+    if (locAt(P.x, P.y) !== contract.loc) {
+      const g = regionSpot(contract.loc), S = LOCS[contract.loc] || LOCS.woods;
+      return { mx: g.mx, my: g.my, n: S.ico + ' ' + S.n };
+    }
+    return null;
+  }
+  if (Math.hypot(P.x - BOARD.x, P.y - BOARD.y) > 260) return { mx: BOARD.x, my: BOARD.y, n: '🏕 лагерь' };
+  return null;
+}
 
 /* =====================  ДОСКА КОНТРАКТОВ  =====================
    Работы, из которых складывается выбор у костра. d — тяжесть: она же
@@ -332,6 +530,7 @@ function moveSpeed() {
   let s = 112;
   if (P.armor) s *= ARMOR[P.armor.type].spd;
   s *= L().spd;                                        // болото вяжет, тракт торопит
+  if (onPath(P.x, P.y)) s *= 1.14;                     // по утоптанному быстрее
   s *= loadState().mul;
   if (P.mut > 0) s *= 1.12;
   if (P.slow > 0) s *= 0.55;
@@ -624,10 +823,12 @@ function pickUp(d) {
 
 /* =====================  ВРАГИ  ===================== */
 
-function spawnFoe(type, x, y) {
+function spawnFoe(type, x, y, uniq) {
   const S = FOES[type];
+  const mul = (1 + ci * 0.12) * (uniq ? uniq.hpMul : 1);
   foes.push({
-    t: type, x, y, hp: S.hp * (1 + ci * 0.12), max: S.hp * (1 + ci * 0.12), r: S.r,
+    t: type, x, y, hp: S.hp * mul, max: S.hp * mul, r: S.r * (uniq ? 1.25 : 1),
+    name: uniq ? uniq.name : null,
     cd: rnd(1), stun: 0, burn: 0, slow: 0, kx: 0, ky: 0, hitT: 0, dead: false, bob: rnd(6.3),
     slide: 0, sdir: 1, checkT: 0.5, lx: x, ly: y,      // для обхода того, во что уткнулся
   });
@@ -658,7 +859,16 @@ function stepFoe(f, dt) {
     // лучник держит дистанцию: подходит на выстрел и пятится, если жмут
     const want = L().open ? 190 : 150;                 // на тракте держится дальше
     const reach = S.reach * (L().open ? 1.3 : 1);
-    const a = Math.atan2(P.y - f.y, P.x - f.x);
+    let a = Math.atan2(P.y - f.y, P.x - f.x);
+    // лучник тоже умеет упереться в дерево спиной — пусть обходит, как все
+    if (f.slide > 0) { f.slide -= dt; a += f.sdir * 1.15; }
+    f.checkT -= dt;
+    if (f.checkT <= 0) {
+      if (f.slide <= 0 && Math.hypot(f.x - f.lx, f.y - f.ly) < 4 && d > reach) {
+        f.slide = 0.8; f.sdir = Math.random() < 0.5 ? 1 : -1;
+      }
+      f.checkT = 0.5; f.lx = f.x; f.ly = f.y;
+    }
     if (d > want + 20) { f.x += Math.cos(a) * sp * dt; f.y += Math.sin(a) * sp * dt; }
     else if (d < want - 40) { f.x -= Math.cos(a) * sp * dt; f.y -= Math.sin(a) * sp * dt; }
     f.cd -= dt;
@@ -715,32 +925,39 @@ function stepFoe(f, dt) {
    где никто не тронет. Выталкиваем по ближней меже, но только по той, что
    ведёт в мир: низ лагеря — это край карты, туда выпихивать некуда. */
 function keepOutOfCamp(f) {
-  if (cellAt(f.x, f.y).id !== 'camp') return;
-  const cand = [
-    { d: f.x - CAMP.x0, x: CAMP.x0 - f.r - 1, y: f.y },
-    { d: CAMP.x1 - f.x, x: CAMP.x1 + f.r + 1, y: f.y },
-    { d: f.y - CAMP.y0, x: f.x, y: CAMP.y0 - f.r - 1 },
-    { d: CAMP.y1 - f.y, x: f.x, y: CAMP.y1 + f.r + 1 },
-  ].filter(p => p.x > f.r && p.x < WORLD_W - f.r && p.y > f.r && p.y < WORLD_H - f.r);
-  if (!cand.length) return;
-  const b = cand.reduce((a, p) => (p.d < a.d ? p : a));
-  f.x = b.x; f.y = b.y;
+  const dx = f.x - SPOTS.camp.x, dy = f.y - SPOTS.camp.y;
+  const d = Math.hypot(dx, dy);
+  if (d >= CAMP_R) return;
+  const a = d > 0.01 ? Math.atan2(dy, dx) : rnd(6.3);
+  // ставим на шаг ЗА черту, а не ровно на неё: ровно на черте расстояние
+  // считается то 300, то 299.99999999999994 — и тварь оказывается «внутри»
+  f.x = SPOTS.camp.x + Math.cos(a) * (CAMP_R + 2);
+  f.y = SPOTS.camp.y + Math.sin(a) * (CAMP_R + 2);
+  f.x = clamp(f.x, f.r, WORLD_W - f.r); f.y = clamp(f.y, f.r, WORLD_H - f.r);
 }
 
 /* =====================  КОНТРАКТЫ  ===================== */
 
-/* Гуща и камни для ВСЕГО мира разом, у каждого края своя густота.
-   Пятачок вокруг костра оставляем чистым — иначе верстак зарастёт. */
+/* Гуща и камни для ВСЕГО мира разом. Считаются от постоянного зерна —
+   значит лес растёт всегда одинаково, и «та сосна у брода» будет на месте
+   и в следующем походе. Густота своя у каждого края, тропы не зарастают,
+   у костра чисто. */
 function buildWorld() {
+  const rng = mulberry(WORLD_SEED);
   const out = [];
-  for (let r = 0; r < MAP_H; r++) for (let c = 0; c < MAP_W; c++) {
-    const id = MAP[r][c], S = LOCS[id], x0 = c * CELL_W, y0 = r * CELL_H;
-    for (let i = 0; i < S.obst; i++) {
-      const o = { x: x0 + 26 + rnd(CELL_W - 52), y: y0 + 26 + rnd(CELL_H - 52),
-                  r: S.rmin + rnd(S.rmax - S.rmin), tree: Math.random() < (id === 'barrow' ? 0.25 : 0.6) };
-      if (Math.hypot(o.x - FIRE.x, o.y - FIRE.y) < 150) continue;
-      out.push(o);
-    }
+  const want = { camp: 0.00004, field: 0.00006, road: 0.00003, woods: 0.00022,
+                 swamp: 0.00009, barrow: 0.00019, ruins: 0.00016, shore: 0.00006 };
+  const tries = Math.round(WORLD_W * WORLD_H * 0.00013);
+  for (let i = 0; i < tries; i++) {
+    const x = 30 + rng() * (WORLD_W - 60), y = 30 + rng() * (WORLD_H - 60);
+    const id = locAt(x, y), S = LOCS[id];
+    if (rng() > (want[id] || 0.00008) / 0.00013) continue;   // густота края
+    if (Math.hypot(x - FIRE.x, y - FIRE.y) < 170) continue;  // у костра чисто
+    if (onPath(x, y)) continue;                              // тропы не зарастают
+    let nearSpot = false;
+    for (const k in SPOTS) if (Math.hypot(x - SPOTS[k].x, y - SPOTS[k].y) < 70) nearSpot = true;
+    if (nearSpot) continue;                                  // и к приметным местам можно подойти
+    out.push({ x, y, r: S.rmin + rng() * (S.rmax - S.rmin), tree: rng() < (id === 'barrow' ? 0.25 : 0.6) });
   }
   return out;
 }
@@ -754,21 +971,49 @@ function startContract(c) {
   spawnQueue = contract.n;
   spawnT = 0;
   const S = LOCS[contract.loc] || LOCS.woods;
-  message('📜 ' + contract.t + ': иди в ' + S.ico + ' ' + S.n.toLowerCase() + ' — целей ' + contract.n + '. ' + S.note);
+  if (contract.story && SPOTS[contract.spot]) {
+    message('📖 ' + contract.t + ': иди к месту «' + SPOTS[contract.spot].n + '» — стрелка покажет');
+  } else {
+    message('📜 ' + contract.t + ': иди в ' + S.ico + ' ' + S.n.toLowerCase() + ' — целей ' + contract.n + '. ' + S.note);
+  }
+}
+/* Сюжетная работа начинается не когда взял, а когда ДОШЁЛ. */
+function storyArrival() {
+  if (!contract || !contract.story || contract.arrived) return;
+  const s = SPOTS[contract.spot];
+  if (!s || Math.hypot(P.x - s.x, P.y - s.y) > 130) return;
+  contract.arrived = true;
+  if (contract.unique) {
+    const u = contract.unique;
+    spawnFoe(u.t, clamp(s.x + rnd(120) - 60, 20, WORLD_W - 20), clamp(s.y + rnd(120) - 60, 20, WORLD_H - 20), u);
+    message('📖 ' + s.n + ': ' + u.name + ' здесь. Целей ' + contract.n);
+  } else {
+    message('📖 ' + s.n + '. Началось: целей ' + contract.n);
+  }
 }
 let spawnQueue = 0, spawnT = 0;
 function spawnTick(dt) {
   if (spawnQueue <= 0 || !contract) return;
-  // твари водятся у себя дома: пока не пришёл — и драться не с кем
-  if (locAt(P.x, P.y) !== contract.loc) return;
+  if (contract.story && !contract.arrived) return;     // сюжет ждёт, пока дойдёшь до места
+  /* В сюжете дело привязано к МЕСТУ, а не к краю: брод, например, лежит
+     на берегу, хотя работа числится болотной, — и по краю там не вышло бы
+     ни одного утопца. Работы с доски по-прежнему считаются по краю. */
+  const S = contract.story && SPOTS[contract.spot] ? SPOTS[contract.spot] : null;
+  if (S) { if (Math.hypot(P.x - S.x, P.y - S.y) > 430) return; }
+  else if (locAt(P.x, P.y) !== contract.loc) return;
   spawnT -= dt;
   if (spawnT > 0) return;
   spawnT = 0.85;
-  const R = cellRect(contract.loc);
-  let x, y, tries = 0;
-  do {                                                 // где-то в этом краю, но не в лицо
-    x = R.x0 + 20 + rnd(CELL_W - 40); y = R.y0 + 20 + rnd(CELL_H - 40);
-  } while (Math.hypot(x - P.x, y - P.y) < 215 && ++tries < 40);
+  /* Выходят где-то поблизости, но не в лицо и не в лагере: тычем наугад
+     вокруг ведьмака и берём первую точку своего края. */
+  let x = P.x, y = P.y, ok = false;
+  for (let i = 0; i < 60 && !ok; i++) {
+    const a = rnd(6.3), d = 230 + rnd(240);
+    x = clamp(P.x + Math.cos(a) * d, 20, WORLD_W - 20);
+    y = clamp(P.y + Math.sin(a) * d, 20, WORLD_H - 20);
+    ok = !inCamp(x, y) && (S ? Math.hypot(x - S.x, y - S.y) < 470 : locAt(x, y) === contract.loc);
+  }
+  if (!ok) return;                                     // тесно у межи — подождём шаг
   spawnFoe(pick(contract.pool), x, y);
   spawnQueue--;
 }
@@ -786,7 +1031,23 @@ function finishContract() {
      чёрт знает где. */
   const ore = 1 + ri(3), hide = 1 + ri(3);
   addStack('ore', ore); addStack('hide', hide);
-  message('✅ Контракт закрыт! ' + bonus + ' крон, ⛏' + ore + ' и 🧵' + hide + ' — сразу в сумку. За новой работой — к доске в лагере.');
+  // сюжетная работа заканчивается не суммой, а тем, ЧТО выяснилось
+  if (contract.story) {
+    storyIdx = Math.min(STORY.length, storyIdx + 1);
+    if (contract.reward) {
+      const R = contract.reward;
+      const it = R.kind === 'sword' ? mkSword(R.metal, R.tier, R.ench || null)
+               : R.kind === 'armor' ? mkArmor(R.type, R.tier, R.ench || null)
+               : null;
+      if (it) { addItem(it); message('📖 ' + contract.done + '  ·  Награда: ' + fullName(it) + ' — в сумке'); }
+      else { addStack(R.id, R.n); message('📖 ' + contract.done + '  ·  Награда: ' + itemName({ k: 'stack', id: R.id }) + ' ×' + R.n); }
+    } else {
+      message('📖 ' + contract.done + '  ·  ' + bonus + ' крон в кошель.');
+    }
+    if (storyIdx >= STORY.length) message('📖 ' + contract.done + ' Сюжет пройден — дальше только работы с доски.');
+  } else {
+    message('✅ Контракт закрыт! ' + bonus + ' крон, ⛏' + ore + ' и 🧵' + hide + ' — сразу в сумку. За новой работой — к доске в лагере.');
+  }
   saveRun();
 }
 
@@ -881,7 +1142,7 @@ function saveRun() {
     localStorage.setItem(SAVE_KEY, JSON.stringify({
       v: 1, ci, gold, hp: P.hp, tox: P.tox, mutGauge: P.mutGauge, hand: P.hand, potSel: P.potSel,
       steel: P.steel, silver: P.silver, armor: P.armor, inv, offers, hot: hotGood,
-      x: P.x, y: P.y, bag: P.bag,
+      x: P.x, y: P.y, bag: P.bag, story: storyIdx,
     }));
   } catch (e) {}
 }
@@ -934,6 +1195,7 @@ function loadRun() {
     P.x = clamp(+s.x, 9, WORLD_W - 9); P.y = clamp(+s.y, 9, WORLD_H - 9);
   }
   P.bag = BAGS[s.bag] && s.bag !== 'none' ? s.bag : null;
+  storyIdx = clamp(Math.floor(+s.story) || 0, 0, STORY.length);
   curLoc = locAt(P.x, P.y); syncCam();
   return true;
 }
@@ -964,7 +1226,7 @@ function reset() {
   // мир строится один раз на весь поход и больше не перетасовывается
   obst = buildWorld();
   curLoc = 'camp'; syncCam();
-  offers = rollBoard(0); rollHotGood(); benchTab = 'work';
+  offers = rollBoard(0); rollHotGood(); benchTab = 'work'; storyIdx = 0;
   message('Лагерь. 📜 доска работ — E, ⚒ верстак — U. До мест идти ногами.');
   updateButtons();
 }
@@ -1023,6 +1285,7 @@ function update(dt) {
   }
   curLoc = locAt(P.x, P.y);                            // где стоим — то и правила
   syncCam();
+  storyArrival();                                      // дошёл до сюжетного места — начинается
   if (mouseInWorld()) { const m = mw(); P.face = Math.atan2(m.y - P.y, m.x - P.x); }
 
   // --- взмах меча ---
@@ -1118,6 +1381,53 @@ function blood(x, y, n) {
   }
 }
 
+/* Земля не меняется никогда: и края, и крапинки, и лужи, и тропы посчитаны
+   от постоянного зерна. Значит рисовать её каждый кадр заново — впустую
+   палить время (полтысячи заливок на кадр стоили половины скорости).
+   Печём один раз в отдельный холст половинного размера и потом кладём
+   одним куском. Половинный — чтобы не держать в памяти 28 мегабайт. */
+const GSC = 0.5;
+let groundCv = null;
+function bakeGround() {
+  if (!regionTiles) buildRegions();
+  groundCv = document.createElement('canvas');
+  groundCv.width = Math.ceil(WORLD_W * GSC); groundCv.height = Math.ceil(WORLD_H * GSC);
+  const g = groundCv.getContext('2d');
+  g.scale(GSC, GSC);
+  for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) {
+    const G = LOCS[SEEDS[regionTiles[ty * TW + tx]].id];
+    const x0 = tx * TILE, y0 = ty * TILE, h = hash2(tx, ty);
+    g.fillStyle = G.ground; g.fillRect(x0, y0, TILE + 1, TILE + 1);
+    if (h > 0.45) {                                    // крапинка, всегда одна и та же
+      g.globalAlpha = 0.5; g.fillStyle = h > 0.72 ? G.sp1 : G.sp2;
+      g.fillRect(x0 + (h * 13 | 0), y0 + (h * 17 | 0), 9, 5); g.globalAlpha = 1;
+    }
+    if (G.pools && h > 0.86) {                         // стоячая вода пятнами
+      g.fillStyle = 'rgba(70,110,120,.18)';
+      g.beginPath(); g.ellipse(x0 + 12, y0 + 12, 26 + h * 14, 13 + h * 8, h * 3, 0, 6.3); g.fill();
+    }
+  }
+  g.lineCap = 'round'; g.lineJoin = 'round';
+  for (const p of PATHS) {                             // тропы поверх земли
+    g.beginPath(); g.moveTo(p[0].x, p[0].y);
+    for (let i = 1; i < p.length; i++) g.lineTo(p[i].x, p[i].y);
+    g.strokeStyle = 'rgba(58,48,34,.85)'; g.lineWidth = PATH_W * 1.6; g.stroke();
+    g.strokeStyle = 'rgba(96,80,54,.5)'; g.lineWidth = PATH_W * 0.9; g.stroke();
+  }
+}
+
+let miniCv = null;
+function bakeMini() {                                  // карта мира: клетка = пиксель
+  if (!regionTiles) buildRegions();
+  miniCv = document.createElement('canvas');
+  miniCv.width = TW; miniCv.height = TH;
+  const g = miniCv.getContext('2d');
+  for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) {
+    g.fillStyle = LOCS[SEEDS[regionTiles[ty * TW + tx]].id].ground;
+    g.fillRect(tx, ty, 1, 1);
+  }
+}
+
 function drawWorld() {
   /* Всё, что ниже, рисуется в МИРОВЫХ координатах: сдвигаем холст на
      камеру и подрезаем окном. Поэтому дальше можно писать o.x, f.y — как
@@ -1127,35 +1437,18 @@ function drawWorld() {
   ctx.beginPath(); ctx.rect(WX0, WY0, WW, WH); ctx.clip();
   ctx.translate(WX0 - cam.x, WY0 - cam.y);
 
-  // земля: рисуем только те края, что попали в окно
-  const c0 = Math.max(0, Math.floor(cam.x / CELL_W)), c1 = Math.min(MAP_W - 1, Math.floor((cam.x + WW) / CELL_W));
-  const r0 = Math.max(0, Math.floor(cam.y / CELL_H)), r1 = Math.min(MAP_H - 1, Math.floor((cam.y + WH) / CELL_H));
-  for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
-    const id = MAP[r][c], G = LOCS[id], x0 = c * CELL_W, y0 = r * CELL_H;
-    ctx.fillStyle = G.ground; ctx.fillRect(x0, y0, CELL_W, CELL_H);
-    if (G.open) {                                      // накатанная колея
-      ctx.fillStyle = '#241f17'; ctx.fillRect(x0, y0 + CELL_H * 0.42, CELL_W, CELL_H * 0.16);
-      ctx.fillStyle = 'rgba(0,0,0,.25)';
-      ctx.fillRect(x0, y0 + CELL_H * 0.46, CELL_W, 2); ctx.fillRect(x0, y0 + CELL_H * 0.53, CELL_W, 2);
-    }
-    ctx.globalAlpha = 0.5;
-    for (let i = 0; i < 70; i++) {
-      ctx.fillStyle = i % 3 ? G.sp1 : G.sp2;
-      ctx.fillRect(x0 + ((i * 97) % CELL_W), y0 + ((i * 131) % CELL_H), 9, 5);
-    }
-    ctx.globalAlpha = 1;
-    if (G.pools) {                                     // лужи стоячей воды
-      for (let i = 0; i < 7; i++) {
-        ctx.fillStyle = 'rgba(70,110,120,.16)';
-        ctx.beginPath();
-        ctx.ellipse(x0 + 40 + ((i * 173 + 40) % (CELL_W - 80)), y0 + 30 + ((i * 211 + 30) % (CELL_H - 60)),
-                    34 + (i % 3) * 9, 15 + (i % 2) * 6, 0, 0, 6.3);
-        ctx.fill();
-      }
-    }
-    // межа между краями — видно, что мир не однородная каша
-    ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 2;
-    ctx.strokeRect(x0 + 1, y0 + 1, CELL_W - 2, CELL_H - 2);
+  // земля со всеми крапинками, лужами и тропами испечена заранее — одним куском
+  if (!groundCv) bakeGround();
+  ctx.drawImage(groundCv, cam.x * GSC, cam.y * GSC, WW * GSC, WH * GSC, cam.x, cam.y, WW, WH);
+
+  // приметные места — ориентиры, к ним же ведут сюжетные задания
+  for (const k in SPOTS) {
+    const s = SPOTS[k];
+    if (k === 'camp') continue;                        // лагерь рисуется своими вещами
+    if (s.x < cam.x - 60 || s.x > cam.x + WW + 60 || s.y < cam.y - 60 || s.y > cam.y + WH + 60) continue;
+    ctx.font = '24px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(s.ico, s.x, s.y);
+    txt(s.n, s.x, s.y + 22, 9, '#98a2ae', 'center');
   }
 
   // ловушка Ирдена
@@ -1203,13 +1496,16 @@ function drawWorld() {
     // метка родства: по ней выбирают меч
     ctx.fillStyle = S.fam === 'monster' ? 'rgba(168,198,232,.9)' : 'rgba(230,160,90,.9)';
     ctx.beginPath(); ctx.arc(f.x, f.y - f.r - 12, 3, 0, 6.3); ctx.fill();
-    ctx.font = (S.boss ? 30 : 20) + 'px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = ((S.boss ? 30 : 20) * (f.name ? 1.35 : 1) | 0) + 'px serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.globalAlpha = f.hitT > 0 ? 0.5 : 1;
     ctx.fillText(S.ico, f.x + lx, f.y + ly + Math.sin(anim * 5 + f.bob) * 1.5);
     ctx.globalAlpha = 1;
     if (f.burn > 0) { ctx.font = '11px serif'; ctx.fillText('🔥', f.x + 9, f.y - 9); }
     if (f.slow > 0) { ctx.font = '10px serif'; ctx.fillText('❄', f.x - 10, f.y - 9); }
-    bar(f.x - 13, f.y - f.r - 8, 26, 3, f.hp / f.max, S.fam === 'monster' ? '#a8c6e8' : '#e8a05a');
+    const bw = f.name ? 40 : 26;                       // именной зверь и полосой шире
+    bar(f.x - bw / 2, f.y - f.r - 8, bw, f.name ? 4 : 3, f.hp / f.max, S.fam === 'monster' ? '#a8c6e8' : '#e8a05a');
+    if (f.name) txt(f.name, f.x, f.y - f.r - 18, 10, '#ffb0a8', 'center');
   }
 
   // снаряды
@@ -1301,20 +1597,23 @@ function drawWorld() {
 /* Карта мира и стрелка к цели — прямо в окне, в правом верхнем углу.
    В открытом мире без них теряешься: где лагерь, куда идти по контракту. */
 function drawCompass() {
-  const w = 96, h = 64, x = WX1 - w - 8, y = WY0 + 8;
-  const cw = w / MAP_W, ch = h / MAP_H;
-  ctx.globalAlpha = 0.85;
-  ctx.fillStyle = 'rgba(8,7,6,.75)'; ctx.fillRect(x - 2, y - 2, w + 4, h + 4);
-  for (let r = 0; r < MAP_H; r++) for (let c = 0; c < MAP_W; c++) {
-    const id = MAP[r][c];
-    ctx.fillStyle = LOCS[id].ground;
-    ctx.fillRect(x + c * cw, y + r * ch, cw - 1, ch - 1);
-    if (contract && phase === 'FIGHT' && id === contract.loc) {   // куда идти
-      ctx.strokeStyle = '#ff7a5a'; ctx.lineWidth = 2;
-      ctx.strokeRect(x + c * cw + 1, y + r * ch + 1, cw - 3, ch - 3);
-    }
-    ctx.font = '9px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(LOCS[id].ico, x + c * cw + cw / 2, y + r * ch + ch / 2);
+  const w = 116, h = 80, x = WX1 - w - 8, y = WY0 + 8;
+  ctx.globalAlpha = 0.88;
+  ctx.fillStyle = 'rgba(8,7,6,.8)'; ctx.fillRect(x - 2, y - 2, w + 4, h + 4);
+  /* Карта тоже испечена заранее, клетка в пиксель. Раньше она рисовалась
+     клетками вживую — двенадцать тысяч заливок КАЖДЫЙ КАДР, и это съедало
+     больше половины скорости всей игры. */
+  if (!miniCv) bakeMini();
+  ctx.drawImage(miniCv, 0, 0, TW, TH, x, y, w, h);
+  ctx.strokeStyle = 'rgba(201,162,39,.35)'; ctx.lineWidth = 1; ctx.strokeRect(x - 1.5, y - 1.5, w + 3, h + 3);
+  // приметные места и лагерь
+  ctx.font = '7px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (const k in SPOTS) ctx.fillText(SPOTS[k].ico, x + (SPOTS[k].x / WORLD_W) * w, y + (SPOTS[k].y / WORLD_H) * h);
+  // цель
+  const aim = questGoal();
+  if (aim) {
+    ctx.strokeStyle = '#ff7a5a'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(x + (aim.mx / WORLD_W) * w, y + (aim.my / WORLD_H) * h, 5, 0, 6.3); ctx.stroke();
   }
   // где ты
   ctx.fillStyle = '#f2d59a';
@@ -1322,9 +1621,7 @@ function drawCompass() {
   ctx.globalAlpha = 1;
 
   // стрелка к цели, если она за краем экрана
-  let goal = null;
-  if (phase === 'FIGHT' && contract && locAt(P.x, P.y) !== contract.loc) goal = cellRect(contract.loc);
-  else if (phase === 'CAMP' && locAt(P.x, P.y) !== 'camp') goal = { mx: BOARD.x, my: BOARD.y };
+  const goal = aim;
   if (!goal) return;
   const a = Math.atan2(goal.my - P.y, goal.mx - P.x);
   const cx = WX0 + WW / 2, cy = WY0 + WH / 2, rr = Math.min(WW, WH) * 0.42;
@@ -1334,9 +1631,7 @@ function drawCompass() {
   ctx.beginPath(); ctx.moveTo(10, 0); ctx.lineTo(-6, -6); ctx.lineTo(-6, 6); ctx.closePath(); ctx.fill();
   ctx.restore();
   const dist2 = Math.round(Math.hypot(goal.mx - P.x, goal.my - P.y));
-  txt(phase === 'FIGHT' ? (LOCS[contract.loc].ico + ' ' + LOCS[contract.loc].n + ' · ' + dist2 + ' шагов')
-                        : ('🏕 лагерь · ' + dist2 + ' шагов'),
-      ax, ay + 14, 9, '#f2d59a', 'center');
+  txt(goal.n + ' · ' + dist2 + ' шагов', ax, ay + 14, 9, '#f2d59a', 'center');
 }
 
 function drawHUD() {
@@ -1377,9 +1672,12 @@ function drawHUD() {
   const here = L().ico + ' ' + L().n;
   if (phase === 'FIGHT' && contract) {
     const there = locAt(P.x, P.y) === contract.loc;
-    txt(here + ' · ' + contract.t + (there ? ' — осталось ' + Math.max(0, killsLeft)
-                                           : ' — иди в ' + (LOCS[contract.loc] || LOCS.woods).n.toLowerCase()),
-        CW / 2, 50, 11, there ? '#e8d9a8' : '#f2b134', 'center');
+    const wait = contract.story && !contract.arrived;
+    const tail = wait ? ' — иди к месту «' + (SPOTS[contract.spot] ? SPOTS[contract.spot].n : '?') + '»'
+               : there ? ' — осталось ' + Math.max(0, killsLeft)
+                       : ' — иди в ' + (LOCS[contract.loc] || LOCS.woods).n.toLowerCase();
+    txt(here + ' · ' + (contract.story ? '📖 ' : '') + contract.t + tail,
+        CW / 2, 50, 11, (there && !wait) ? '#e8d9a8' : '#f2b134', 'center');
   } else {
     txt(here + ' · контракт ' + (ci + 1) + ' · рекорд: ' + best, CW / 2, 50, 10, '#98a2ae', 'center');
   }
@@ -1614,9 +1912,27 @@ function panelFooter(hint) {
    принималось до того, как ты вышел из лагеря без того меча. */
 function drawBoard() {
   panelBox('📜 ДОСКА РАБОТ');
-  txt('Три работы. Возьмёшь одну — остальные пропадут, на доске появятся новые.',
-      CW / 2, 70, 9, '#98a2ae', 'center');
-  let y = 84;
+  // СЮЖЕТ отдельным листом сверху: он идёт по порядку и не пропадает
+  const q = storyNow();
+  let y = 68;
+  ctx.fillStyle = 'rgba(38,30,18,.92)'; ctx.fillRect(24, y, CW - 48, q ? 92 : 34);
+  ctx.strokeStyle = 'rgba(242,177,52,.55)'; ctx.lineWidth = 1; ctx.strokeRect(24.5, y + .5, CW - 49, (q ? 92 : 34) - 1);
+  if (!q) {
+    txt('📖 Сюжет пройден. Остались работы с доски.', CW / 2, y + 17, 10, '#c9a227', 'center');
+    y += 42;
+  } else {
+    const S = LOCS[q.loc] || LOCS.woods, sp = SPOTS[q.spot];
+    txt('📖 СЮЖЕТ ' + (storyIdx + 1) + '/' + STORY.length + ':  ' + q.t, 34, y + 14, 11, '#f2d59a');
+    txt('💰 ' + q.gold, CW - 34, y + 14, 11, '#f2b134', 'right');
+    for (let i = 0; i < q.brief.length && i < 3; i++) txt(q.brief[i], 34, y + 30 + i * 12, 9, '#c2cad2');
+    txt((sp ? sp.ico + ' ' + sp.n + '  ·  ' : '') + S.ico + ' ' + S.n + '  ·  целей ' + q.n +
+        (q.unique ? '  ·  ' + q.unique.name : ''), 34, y + 72, 9, '#c9a227');
+    btn(CW - 116, y + 66, 82, 19, '📖 взяться', () => takeStory(), 'rgba(96,74,26,.95)');
+    y += 100;
+  }
+  txt('Работы с доски. Возьмёшь одну — остальные пропадут, появятся новые.',
+      CW / 2, y, 9, '#98a2ae', 'center');
+  y += 12;
   for (const o of offers) {
     const S = LOCS[o.loc] || LOCS.woods;
     const fam = o.fam === 'monster' ? '⚔ серебро' : o.fam === 'mortal' ? '🗡 сталь' : '⚔🗡 оба меча';
@@ -1946,8 +2262,10 @@ if (typeof globalThis !== 'undefined') globalThis.__W = {
   getPhase: () => phase, setPhase: v => { phase = v; }, getOver: () => over, getCi: () => ci, setCi: v => { ci = v; },
   getKillsLeft: () => killsLeft, setPanel: v => { panel = v; }, setMouse: (x, y) => { mouse.x = x; mouse.y = y; },
   swing, shootBolt, applyOil, swapHand, saveRun, loadRun, clearRun, freeSpot,
-  LOCS, JOBS, SHOP, MAP, CELL_W, CELL_H, WORLD_W, WORLD_H, FIRE, BENCH, BOARD,
-  buildWorld, locAt, cellRect, compareNote, rollBoard, makeContract, jobFam, syncCam,
+  LOCS, JOBS, SHOP, STORY, SPOTS, SEEDS, PATHS, WORLD_W, WORLD_H, FIRE, BENCH, BOARD, CAMP_R,
+  buildWorld, buildRegions, locAt, regionSpot, onPath, inCamp, questGoal, takeStory, storyNow,
+  compareNote, rollBoard, makeContract, jobFam, syncCam,
+  getStory: () => storyIdx, setStory: v => { storyIdx = v; },
   BAGS, buyBag, capacity,
   getCam: () => cam,
   sellStack, stackPrice, rollHotGood, getHot: () => hotGood, setHot: v => { hotGood = v; },
