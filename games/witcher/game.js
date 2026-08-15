@@ -260,16 +260,46 @@ function equip(it) {
     inv.splice(at, 1);
     if (slot === 'steel') P.steel = it; else P.silver = it;
     if (old) inv.push(old);
-    message('Взял в руку: ' + fullName(it));
+    message('Взял в руку: ' + fullName(it) + (old ? ' · прежний ушёл в сумку' : ''));
   } else if (it.k === 'armor') {
     const old = P.armor;
     inv.splice(at, 1);
     P.armor = it;
     if (old) inv.push(old);
     P.hp = Math.min(P.hp, maxHP());
-    message('Надел: ' + fullName(it));
+    message('Надел: ' + fullName(it) + (old ? ' · прежний ушёл в сумку' : ''));
   }
   saveRun();
+}
+/* НАСКОЛЬКО вещь из сумки лучше надетой.
+   Без этой строчки два одинаковых меча в списке неразличимы: жмёшь
+   «надеть», они меняются местами, надпись «взял в руку» мелькает — а
+   на экране ровно то же самое. Выглядит как сломанная кнопка, хотя
+   обмен честно произошёл. */
+function slotOf(it) { return it.k === 'armor' ? P.armor : (it.metal === 'steel' ? P.steel : P.silver); }
+function gearValue(it) {
+  return it.k === 'sword' ? SWORD[it.metal].dmg * TIERS[it.tier].m : ARMOR[it.type].def * TIERS[it.tier].m;
+}
+function sameGear(a, b) {
+  if (!a || !b || a.k !== b.k || a.tier !== b.tier || (a.ench || null) !== (b.ench || null)) return false;
+  return a.k === 'sword' ? (a.metal === b.metal && (a.oil | 0) === (b.oil | 0)) : a.type === b.type;
+}
+function compareNote(it) {                             // it лежит в сумке
+  const cur = slotOf(it);
+  if (!cur) return { t: 'слот пуст', c: '#7fd6a0' };
+  if (sameGear(it, cur)) return { t: 'точно такой же', c: '#8a8f96', same: true };
+  const d = Math.round(gearValue(it) - gearValue(cur));
+  const what = it.k === 'sword' ? ' урона' : ' брони';
+  if (d > 0) return { t: '+' + d + what, c: '#7fd6a0' };
+  if (d < 0) return { t: '−' + (-d) + what, c: '#ff7a6a' };
+  return { t: 'цифры те же', c: '#c9a227' };           // разница только в чарах или масле
+}
+/* Подрезаем длинное имя, чтобы оно не налезло на пометку справа. */
+function clipText(s, px, size) {
+  ctx.font = size + 'px Segoe UI';
+  if (ctx.measureText(s).width <= px) return s;
+  while (s.length > 4 && ctx.measureText(s + '…').width > px) s = s.slice(0, -1);
+  return s + '…';
 }
 function fullName(it) {
   if (it.k === 'stack') return itemName(it) + ' ×' + it.n;
@@ -1209,7 +1239,12 @@ function drawBag() {
   for (const it of inv.slice(v.from, v.from + v.vis)) {
     const rowY = y;
     ctx.fillStyle = 'rgba(20,18,15,.75)'; ctx.fillRect(24, rowY, CW - 48, 22);
-    txt(itemIco(it) + '  ' + fullName(it), 30, rowY + 11, 10, it.k === 'stack' ? '#e6ebf2' : TIERS[it.tier].c);
+    // для железа пишем, чем оно лучше надетого: иначе «надеть» вслепую
+    const note = it.k !== 'stack' ? compareNote(it) : null;
+    ctx.font = '9px Segoe UI';
+    const room = CW - 236 - (note ? ctx.measureText(note.t).width : 0);
+    txt(clipText(itemIco(it) + '  ' + fullName(it), room, 10), 30, rowY + 11, 10, it.k === 'stack' ? '#e6ebf2' : TIERS[it.tier].c);
+    if (note) txt(note.t, CW - 200, rowY + 11, 9, note.c, 'right');
     txt(itemWeight(it).toFixed(1) + ' кг', CW - 150, rowY + 11, 9, '#98a2ae', 'right');
     if (it.k === 'stack' && POTIONS[it.id]) btn(CW - 142, rowY + 3, 52, 16, 'выпить', () => drink(it.id));
     // масло мажется на СВОЙ меч, какой бы ни был сейчас в руке
@@ -1255,8 +1290,17 @@ function drawBench() {
   benchScroll = v.from;
   scrollBtns(y - 12, v, () => benchScroll, n => { benchScroll = clamp(n, 0, v.max); });
   for (const it of gear.slice(v.from, v.from + v.vis)) {
-    ctx.fillStyle = 'rgba(20,18,15,.75)'; ctx.fillRect(24, y, CW - 48, 26);
-    txt(itemIco(it) + ' ' + fullName(it), 30, y + 8, 9, TIERS[it.tier].c);
+    const inBag = inv.indexOf(it) >= 0;
+    ctx.fillStyle = inBag ? 'rgba(20,18,15,.75)' : 'rgba(34,30,22,.85)';
+    ctx.fillRect(24, y, CW - 48, 26);
+    // надетое отбиваем золотой полосой: глаз находит его раньше, чем читает
+    if (!inBag) { ctx.fillStyle = 'rgba(201,162,39,.7)'; ctx.fillRect(24, y, 3, 26); }
+    const note = inBag ? compareNote(it) : { t: 'на тебе', c: '#c9a227' };
+    const noteX = CW - 282;
+    ctx.font = '9px Segoe UI';
+    const room = noteX - 36 - ctx.measureText(note.t).width;
+    txt(clipText(itemIco(it) + ' ' + fullName(it), room, 9), 30, y + 8, 9, TIERS[it.tier].c);
+    txt(note.t, noteX, y + 8, 9, note.c, 'right');
     const c = upCost(it);
     const maxed = it.tier >= TIERS.length - 1;
     const мало = { gold: gold < c.gold, mat: countStack(c.matId) < c.mat };
@@ -1277,10 +1321,15 @@ function drawBench() {
     const нетЭссенции = gold < 120 || countStack('essence') < 2;
     btn(CW - 214, y + 5, 62, 17, 'зачаровать', () => enchant(it), null, нетЭссенции,
         'Зачарование: 120 крон + 2 эссенции. Есть ' + Math.floor(gold) + ' крон и ' + countStack('essence') + ' эссенции');
-    const own = inv.indexOf(it) >= 0;
-    // «Надеть» прямо с верстака: раньше за этим приходилось уходить в сумку
-    btn(CW - 148, y + 5, 56, 17, own ? 'надеть' : 'надето', () => equip(it), null, !own, 'Это и так на тебе');
-    btn(CW - 88, y + 5, 56, 17, 'продать', () => sell(it), own ? 'rgba(70,60,30,.9)' : null, !own,
+    /* «Надеть» прямо с верстака: раньше за этим приходилось уходить в сумку.
+       Точную копию надетого менять не даём: обмен пройдёт честно, но на
+       экране ничего не изменится — и это читается как поломка. */
+    const nothingToSwap = inBag && note.same;
+    btn(CW - 148, y + 5, 56, 17, inBag ? (note.same ? 'то же' : 'надеть') : 'надето', () => equip(it), null,
+        !inBag || nothingToSwap,
+        nothingToSwap ? 'Точно такой же, как надетый: и ступень, и чары, и масло. Менять нечего'
+                      : 'Это и так на тебе');
+    btn(CW - 88, y + 5, 56, 17, 'продать', () => sell(it), inBag ? 'rgba(70,60,30,.9)' : null, !inBag,
         'Сначала сними: надетое не продаётся');
     y += 28;
   }
