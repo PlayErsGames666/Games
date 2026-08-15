@@ -2307,13 +2307,16 @@ function interact() {
 document.addEventListener('keydown', e => {
   if (e.target && e.target.tagName === 'INPUT') return;
   keys[e.code] = true;
-  if (over) return;                                    // ждём, пока отлежится
   // в полном экране Esc выходит из него, а не ставит паузу
   if (e.code === 'Escape' && (document.fullscreenElement || document.webkitFullscreenElement)) return;
+  /* Пауза работает и когда лежишь: счёт «приходит в себя» на паузе стоит,
+     и отойти на минуту можно, не теряя восьми секунд. Всё остальное, пока
+     лежишь, недоступно — иначе с того света переодеваются и жгут мутацию. */
   if (e.code === 'KeyP' || e.code === 'Escape') {
     if (panel) panel = null; else { paused = !paused; updateButtons(); }
     e.preventDefault(); return;
   }
+  if (over) return;                                    // ждём, пока отлежится
   if (e.repeat) return;
   if (e.code === 'KeyI') { panel = panel === 'bag' ? null : 'bag'; bagScroll = 0; return; }
   if (e.code === 'KeyU') {
@@ -2362,10 +2365,13 @@ function swapHand() {
           (s && s.oil > 0 ? ' · смазан, ' + s.oil + ' ударов' : ''));
 }
 function onBtn(id, fn) { const b = document.getElementById(id); if (b) b.addEventListener('click', () => { b.blur(); fn(); }); }
-onBtn('swapBtn', swapHand);
-onBtn('bagBtn', () => { panel = panel === 'bag' ? null : 'bag'; bagScroll = 0; });
-onBtn('mutBtn', () => toggleMutation());
-onBtn('pause', () => { if (!over) { paused = !paused; updateButtons(); } });
+/* Кнопки под игрой тоже молчат, пока ведьмак лежит: клавиши-то мы закрыли,
+   а через них можно было и меч сменить, и сумку открыть, и мутацию сжечь —
+   лёжа без сознания. Пауза — исключение, она останавливает счёт. */
+onBtn('swapBtn', () => { if (!over) swapHand(); });
+onBtn('bagBtn', () => { if (over) return; panel = panel === 'bag' ? null : 'bag'; bagScroll = 0; });
+onBtn('mutBtn', () => { if (!over) toggleMutation(); });
+onBtn('pause', () => { paused = !paused; updateButtons(); });
 onBtn('restart', () => { clearRun(); reset(); message('Новый ведьмак, новый поход.'); });
 function updateButtons() { const b = document.getElementById('pause'); if (b) b.textContent = paused ? '▶ Продолжить' : '⏸ Пауза'; }
 
