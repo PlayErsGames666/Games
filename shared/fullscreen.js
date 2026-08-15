@@ -43,9 +43,22 @@
     if(!isFs()){
       col.style.transform=""; col.style.transformOrigin="";
       if(CV){ CV.style.width=""; CV.style.height=""; }
+      if(window.__fsRestore) window.__fsRestore();      // вернуть оконный размер игре
       return;
     }
     if(CV){
+      /* Игра может уметь перестраиваться под ЛЮБЫЕ пропорции — тогда она
+         объявляет window.__fsResize(ширина, высота). Такой отдаём весь экран
+         целиком: она сама решит, что показать в освободившемся месте.
+         Остальным по-прежнему бережём пропорции — растянуть тетрис на
+         широкий монитор можно только исказив его. */
+      if(window.__fsResize){
+        var eh=col.getBoundingClientRect().height - CV.getBoundingClientRect().height;
+        var fw=Math.max(240, window.innerWidth), fh=Math.max(200, window.innerHeight-Math.max(0,eh));
+        window.__fsResize(fw, fh);
+        CV.style.width=fw+"px"; CV.style.height=fh+"px";
+        return;
+      }
       /* канвас растягиваем ЕГО СОБСТВЕННЫМ css-размером, а не transform колонки:
          так композитор не размывает картинку, а игра может отрисоваться
          в реальном разрешении экрана */

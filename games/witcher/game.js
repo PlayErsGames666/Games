@@ -8,11 +8,36 @@
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
-const CW = canvas.width, CH = canvas.height;
 
-// границы поля боя внутри канваса: сверху шкалы, снизу пояс
-const WX0 = 8, WY0 = 58, WX1 = CW - 8, WY1 = CH - 84;
-const WW = WX1 - WX0, WH = WY1 - WY0;
+/* Логический размер холста. В окне он 520x640, а в ПОЛНЫЙ ЭКРАН игра
+   перестраивается под настоящие пропорции монитора: высота остаётся 640
+   (чтобы буквы и пояс не поехали), а ширина растёт. Мир от этого не
+   растягивается и не мылится — просто в окно видно больше земли.
+
+   Раньше в полный экран уезжала картинка 520x640 целиком, и на широком
+   мониторе игра стояла узким столбиком посреди чёрного поля — «экран
+   в экране». */
+let CW = canvas.width, CH = canvas.height;
+let WX0 = 8, WY0 = 58, WX1 = CW - 8, WY1 = CH - 84;   // поле боя внутри холста
+let WW = WX1 - WX0, WH = WY1 - WY0;
+function setLogicalSize(w, h) {
+  CW = Math.round(w); CH = Math.round(h);
+  WX1 = CW - 8; WY1 = CH - 84;
+  WW = WX1 - WX0; WH = WY1 - WY0;
+  /* Сразу переставляем и САМУ БИТМАПУ. В css у холста ширина 520 и
+     height:auto — высота считается из пропорции битмапы. Не тронешь её —
+     после выхода из полного экрана останется широкая карта прошлого кадра,
+     и холст в окне сплющится до 520x293. */
+  canvas.width = CW; canvas.height = CH;
+  if (typeof P !== 'undefined' && P) syncCam();
+}
+/* Эти две ручки зовёт shared/fullscreen.js: игра, которая их объявила,
+   получает весь экран целиком вместо аккуратного прямоугольника. */
+window.__fsResize = (sw, sh) => {
+  const h = 640;
+  setLogicalSize(clamp(Math.round(h * sw / Math.max(1, sh)), 480, 1800), h);
+};
+window.__fsRestore = () => setLogicalSize(520, 640);
 
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const rnd = n => Math.random() * n;
@@ -2074,6 +2099,77 @@ function drawBoard() {
    список железа упирался в полку с товаром, а продавать припасы было
    негде вовсе — руда и лишние зелья просто копили вес. */
 let benchTab = 'work';
+/* Карта земли на весь экран (клавиша M). Маленькая карта в углу говорит
+   «ты где-то там», а эта отвечает на вопрос «куда идти и что вокруг»:
+   настоящие очертания краёв, тропы, все приметные места с именами,
+   ты сам и цель. */
+function drawMap() {
+  panelBox('🗺 КАРТА ЗЕМЛИ');
+  const x0 = 24, y0 = 92, mw2 = CW - 48, mh = CH - 170;
+  const k = Math.min(mw2 / WORLD_W, mh / WORLD_H);     // одинаковый масштаб по осям
+  const w = WORLD_W * k, h = WORLD_H * k;
+  const x = x0 + (mw2 - w) / 2, y = y0 + (mh - h) / 2;
+  const px = wx => x + wx * k, py = wy => y + wy * k;
+
+  if (!miniCv) bakeMini();
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(miniCv, 0, 0, TW, TH, x, y, w, h);
+  ctx.strokeStyle = 'rgba(201,162,39,.4)'; ctx.lineWidth = 1; ctx.strokeRect(x - .5, y - .5, w + 1, h + 1);
+
+  // тропы
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.strokeStyle = 'rgba(150,126,86,.8)'; ctx.lineWidth = Math.max(1.5, PATH_W * k * 0.7);
+  for (const p of PATHS) {
+    ctx.beginPath(); ctx.moveTo(px(p[0].x), py(p[0].y));
+    for (let i = 1; i < p.length; i++) ctx.lineTo(px(p[i].x), py(p[i].y));
+    ctx.stroke();
+  }
+  ctx.lineCap = 'butt'; ctx.lineJoin = 'miter';
+
+  // приметные места
+  for (const key in SPOTS) {
+    const s = SPOTS[key];
+    ctx.font = '13px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(s.ico, px(s.x), py(s.y));
+    txt(s.n, px(s.x), py(s.y) + 12, 8, '#c2cad2', 'center');
+  }
+  // круг лагеря — куда нечисть не заходит
+  ctx.strokeStyle = 'rgba(201,162,39,.35)'; ctx.setLineDash([4, 4]); ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(px(SPOTS.camp.x), py(SPOTS.camp.y), CAMP_R * k, 0, 6.3); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // цель: сюжетное место или край работы
+  const aim = questGoal();
+  if (aim) {
+    ctx.strokeStyle = '#ff7a5a'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(px(aim.mx), py(aim.my), 10, 0, 6.3); ctx.stroke();
+    txt('цель: ' + aim.n, px(aim.mx), py(aim.my) - 16, 9, '#ff9a7a', 'center');
+  }
+  // ты и куда смотришь
+  ctx.fillStyle = '#f2d59a';
+  ctx.beginPath(); ctx.arc(px(P.x), py(P.y), 4, 0, 6.3); ctx.fill();
+  ctx.strokeStyle = '#f2d59a'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(px(P.x), py(P.y));
+  ctx.lineTo(px(P.x) + Math.cos(P.face) * 11, py(P.y) + Math.sin(P.face) * 11); ctx.stroke();
+
+  // где ты сейчас и что тут за место
+  const S = L();
+  txt('Ты в ' + S.ico + ' ' + S.n.toLowerCase() + ' — ' + S.note, CW / 2, 74, 10, '#c9a227', 'center');
+
+  // легенда красками краёв
+  const legend = ['camp', 'field', 'road', 'woods', 'swamp', 'shore', 'ruins', 'barrow'];
+  let lx = 24, ly = CH - 68;
+  for (const id of legend) {
+    const G = LOCS[id];
+    ctx.fillStyle = G.ground; ctx.fillRect(lx, ly - 6, 12, 12);
+    ctx.strokeStyle = 'rgba(255,255,255,.15)'; ctx.lineWidth = 1; ctx.strokeRect(lx + .5, ly - 5.5, 11, 11);
+    txt(G.ico + ' ' + G.n, lx + 16, ly, 9, '#98a2ae');
+    lx += 62 + (G.n.length > 6 ? 12 : 0);
+    if (lx > CW - 90) { lx = 24; ly += 16; }
+  }
+  panelFooter('M или ✕ — закрыть · пунктиром обведён круг лагеря: туда нечисть не заходит');
+}
+
 function drawBench() {
   panelBox('⚒ ВЕРСТАК И ЛАВКА');
   const tabs = [['work', '⚒ Работа с железом'], ['shop', '💰 Лавка']];
@@ -2229,6 +2325,7 @@ function render() {
   if (panel === 'bag') drawBag();
   else if (panel === 'bench') drawBench();
   else if (panel === 'board') drawBoard();
+  else if (panel === 'map') drawMap();
 
   if (paused && !over && !panel) {
     ctx.fillStyle = 'rgba(8,7,6,.72)'; ctx.fillRect(0, 0, CW, CH);
@@ -2319,6 +2416,7 @@ document.addEventListener('keydown', e => {
   if (over) return;                                    // ждём, пока отлежится
   if (e.repeat) return;
   if (e.code === 'KeyI') { panel = panel === 'bag' ? null : 'bag'; bagScroll = 0; return; }
+  if (e.code === 'KeyM') { panel = panel === 'map' ? null : 'map'; return; }   // карта земли
   if (e.code === 'KeyU') {
     if (panel === 'bench') { panel = null; return; }
     // верстак стоит в лагере и никуда за тобой не ходит
