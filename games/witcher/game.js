@@ -236,8 +236,10 @@ function syncCam() {
   cam.x = clamp(P.x - WW / 2, 0, Math.max(0, WORLD_W - WW));
   cam.y = clamp(P.y - WH / 2, 0, Math.max(0, WORLD_H - WH));
 }
-const sx = wx => wx - cam.x + WX0;       // мир → экран
-const sy = wy => wy - cam.y + WY0;
+/* Обратного перевода (мир → экран) нет намеренно: мир рисуется сдвигом
+   холста, а не пересчётом каждой точки. Держать рядом неиспользуемые sx/sy
+   опасно — в лавке уже есть свои локальные sx/sy для раскладки кнопок, и
+   такое затенение однажды уже уронило игру (локальная L против места L()). */
 function mw() { return { x: mouse.x - WX0 + cam.x, y: mouse.y - WY0 + cam.y }; }   // экран → мир
 const L = () => LOCS[curLoc] || LOCS.camp;
 let killsLeft, msg, msgT, panel, uiHit = [], anim = 0, lastFrame = null, paused = false;
@@ -627,6 +629,7 @@ function spawnFoe(type, x, y) {
   foes.push({
     t: type, x, y, hp: S.hp * (1 + ci * 0.12), max: S.hp * (1 + ci * 0.12), r: S.r,
     cd: rnd(1), stun: 0, burn: 0, slow: 0, kx: 0, ky: 0, hitT: 0, dead: false, bob: rnd(6.3),
+    slide: 0, sdir: 1, checkT: 0.5, lx: x, ly: y,      // для обхода того, во что уткнулся
   });
 }
 function stepFoe(f, dt) {
@@ -641,6 +644,10 @@ function stepFoe(f, dt) {
     f.kx *= 0.86; f.ky *= 0.86;
     f.x = clamp(f.x, f.r, WORLD_W - f.r); f.y = clamp(f.y, f.r, WORLD_H - f.r);
   }
+  /* Границу лагеря держим ДО проверки оглушения: иначе тварь, заброшенную
+     Аардом через межу, оглушение оставляло стоять в лагере на всю секунду
+     с лишним — а обещано, что там не тронут вовсе. */
+  keepOutOfCamp(f);
   if (f.stun > 0) { f.stun -= dt; return; }
 
   const d = dist(f, P);
@@ -661,8 +668,20 @@ function stepFoe(f, dt) {
     }
   } else {
     if (d > S.reach) {
-      const a = Math.atan2(P.y - f.y, P.x - f.x);
+      /* Твари ходят по прямой, а деревья и камни их держат — и пара камней,
+         вставших воротами, зажимала зверя намертво: кабан упирался в них и
+         стоял так, сколько ни жди, а контракт не закрывался, пока его не
+         найдёшь и не добьёшь. Уткнулся — пробуем обойти боком. */
+      let a = Math.atan2(P.y - f.y, P.x - f.x);
+      if (f.slide > 0) { f.slide -= dt; a += f.sdir * 1.15; }
       f.x += Math.cos(a) * sp * dt; f.y += Math.sin(a) * sp * dt;
+      f.checkT -= dt;
+      if (f.checkT <= 0) {
+        if (f.slide <= 0 && Math.hypot(f.x - f.lx, f.y - f.ly) < 6) {
+          f.slide = 0.8; f.sdir = Math.random() < 0.5 ? 1 : -1;
+        }
+        f.checkT = 0.5; f.lx = f.x; f.ly = f.y;
+      }
     } else {
       f.cd -= dt;
       if (f.cd <= 0) { f.cd = S.atk; hurtPlayer(S.dmg * (1 + ci * 0.08), f); f.lunge = 0.18; }
@@ -689,6 +708,23 @@ function stepFoe(f, dt) {
     }
   }
   f.x = clamp(f.x, f.r, WORLD_W - f.r); f.y = clamp(f.y, f.r, WORLD_H - f.r);
+  keepOutOfCamp(f);
+}
+/* В лагерь нечисть не суётся: костёр, знаки, круг. Без этой границы тварей
+   можно было привести за собой прямо к верстаку — а лагерь обещан местом,
+   где никто не тронет. Выталкиваем по ближней меже, но только по той, что
+   ведёт в мир: низ лагеря — это край карты, туда выпихивать некуда. */
+function keepOutOfCamp(f) {
+  if (cellAt(f.x, f.y).id !== 'camp') return;
+  const cand = [
+    { d: f.x - CAMP.x0, x: CAMP.x0 - f.r - 1, y: f.y },
+    { d: CAMP.x1 - f.x, x: CAMP.x1 + f.r + 1, y: f.y },
+    { d: f.y - CAMP.y0, x: f.x, y: CAMP.y0 - f.r - 1 },
+    { d: CAMP.y1 - f.y, x: f.x, y: CAMP.y1 + f.r + 1 },
+  ].filter(p => p.x > f.r && p.x < WORLD_W - f.r && p.y > f.r && p.y < WORLD_H - f.r);
+  if (!cand.length) return;
+  const b = cand.reduce((a, p) => (p.d < a.d ? p : a));
+  f.x = b.x; f.y = b.y;
 }
 
 /* =====================  КОНТРАКТЫ  ===================== */
