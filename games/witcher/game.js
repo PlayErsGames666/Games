@@ -2803,11 +2803,44 @@ function drawHUD() {
 }
 
 /* --- панели: сумка и верстак --- */
-function panelBox(title) {
+/* =====================  КОЛОНКА ПАНЕЛИ  =====================
+   Внутренности панелей меряются от края холста: «отступ 24, ширина CW-48».
+   В окне 520 это складно, а в полный экран холст становится 1138, и сумка
+   растягивается на всю ширину: имя у левого края, вес и кнопки у правого, а
+   посередине пустота в пол-экрана — и четыре коробки снаряжения жмутся в
+   углу, занимая меньше половины. Читать так нельзя.
+
+   Чинить сорок арифметических выражений по одному — напрашиваться на новую
+   ошибку. Вместо этого на время отрисовки панели ВРЕМЕННО СУЖАЕМ САМ CW и
+   сдвигаем начало координат: весь прежний код рисует ровно то же, только в
+   колонке разумной ширины посередине экрана. Курсор и кнопки сдвигаются
+   вместе с ним, иначе клики уехали бы мимо. */
+const PANEL_MAX = 820;
+let panelShift = 0, panelCW = 0, panelHit = 0, panelMouseX = 0;
+function panelStart(maxW) {
+  const w = Math.min(maxW || PANEL_MAX, CW);
+  panelShift = Math.round((CW - w) / 2);
+  panelCW = CW; panelHit = uiHit.length; panelMouseX = mouse.x;
+  if (panelShift > 0) {
+    ctx.save(); ctx.translate(panelShift, 0);
+    CW = w; mouse.x -= panelShift;
+  }
+}
+function panelEnd() {
+  if (panelShift > 0) {
+    // кнопки набирались в сдвинутых координатах, а щёлкают по холсту
+    for (let i = panelHit; i < uiHit.length; i++) uiHit[i].x += panelShift;
+    CW = panelCW; mouse.x = panelMouseX; ctx.restore();
+  }
+  panelShift = 0;
+}
+
+function panelBox(title, maxW) {
   // Панель перекрывает пояс, поэтому кнопки под ней надо забыть: иначе
   // клик по «пустому» месту втихую переключал зелье сквозь окно.
   uiHit = [];
-  ctx.fillStyle = 'rgba(8,7,6,.93)'; ctx.fillRect(0, 0, CW, CH);
+  ctx.fillStyle = 'rgba(8,7,6,.93)'; ctx.fillRect(0, 0, CW, CH);   // затемняем ВЕСЬ экран
+  panelStart(maxW);
   ctx.fillStyle = 'rgba(29,26,22,.98)'; ctx.fillRect(14, 24, CW - 28, CH - 60);
   ctx.strokeStyle = 'rgba(201,162,39,.35)'; ctx.lineWidth = 1; ctx.strokeRect(14.5, 24.5, CW - 29, CH - 61);
   txt(title, CW / 2, 40, 14, '#e8d9a8', 'center');
@@ -2832,7 +2865,9 @@ function btn(x, y, w, h, label, fn, col, dim, why) {
 function drawEquipRow(y) {
   // четвёртым слотом встал арбалет: он такая же вещь, как меч и доспех
   const slots = [['Сталь', P.steel], ['Серебро', P.silver], ['Доспех', P.armor], ['Арбалет', P.xbow]];
-  const w = 114;
+  // ширина по колонке, а не вбитая: иначе на широком экране четыре коробки
+  // занимали меньше половины панели и висели в углу
+  const w = Math.max(96, Math.floor((CW - 48 - 6 * (slots.length - 1)) / slots.length));
   let x = 24;
   for (const [nm, it] of slots) {
     // перенос СПЕРВА, а не после: иначе последний слот оставлял под собой
@@ -2999,7 +3034,7 @@ const CAMP_VENDOR = { n: 'Купец у костра', ico: '🛒', tabs: null }
    настоящие очертания краёв, тропы, все приметные места с именами,
    ты сам и цель. */
 function drawMap() {
-  panelBox('🗺 КАРТА ЗЕМЛИ');
+  panelBox('🗺 КАРТА ЗЕМЛИ', 1e9);   // карту не сужаем: чем шире, тем больше видно
   const x0 = 24, y0 = 92, mw2 = CW - 48, mh = CH - 170;
   const k = Math.min(mw2 / WORLD_W, mh / WORLD_H);     // одинаковый масштаб по осям
   const w = WORLD_W * k, h = WORLD_H * k;
@@ -3429,6 +3464,7 @@ function render() {
   else if (panel === 'bench') drawBench();
   else if (panel === 'board') drawBoard();
   else if (panel === 'map') drawMap();
+  if (panel) panelEnd();                               // вернуть холсту его настоящую ширину
 
   if (paused && !over && !panel) {
     ctx.fillStyle = 'rgba(8,7,6,.72)'; ctx.fillRect(0, 0, CW, CH);
