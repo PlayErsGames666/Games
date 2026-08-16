@@ -39,6 +39,11 @@ window.__fsResize = (sw, sh) => {
 };
 window.__fsRestore = () => setLogicalSize(520, 640);
 
+/* Звук живёт в shared/sfx.js и синтезируется на месте — файлов нет, игра
+   по-прежнему открывается двойным щелчком. Если его почему-то не подключили,
+   игра должна работать ровно так же, только молча: отсюда и обёртка. */
+const snd = (n, g) => { try { if (window.sfx) window.sfx(n, g); } catch (e) {} };
+
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const rnd = n => Math.random() * n;
 const ri = n => Math.floor(Math.random() * n);
@@ -962,7 +967,8 @@ function fullName(it) {
 /* =====================  ЗЕЛЬЯ И ТОКСИЧНОСТЬ  ===================== */
 
 function drink(id) {
-  if (!useStack(id, 1)) { message('Нет такого зелья'); return; }
+  if (!useStack(id, 1)) { message('Нет такого зелья'); snd('deny'); return; }
+  snd('drink');
   const p = POTIONS[id];
   P.tox = clamp(P.tox + p.tox, 0, 100);
   const long = 1 + 0.15 * schoolPow('brew');           // змеиный доспех тянет действие
@@ -988,6 +994,7 @@ function swing() {
   if (P.biz > 0) { throwContract(); return; }
   P.atkCd = 0.42;
   P.swing = { t: 0, a: faceAim(), hit: new Set() };
+  snd('swing');
 }
 function throwContract() {
   P.atkCd = 0.34;
@@ -1021,6 +1028,7 @@ function shootBolt() {
   }
   useStack(id, 1);
   P.boltCd = X.cd;
+  snd('bolt');
   const a = faceAim();
   shots.push({
     x: P.x, y: P.y, vx: Math.cos(a) * X.spd, vy: Math.sin(a) * X.spd,
@@ -1047,6 +1055,7 @@ function boltHit(s, f) {
     f.stun = Math.max(f.stun, 0.9);
   }
   if (B.blast) {
+    snd('blast');
     parts.push({ x: s.x, y: s.y, vx: 0, vy: 0, t: 0, life: 0.35, c: '#ffb43a', r: B.blast, ring: true });
     for (const o of foes) {
       if (o === f || o.dead || dist(o, s) > B.blast) continue;
@@ -1073,6 +1082,7 @@ function hurtFoe(f, dmg, src, pierce) {
   f.hp -= real;
   f.hitT = 0.12;
   const weak = src === 'wrong' || src === 'wrongbolt';
+  snd(weak ? 'hitwrong' : 'hit');
   floaties.push({ x: f.x, y: f.y - 14, txt: Math.round(real), t: 0, c: weak ? '#8a8f96' : '#ffd166' });
   if (weak) floaties.push({ x: f.x, y: f.y - 26, txt: src === 'wrong' ? 'не тот меч' : 'не тот болт', t: 0, c: '#8a8f96' });
   if (hasEnch('vamp')) P.hp = Math.min(maxHP(), P.hp + real * 0.12);
@@ -1084,6 +1094,7 @@ function hurtFoe(f, dmg, src, pierce) {
 }
 function killFoe(f) {
   f.dead = true;
+  snd('kill');
   blood(f.x, f.y, 16);
   P.mutGauge = Math.min(100, P.mutGauge + 14);
   killsLeft--;
@@ -1099,6 +1110,7 @@ function hurtPlayer(raw, from) {
     if (P.quen <= 0) message('🛡 Квен разбит');
   }
   if (d <= 0) return;
+  snd('hurt');
   P.hp -= d; P.inv = 0.35; P.shake = 0.25;
   if (from && hasEnch('thorns')) hurtFoe(from, raw * 0.25, 'thorns');
   blood(P.x, P.y, 6);
@@ -1118,6 +1130,7 @@ function castRune(i) {
   const cost = runeCost(R);
   if (P.mp < cost) { message('Мало энергии для «' + R.n + '»'); return; }
   P.mp -= cost; P.runeCd[i] = R.cd;
+  snd(R.k);                                            // у каждого знака свой голос
   const pow = runePower();
   const a = faceAim();
   if (R.k === 'igni') {
@@ -1164,6 +1177,7 @@ function toggleMutation() {
   if (P.mut > 0) return;
   if (P.mutGauge < 100) { message('🩸 Ещё не накипело: ' + Math.round(P.mutGauge) + '/100'); return; }
   P.mut = 10; P.mutGauge = 0;
+  snd('mutate');
   message('🩸 КРОВАВАЯ ЕБАТНЯ! Урон вдвое, кровь чужая — твоя.');
 }
 
@@ -1224,13 +1238,14 @@ function drop(x, y, it) {
 let heavyT = 0;                                        // чтобы отказ не забивал строку сообщений каждый кадр
 function pickUp(d) {
   const it = d.it;
-  if (it.k === 'gold') { gold += it.n; floaties.push({ x: d.x, y: d.y, txt: '+' + it.n + '💰', t: 0, c: '#f2b134' }); return true; }
+  if (it.k === 'gold') { gold += it.n; snd('coin'); floaties.push({ x: d.x, y: d.y, txt: '+' + it.n + '💰', t: 0, c: '#f2b134' }); return true; }
   // тяжёлое не поднимаем молча: иначе перегруз наступает незаметно
   if (carried() + itemWeight(it) > capacity() * 1.5) {
     if (heavyT <= 0) { message('Слишком тяжело — не поднять. Выбрось лишнее (I) или продай у костра'); heavyT = 3; }
     return false;
   }
   if (it.k === 'stack') addStack(it.id, it.n); else addItem(it);
+  snd('pick');
   floaties.push({ x: d.x, y: d.y, txt: '+' + (it.k === 'stack' ? itemName(it) + ' ×' + it.n : itemName(it)), t: 0, c: '#7fd6a0' });
   return true;
 }
@@ -1501,6 +1516,7 @@ function finishContract() {
   if (!contract) { phase = 'CAMP'; return; }           // без контракта закрывать нечего
   const bonus = contract.gold;
   gold += bonus;
+  snd('quest');
   phase = 'CAMP';
   ci++;
   offers = rollBoard(ci);                              // на доске новые работы
@@ -1545,6 +1561,7 @@ function upgrade(it) {
   if (gold < c.gold) { message('Нужно ' + c.gold + ' крон'); return; }
   if (countStack(c.matId) < c.mat) { message('Нужно ' + c.mat + ' × ' + STUFF[c.matId].n.toLowerCase()); return; }
   gold -= c.gold; useStack(c.matId, c.mat);
+  snd('forge');
   it.tier++;
   // у школьного доспеха ступень качает саму школу — так и говорим, что вышло
   const school = it.k === 'armor' && ARMOR[it.type].school;
@@ -1556,6 +1573,7 @@ function enchant(it) {
   if (gold < price) { message('Зачарование стоит ' + price + ' крон'); return; }
   if (countStack('essence') < need) { message('Нужно ' + need + ' × эссенция'); return; }
   gold -= price; useStack('essence', need);
+  snd('craft');
   let e; do { e = pick(ENCH_KEYS); } while (e === it.ench && ENCH_KEYS.length > 1);
   it.ench = e;
   message('✨ ' + ENCH[e].n + ': ' + ENCH[e].desc);
@@ -1785,6 +1803,7 @@ const DOWN_TIME = 8;
 let downT = 0, downLost = 0;
 function endGame(why) {
   if (over) return;
+  snd('die');
   over = true; cause = why; panel = null;
   downT = DOWN_TIME;
   downLost = Math.round(gold * 0.25);
@@ -1795,6 +1814,7 @@ function endGame(why) {
   saveRun();                                           // плата за лечение должна пережить закрытую вкладку
 }
 function rise() {
+  snd('rise');
   over = false; downT = 0;
   P.x = FIRE.x; P.y = FIRE.y + 60;
   P.hp = maxHP() * 0.5; P.mp = maxMP() * 0.5;
@@ -2456,7 +2476,8 @@ function panelBox(title) {
 /* Погашенная кнопка теперь не молчит: по нажатию говорит, ЧЕГО не хватает.
    Раньше клик просто не давал ничего, и выглядело это как поломка. */
 function btn(x, y, w, h, label, fn, col, dim, why) {
-  uiHit.push({ x, y, w, h, fn: dim ? () => { if (why) message(why); } : fn });
+  uiHit.push({ x, y, w, h, fn: dim ? () => { snd('deny'); if (why) message(why); }
+                                   : () => { snd('ui'); fn(); } });
   ctx.fillStyle = dim ? 'rgba(40,36,30,.7)' : (col || 'rgba(60,52,40,.95)');
   ctx.fillRect(x, y, w, h);
   ctx.strokeStyle = dim ? 'rgba(255,255,255,.06)' : 'rgba(201,162,39,.4)'; ctx.lineWidth = 1;
@@ -3101,8 +3122,13 @@ onBtn('swapBtn', () => { if (!over) swapHand(); });
 onBtn('bagBtn', () => { if (over) return; panel = panel === 'bag' ? null : 'bag'; bagScroll = 0; });
 onBtn('mutBtn', () => { if (!over) toggleMutation(); });
 onBtn('pause', () => { paused = !paused; updateButtons(); });
+onBtn('sndBtn', () => { if (window.sfx) window.sfx.toggle(); updateButtons(); });
 onBtn('restart', () => { clearRun(); reset(); message('Новый ведьмак, новый поход.'); });
-function updateButtons() { const b = document.getElementById('pause'); if (b) b.textContent = paused ? '▶ Продолжить' : '⏸ Пауза'; }
+function updateButtons() {
+  const b = document.getElementById('pause'); if (b) b.textContent = paused ? '▶ Продолжить' : '⏸ Пауза';
+  const s = document.getElementById('sndBtn');
+  if (s) s.textContent = (window.sfx && window.sfx.on) ? '🔊 Звук' : '🔇 Тихо';
+}
 
 window.__fsFail = function (why) { message('⛶ Полный экран не открылся: ' + why); };
 

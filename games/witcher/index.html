@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ведьмачий контракт</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2064%2064'%3E%3Ctext%20x='32'%20y='48'%20font-size='54'%20text-anchor='middle'%3E🐺%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="../../shared/base.css?v=20260818-8">
-<link rel="stylesheet" href="style.css?v=20260818-8">
+<link rel="stylesheet" href="../../shared/base.css?v=20260818-9">
+<link rel="stylesheet" href="style.css?v=20260818-9">
 </head>
 <body>
 <div class="stage">
@@ -17,6 +17,7 @@
     <a class="btn" href="../../index.html">← Меню</a>
     <button id="fsBtn" class="fsbtn" title="Полный экран (F)">⛶ Во весь экран</button>
     <button id="pause">⏸ Пауза</button>
+    <button id="sndBtn" title="Звук синтезируется на месте, файлов нет">🔊 Звук</button>
     <button id="restart">🔄 Заново</button>
   </div>
 
@@ -61,12 +62,14 @@
   <div class="row2">🎒 <b>Рюкзаки</b> у оружейника: ранец +25 кг, короб +45, ведьмачий вьюк +70. Мешок и сам весит, так что самый большой не всегда самый выгодный. Тяжёлый ворот и запас разрывных болтов тоже надо на чём-то нести.</div>
   <div class="row2">☠ <b>Если пал</b> — это не конец. Восемь секунд лежишь, работа сорвана, четверть кошеля уходит за лечение — и встаёшь у костра с половиной здоровья. <b>Снаряжение, сумка и сюжет остаются.</b> Начать с нуля можно только кнопкой «Заново».</div>
   <div class="row2">💾 <b>Поход сохраняется</b> — но только в лагере. Закрыл вкладку и вернулся: снаряжение, сумка и крона на месте. Бой не сохраняется.</div>
+  <div class="row2">🔊 <b>Звук</b> — кнопка «Звук» над игрой. Ничего не скачивается: удары, тетива, знаки и кроны <b>синтезируются на месте</b>, поэтому игра по-прежнему открывается двойным щелчком. Выключил — запомнит.</div>
   <div class="note">Вес не прощает: перегруз — и не увернёшься. Всё лишнее продавай у костра. Между контрактами враги не появляются: чини, вари, перекладывай.</div>
 </aside>
 </div>
 
-<script src="game.js?v=20260818-8"></script>
+<script src="../../shared/sfx.js?v=20260818-9"></script>
+<script src="game.js?v=20260818-9"></script>
 
-<script src="../../shared/fullscreen.js?v=20260818-8"></script>
+<script src="../../shared/fullscreen.js?v=20260818-9"></script>
 </body>
 </html>
