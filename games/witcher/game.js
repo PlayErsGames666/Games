@@ -827,9 +827,15 @@ function compareNote(it) {                             // it лежит в су�
   if (sameGear(it, cur)) return { t: 'точно такой же', c: '#8a8f96', same: true };
   const d = Math.round(gearValue(it) - gearValue(cur));
   const what = it.k === 'armor' ? ' брони' : ' урона';
-  if (d > 0) return { t: '+' + d + what, c: '#7fd6a0' };
-  if (d < 0) return { t: '−' + (-d) + what, c: '#ff7a6a' };
-  return { t: 'цифры те же', c: '#c9a227' };           // разница только в чарах или масле
+  /* У школьного доспеха броня — не вся правда: кот на десять единиц «хуже»
+     тяжёлого, но даёт то, чего у тяжёлого нет вовсе. Дописываем значок школы,
+     чтобы «−10 брони» не читалось как «выбрось». */
+  const mark = it.k === 'armor' && ARMOR[it.type].school &&
+               (!cur.k || cur.k !== 'armor' || ARMOR[cur.type].school !== ARMOR[it.type].school)
+             ? ' ' + ARMOR[it.type].ico : '';
+  if (d > 0) return { t: '+' + d + what + mark, c: '#7fd6a0' };
+  if (d < 0) return { t: '−' + (-d) + what + mark, c: mark ? '#c9a227' : '#ff7a6a' };
+  return { t: 'цифры те же' + mark, c: '#c9a227' };    // разница только в чарах, масле или школе
 }
 /* Подрезаем длинное имя, чтобы оно не налезло на пометку справа. */
 function clipText(s, px, size) {
