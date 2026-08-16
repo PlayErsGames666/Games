@@ -195,7 +195,8 @@ const STUFF = {
   boltarm: { n: 'Бронебойные болты',   ico: '➹', w: 0.09, price: 6,  desc: 'проходят броню насквозь: наёмнику она не поможет' },
   boltfir: { n: 'Зажигательные болты', ico: '🔥', w: 0.07, price: 10, desc: 'урона меньше, зато тварь горит ещё несколько секунд' },
   boltbom: { n: 'Разрывные болты',     ico: '💥', w: 0.18, price: 22, desc: 'рвут всех, кто рядом — на толпу накеров' },
-  ore:     { n: 'Руда',      ico: '⛏', w: 1.0,  price: 14, desc: 'на улучшение мечей' },
+  ore:     { n: 'Руда',      ico: '⛏', w: 1.0,  price: 14, desc: 'на улучшение мечей и на болты' },
+  herb:    { n: 'Травы',     ico: '🌿', w: 0.1,  price: 6,  desc: 'сырьё для варки: зелья и масла' },
   hide:    { n: 'Шкура',     ico: '🧵', w: 0.8,  price: 12, desc: 'на улучшение доспехов' },
   essence: { n: 'Эссенция',  ico: '✨', w: 0.2,  price: 30, desc: 'на зачарование' },
   oilsil:  { n: 'Масло от нечисти', ico: '🧴', w: 0.3, price: 45, oil: 'silver', hits: 25,
@@ -216,6 +217,85 @@ const BAGS = {
   hunter: { n: 'Охотничий короб',  ico: '🛄', cap: 45, w: 4.0, price: 280, desc: '+45 кг, сам весит 4' },
   master: { n: 'Ведьмачий вьюк',   ico: '🧰', cap: 70, w: 6.5, price: 520, desc: '+70 кг, сам весит 6.5' },
 };
+
+/* =====================  НАВЫКИ  =====================
+   Ведьмак рос только снаряжением: нашёл меч получше — стал сильнее. Сам он
+   не менялся никогда. Теперь за головы и закрытые работы идёт ОПЫТ, за
+   ступень дают очко, а очко кладётся в одну из трёх веток.
+
+   Ветки не про «плюс пять к силе», а про три разных способа драться:
+   железом, знаками или зельями. Алхимия вдобавок открывает ВАРКУ В ДОРОГЕ —
+   ради неё больше не надо возвращаться к костру. */
+const SKILLS = {
+  blade:  { n: 'Клинок',        ico: '⚔', br: 'Бой',     max: 5, step: '+6% урона мечом' },
+  aim:    { n: 'Твёрдая рука',  ico: '🎯', br: 'Бой',     max: 5, step: '+6% урона арбалетом' },
+  tough:  { n: 'Закалка',       ico: '🛡', br: 'Бой',     max: 5, step: '+8 здоровья' },
+  power:  { n: 'Сила знаков',   ico: '✨', br: 'Знаки',   max: 5, step: '+8% урона знаков' },
+  focus:  { n: 'Сосредоточение', ico: '🔮', br: 'Знаки',  max: 5, step: '+12% к сбору энергии' },
+  thrift: { n: 'Расчёт',        ico: '🧿', br: 'Знаки',   max: 4, step: 'знаки дешевле на 6%' },
+  brew:   { n: 'Травничество',  ico: '⚗',  br: 'Алхимия', max: 3, step: 'варка в дороге: ступень открывает рецепты' },
+  fletch: { n: 'Болторезка',    ico: '➶',  br: 'Алхимия', max: 3, step: 'вязать болты в поле: ступень открывает сорта' },
+  purge:  { n: 'Чистая кровь',  ico: '🩸', br: 'Алхимия', max: 4, step: 'отрава сходит на 20% быстрее' },
+};
+const SKILL_KEYS = Object.keys(SKILLS);
+const BRANCHES = ['Бой', 'Знаки', 'Алхимия'];
+function sk(k) { return (P && P.sk && P.sk[k]) | 0; }
+// сколько опыта до следующей ступени: растёт, но не отвесно
+function xpNeed(lvl) { return Math.round(90 * Math.pow(1.28, lvl - 1)); }
+function gainXP(n) {
+  if (!P) return;
+  P.xp += n;
+  while (P.xp >= xpNeed(P.lvl)) {
+    P.xp -= xpNeed(P.lvl);
+    P.lvl++; P.sp++;
+    snd('level');
+    message('⭐ Ступень ' + P.lvl + '! Очко навыка — нажми K.');
+  }
+}
+function spend(k) {
+  const S = SKILLS[k]; if (!S) return;
+  if (P.sp <= 0) { message('Нет очков навыка — они дают за ступени'); snd('deny'); return; }
+  if (sk(k) >= S.max) { message('Дальше некуда: ' + S.n + ' и так на пределе'); snd('deny'); return; }
+  P.sk[k] = sk(k) + 1; P.sp--;
+  P.hp = Math.min(P.hp, maxHP());
+  snd('forge');
+  message(S.ico + ' ' + S.n + ' ' + P.sk[k] + '/' + S.max + ' — ' + S.step);
+  saveRun();
+}
+
+/* =====================  ВАРКА В ДОРОГЕ  =====================
+   Отдельного места для алхимии нет и не будет: котелок при себе. Открыл на
+   C где угодно — хоть посреди болота, — и сварил, если хватает трав и
+   ступени навыка. Ради этого травы и появились как отдельный припас. */
+const RECIPES = [
+  { id: 'swallow', out: 1,  need: { herb: 3 },            s: 'brew',   lvl: 1 },
+  { id: 'honey',   out: 1,  need: { herb: 2, essence: 1 }, s: 'brew',   lvl: 1 },
+  { id: 'thunder', out: 1,  need: { herb: 3, essence: 1 }, s: 'brew',   lvl: 2 },
+  { id: 'oilsil',  out: 1,  need: { herb: 2, essence: 1 }, s: 'brew',   lvl: 3 },
+  { id: 'oilste',  out: 1,  need: { herb: 2, ore: 1 },     s: 'brew',   lvl: 3 },
+  { id: 'shit',    out: 1,  need: { herb: 4, essence: 2 }, s: 'brew',   lvl: 3 },
+  { id: 'bolt',    out: 10, need: { ore: 1 },              s: 'fletch', lvl: 1 },
+  { id: 'boltarm', out: 6,  need: { ore: 2 },              s: 'fletch', lvl: 2 },
+  { id: 'boltfir', out: 5,  need: { ore: 1, herb: 2 },     s: 'fletch', lvl: 2 },
+  { id: 'boltsil', out: 6,  need: { ore: 2, essence: 1 },  s: 'fletch', lvl: 3 },
+  { id: 'boltbom', out: 4,  need: { ore: 2, essence: 2 },  s: 'fletch', lvl: 3 },
+];
+function canCraft(r) {
+  if (sk(r.s) < r.lvl) return 'нужно ' + SKILLS[r.s].n + ' ' + r.lvl;
+  for (const k in r.need) if (countStack(k) < r.need[k]) {
+    return 'не хватает: ' + STUFF[k].n.toLowerCase() + ' ' + countStack(k) + '/' + r.need[k];
+  }
+  return null;
+}
+function craft(r) {
+  const why = canCraft(r);
+  if (why) { message(why); snd('deny'); return; }
+  for (const k in r.need) useStack(k, r.need[k]);
+  addStack(r.id, r.out);
+  snd('craft');
+  message('⚗ Сварено: ' + goodInfo(r.id).n + ' ×' + r.out);
+  saveRun();
+}
 
 // Руны (знаки). Тратят энергию.
 const RUNES = [
@@ -741,7 +821,8 @@ function storyNow() { return storyIdx < STORY.length ? STORY[storyIdx] : null; }
 function takeStory() {
   const q = storyNow();
   if (!q) { message('Сюжет пройден — остались работы с доски'); return; }
-  if (phase === 'FIGHT') { message('Сперва доделай: ' + contract.t); return; }
+  if (taken.length >= MAX_JOBS) { message('Больше трёх работ разом не берут — доделай что-нибудь'); return; }
+  if (taken.some(c => c.story)) { message('Сюжетное дело уже взято: ' + taken.find(c => c.story).t); return; }
   startContract({ t: q.t, pool: q.pool.slice(), loc: q.loc, n: q.n, gold: q.gold,
                   fam: jobFam(q), story: true, spot: q.spot, unique: q.unique, reward: q.reward,
                   done: q.done, arrived: false });
@@ -837,6 +918,26 @@ function rollBoard(k) {
 /* =====================  СОСТОЯНИЕ  ===================== */
 
 let P, foes, drops, shots, parts, obst, inv, gold, contract, ci, phase, over, cause;
+/* ВЗЯТЫЕ РАБОТЫ. Раньше держали одну: взял — остальные с доски пропали, и до
+   конца работы ты никуда. Теперь их до трёх разом, у каждой свой счёт целей и
+   своя очередь выхода, а `contract` — та, которой ты сейчас занят: либо та,
+   на чьей земле стоишь, либо первая из списка. Так весь старый код, который
+   пишет «contract.t», продолжает говорить о деле, а не о случайной работе. */
+const MAX_JOBS = 3;
+let taken = [];
+function focusJob() {
+  if (!taken.length) return null;
+  for (const c of taken) {                             // сюжет ведёт туда, куда идёшь
+    if (c.story && SPOTS[c.spot] && Math.hypot(P.x - SPOTS[c.spot].x, P.y - SPOTS[c.spot].y) < 470) return c;
+  }
+  const here = locAt(P.x, P.y);
+  for (const c of taken) if (!c.story && c.loc === here) return c;
+  return taken[0];
+}
+function syncFocus() {
+  contract = focusJob();
+  killsLeft = contract ? contract.left : 0;            // пояс показывает счёт ТЕКУЩЕЙ работы
+}
 let curLoc = 'camp';                     // где ведьмак стоит ПРЯМО СЕЙЧАС — считается по координатам
 let deaths = 0;                          // сколько раз падал: смерть больше не конец, но счёт ведём
 let offers = [];                         // три работы на доске у костра
@@ -919,6 +1020,7 @@ function swordDamage(sw, fam) {
   let d = base * match;
   if (sw.oil > 0) d *= OIL_MUL;                        // смазанный клинок
   d *= 1 + 0.06 * schoolPow('blade');                  // волчий доспех — про меч
+  d *= 1 + 0.06 * sk('blade');                         // и навык «Клинок»
   if (P.mut > 0) d *= 2.2;
   if (P.buffThunder > 0) d *= 1.45;
   return d;
@@ -959,6 +1061,7 @@ function moveSpeed() {
 function mpRegen() {
   let r = 7;
   if (P.armor) r *= ARMOR[P.armor.type].mpr;
+  r *= 1 + 0.12 * sk('focus');
   if (hasEnch('ward')) r *= 1.5;
   return r;
 }
@@ -966,7 +1069,7 @@ function hasEnch(key) {
   for (const s of [P.steel, P.silver, P.armor, P.xbow]) if (s && s.ench === key) return true;
   return false;
 }
-function maxHP() { return 100 + (P.armor ? ARMOR[P.armor.type].def * 2 : 0) + 8 * schoolPow('tank'); }
+function maxHP() { return 100 + (P.armor ? ARMOR[P.armor.type].def * 2 : 0) + 8 * schoolPow('tank') + 8 * sk('tough'); }
 function maxMP() { return 100; }
 
 /* =====================  ИНВЕНТАРЬ  ===================== */
@@ -1112,7 +1215,7 @@ function throwContract() {
    на момент нажатия неизвестно, в кого этот болт попадёт. */
 function xbowDamage() {
   if (!P.xbow) return 0;
-  return XBOW[P.xbow.type].dmg * TIERS[P.xbow.tier].m *
+  return XBOW[P.xbow.type].dmg * TIERS[P.xbow.tier].m * (1 + 0.06 * sk('aim')) *
          (P.buffThunder > 0 ? 1.45 : 1) * (P.mut > 0 ? 2.2 : 1);
 }
 /* Какой болт в жёлобе. Проверяем по BOLTS, а не по STUFF: в STUFF лежат ещё
@@ -1203,7 +1306,12 @@ function killFoe(f) {
   snd('kill');
   blood(f.x, f.y, 16);
   P.mutGauge = Math.min(100, P.mutGauge + 14);
-  killsLeft--;
+  // опыт по тому, насколько тварь была страшна, а не по числу голов
+  gainXP(Math.max(2, Math.round(FOES[f.t].hp / 5 + (FOES[f.t].boss ? 40 : 0))));
+  // голову засчитываем ТОЙ работе, по которой тварь вышла
+  if (f.job && f.job.left > 0) f.job.left--;
+  else { const c = taken.find(j => j.left > 0 && j.pool.indexOf(f.t) >= 0); if (c) c.left--; }
+  killsLeft = contract ? contract.left : 0;
   lootFrom(f);
 }
 function hurtPlayer(raw, from) {
@@ -1228,8 +1336,8 @@ function hurtPlayer(raw, from) {
 /* Грифоний доспех считается ЗДЕСЬ: и в цене знака, и в его силе. Цену
    берём через ту же функцию, что рисует кнопку в поясе, — иначе на кнопке
    было бы написано одно, а списывалось другое. */
-function runeCost(R) { return Math.max(1, Math.round(R.mp * (1 - 0.08 * schoolPow('sign')))); }
-function runePower() { return 1 + 0.12 * schoolPow('sign'); }
+function runeCost(R) { return Math.max(1, Math.round(R.mp * (1 - 0.08 * schoolPow('sign')) * (1 - 0.06 * sk('thrift')))); }
+function runePower() { return 1 + 0.12 * schoolPow('sign') + 0.08 * sk('power'); }
 function castRune(i) {
   const R = RUNES[i]; if (!R) return;
   if (P.runeCd[i] > 0) return;
@@ -1294,7 +1402,7 @@ function lootFrom(f) {
   const mul = (hasEnch('greed') ? 1.3 : 1) * (P.biz > 0 ? 3 : 1);
   drop(f.x, f.y, { k: 'gold', n: Math.round((6 + ri(9) + k * 2) * mul) });
   const roll = Math.random();
-  if (roll < 0.34) drop(f.x, f.y, mkStack(pick(['ore', 'hide', 'hide', 'essence']), 1 + ri(2)));
+  if (roll < 0.34) drop(f.x, f.y, mkStack(pick(['ore', 'hide', 'herb', 'herb', 'essence']), 1 + ri(2)));
   else if (roll < 0.46) {
     // особые болты попадаются реже обычных и меньшими связками
     const rare = Math.random() < 0.28;
@@ -1545,22 +1653,29 @@ function obstNear(x, y) {                              // всё, что мож�
 /* Взял работу — никто тебя никуда не переносит. Ты стоишь там, где стоял,
    а до места идёшь сам. Отсюда и стрелка на краю экрана, и метка на карте. */
 function startContract(c) {
-  contract = c || offers[0] || makeContract(JOBS[0], ci);
+  const job = c || offers[0] || makeContract(JOBS[0], ci);
+  if (taken.length >= MAX_JOBS) { message('Больше трёх работ разом не берут'); return; }
+  if (taken.indexOf(job) >= 0) { message('Эта работа уже взята'); return; }
+  job.left = job.n;                                    // свой счёт целей у каждой работы
+  job.queue = job.n;                                   // и своя очередь выхода
+  taken.push(job);
+  offers = offers.filter(o => o !== job);              // с доски снимается только взятая
+  contract = job;
   phase = 'FIGHT';
   panel = null;
-  killsLeft = contract.n;
-  spawnQueue = contract.n;
+  killsLeft = job.left;
   spawnT = 0;
-  const S = LOCS[contract.loc] || LOCS.woods;
-  if (contract.story && SPOTS[contract.spot]) {
-    message('📖 ' + contract.t + ': иди к месту «' + SPOTS[contract.spot].n + '» — стрелка покажет');
+  const S = LOCS[job.loc] || LOCS.woods;
+  if (job.story && SPOTS[job.spot]) {
+    message('📖 ' + job.t + ': иди к месту «' + SPOTS[job.spot].n + '» — стрелка покажет');
   } else {
-    message('📜 ' + contract.t + ': иди в ' + S.ico + ' ' + S.n.toLowerCase() + ' — целей ' + contract.n + '. ' + S.note);
+    message('📜 ' + job.t + ': иди в ' + S.ico + ' ' + S.n.toLowerCase() + ' — целей ' + job.n + '. ' + S.note);
   }
 }
 /* Сюжетная работа начинается не когда взял, а когда ДОШЁЛ. */
 function storyArrival() {
-  if (!contract || !contract.story || contract.arrived) return;
+  const contract = taken.find(c => c.story && !c.arrived);
+  if (!contract) return;
   const s = SPOTS[contract.spot];
   if (!s || Math.hypot(P.x - s.x, P.y - s.y) > 130) return;
   contract.arrived = true;
@@ -1573,18 +1688,24 @@ function storyArrival() {
   }
 }
 let spawnQueue = 0, spawnT = 0;
+/* Выпускает тварей по ТОЙ работе, на чьей земле ведьмак стоит. Если взяты
+   три и все в разных краях, работать будет та, куда пришёл, — остальные ждут
+   своей очереди и своего края. */
 function spawnTick(dt) {
-  if (spawnQueue <= 0 || !contract) return;
-  if (contract.story && !contract.arrived) return;     // сюжет ждёт, пока дойдёшь до места
+  spawnT -= dt;
+  if (spawnT > 0) return;
+  for (const c of taken) if (spawnOne(c)) { spawnT = 0.85; return; }
+  spawnT = 0.2;                                        // никому не подошло — заглянем раньше
+}
+function spawnOne(contract) {
+  if (contract.queue <= 0) return false;
+  if (contract.story && !contract.arrived) return false;   // сюжет ждёт, пока дойдёшь до места
   /* В сюжете дело привязано к МЕСТУ, а не к краю: брод, например, лежит
      на берегу, хотя работа числится болотной, — и по краю там не вышло бы
      ни одного утопца. Работы с доски по-прежнему считаются по краю. */
   const S = contract.story && SPOTS[contract.spot] ? SPOTS[contract.spot] : null;
-  if (S) { if (Math.hypot(P.x - S.x, P.y - S.y) > 430) return; }
-  else if (locAt(P.x, P.y) !== contract.loc) return;
-  spawnT -= dt;
-  if (spawnT > 0) return;
-  spawnT = 0.85;
+  if (S) { if (Math.hypot(P.x - S.x, P.y - S.y) > 430) return false; }
+  else if (locAt(P.x, P.y) !== contract.loc) return false;
   /* Выходят где-то поблизости, но не в лицо и не в лагере: тычем наугад
      вокруг ведьмака и берём первую точку своего края. */
   let x = P.x, y = P.y, ok = false;
@@ -1612,18 +1733,25 @@ function spawnTick(dt) {
         good.push({ x: gx, y: gy });
       }
     }
-    if (!good.length) return;                          // совсем некуда — подождём шаг
+    if (!good.length) return false;                    // совсем некуда — подождём шаг
     const g = pick(good); x = g.x; y = g.y;
   }
   spawnFoe(pick(contract.pool), x, y);
-  spawnQueue--;
+  // тварь помнит, по чьей работе вышла: иначе не понять, кому её засчитать
+  foes[foes.length - 1].job = contract;
+  contract.queue--;
+  return true;
 }
-function finishContract() {
+function finishContract(job) {
+  const contract = job || taken[0];
   if (!contract) { phase = 'CAMP'; return; }           // без контракта закрывать нечего
+  taken = taken.filter(c => c !== contract);
+  foes = foes.filter(f => f.job !== contract);         // чужие твари остаются, свои расходятся
   const bonus = contract.gold;
   gold += bonus;
+  gainXP(Math.round(40 + contract.n * 6 + ci * 4));    // за работу целиком — отдельно
   snd('quest');
-  phase = 'CAMP';
+  phase = taken.length ? 'FIGHT' : 'CAMP';             // остальные работы никуда не делись
   ci++;
   offers = rollBoard(ci);                              // на доске новые работы
   rollHotGood();                                       // и у скупщика новый спрос
@@ -1694,7 +1822,7 @@ function enchant(it) {
    иначе на разнице делались бы деньги из воздуха. */
 const TRADE_RATE = 0.6;
 let hotGood = 'hide';
-const TRADEABLE = ['ore', 'hide', 'essence', 'bolt', 'boltsil', 'boltarm', 'boltfir', 'boltbom',
+const TRADEABLE = ['ore', 'hide', 'herb', 'essence', 'bolt', 'boltsil', 'boltarm', 'boltfir', 'boltbom',
                    'oilsil', 'oilste', 'swallow', 'thunder', 'honey', 'shit'];
 function rollHotGood() { hotGood = pick(TRADEABLE); }
 function goodInfo(id) { return POTIONS[id] || STUFF[id]; }
@@ -1836,6 +1964,7 @@ function saveRun() {
       inv, offers, hot: hotGood,
       x: downed ? FIRE.x : P.x, y: downed ? FIRE.y + 60 : P.y,
       bag: P.bag, story: storyIdx, deaths,
+      lvl: P.lvl, xp: P.xp, sp: P.sp, sk: P.sk,
     }));
   } catch (e) {}
 }
@@ -1902,6 +2031,19 @@ function loadRun() {
   P.bag = BAGS[s.bag] && s.bag !== 'none' ? s.bag : null;
   storyIdx = clamp(Math.floor(+s.story) || 0, 0, STORY.length);
   deaths = clamp(Math.floor(+s.deaths) || 0, 0, 99999);
+  /* Навыки из записи собираем по одному и только известные: чужой ключ или
+     ступень 99 в правленом сохранении иначе прошли бы прямо в расчёт урона. */
+  P.lvl = clamp(Math.floor(+s.lvl) || 1, 1, 999);
+  P.xp = clamp(Math.floor(+s.xp) || 0, 0, 9e6);
+  P.sp = clamp(Math.floor(+s.sp) || 0, 0, 999);
+  P.sk = {};
+  if (s.sk && typeof s.sk === 'object') {
+    for (const k of SKILL_KEYS) {
+      const v = clamp(Math.floor(+s.sk[k]) || 0, 0, SKILLS[k].max);
+      if (v > 0) P.sk[k] = v;
+    }
+  }
+  P.hp = Math.min(P.hp, maxHP());
   curLoc = locAt(P.x, P.y); syncCam();
   return true;
 }
@@ -1924,12 +2066,13 @@ function reset() {
     runeCd: [0, 0, 0, 0], quen: 0, quenT: 0, yrden: null, mut: 0, mutGauge: 0,
     regen: 0, buffThunder: 0, biz: 0, slow: 0, shake: 0, face: -Math.PI / 2,
     potSel: 'swallow',        // после «Заново» выбор зелья не должен слетать в никуда
+    lvl: 1, xp: 0, sp: 0, sk: {},   // ступень, опыт, нерастраченные очки и вложенное
     bag: null,                // рюкзак покупается у торговца и поднимает предел веса
   };
   P.hp = maxHP();
   inv = [mkStack('bolt', 20), mkStack('swallow', 2), mkStack('honey', 1)];
   gold = 120; ci = 0; foes = []; drops = []; shots = []; parts = []; floaties = [];
-  contract = null; phase = 'CAMP'; over = false; cause = ''; panel = null; paused = false;
+  contract = null; taken = []; phase = 'CAMP'; over = false; cause = ''; panel = null; paused = false;
   killsLeft = 0; spawnQueue = 0;
   // мир строится один раз на весь поход и больше не перетасовывается
   obst = buildWorld();
@@ -1963,7 +2106,7 @@ function endGame(why) {
   downLost = Math.round(gold * 0.25);
   gold -= downLost;
   deaths++;
-  contract = null; phase = 'CAMP'; killsLeft = 0; spawnQueue = 0;
+  contract = null; taken = []; phase = 'CAMP'; killsLeft = 0; spawnQueue = 0;
   foes = []; shots = [];
   saveRun();                                           // плата за лечение должна пережить закрытую вкладку
 }
@@ -2001,7 +2144,7 @@ function update(dt) {
   if (P.slow > 0) P.slow -= dt;
   if (P.regen > 0) { P.regen -= dt; P.hp = Math.min(maxHP(), P.hp + 5.6 * dt); }
   P.mp = Math.min(maxMP(), P.mp + mpRegen() * dt);
-  P.tox = Math.max(0, P.tox - 1.2 * (1 + 0.3 * schoolPow('brew')) * dt);   // 🐍 отрава сходит быстрее
+  P.tox = Math.max(0, P.tox - 1.2 * (1 + 0.3 * schoolPow('brew') + 0.2 * sk('purge')) * dt);
   if (P.tox > 70) {                                    // передоз травит сам по себе
     P.hp -= (P.tox - 70) * 0.055 * dt * 3;
     if (P.hp <= 0) { endGame('Отравился зельями. Токсичность не прощает.'); return; }
@@ -2028,6 +2171,7 @@ function update(dt) {
     }
   }
   curLoc = locAt(P.x, P.y);                            // где стоим — то и правила
+  syncFocus();                                         // и то, какая из взятых работ сейчас в деле
   syncCam();
   storyArrival();                                      // дошёл до сюжетного места — начинается
   if (mouseInWorld()) { const m = mw(); P.face = Math.atan2(m.y - P.y, m.x - P.x); }
@@ -2093,7 +2237,12 @@ function update(dt) {
   // --- контракт ---
   if (phase === 'FIGHT') {
     spawnTick(dt);
-    if (killsLeft <= 0 && !foes.length && spawnQueue <= 0) finishContract();
+    /* Закрываем КАЖДУЮ работу, у которой цели кончились и своих тварей на
+       поле не осталось. Чужие твари и чужая очередь при этом не мешают. */
+    for (const c of taken.slice()) {
+      if (c.left <= 0 && c.queue <= 0 && !foes.some(f => f.job === c && !f.dead)) finishContract(c);
+    }
+    if (!taken.length) phase = 'CAMP';
   } else {
     saveT -= dt;
     if (saveT <= 0) { saveT = 2; saveRun(); }           // в лагере поход пишется сам
@@ -2473,6 +2622,13 @@ function drawHUD() {
   // золото, вес, болты
   const rx = CW - 10;
   txt('💰 ' + gold, rx, 15, 12, '#f2b134', 'right');
+  // ступень и опыт: без них прокачка была бы невидимой
+  {
+    const need = xpNeed(P.lvl), w = 92, bx2 = 174, by2 = 46;
+    bar(bx2, by2, w, 6, clamp(P.xp / need, 0, 1), '#c9a227');
+    txt('⭐ ' + P.lvl + (P.sp > 0 ? '  ·  очков ' + P.sp + ' (K)' : ''), bx2 + 2, by2 + 3, 8,
+        P.sp > 0 ? '#f2b134' : '#98a2ae');
+  }
   const ld = loadState();                              // не L: L() — это место, и оно тут же рядом
   txt('⚖ ' + carried().toFixed(1) + ' / ' + capacity() + ' кг', rx, 29, 10,
     ld.lvl === 0 ? '#98a2ae' : ld.lvl === 1 ? '#ffb43a' : '#ff5a4a', 'right');
@@ -2482,14 +2638,26 @@ function drawHUD() {
 
   // где ты и что делаешь. Место читается по ногам, а не по фазе игры
   const here = L().ico + ' ' + L().n;
-  if (phase === 'FIGHT' && contract) {
-    const there = locAt(P.x, P.y) === contract.loc;
-    const wait = contract.story && !contract.arrived;
-    const tail = wait ? ' — иди к месту «' + (SPOTS[contract.spot] ? SPOTS[contract.spot].n : '?') + '»'
-               : there ? ' — осталось ' + Math.max(0, killsLeft)
-                       : ' — иди в ' + (LOCS[contract.loc] || LOCS.woods).n.toLowerCase();
-    txt(here + ' · ' + (contract.story ? '📖 ' : '') + contract.t + tail,
-        CW / 2, 50, 11, (there && !wait) ? '#e8d9a8' : '#f2b134', 'center');
+  if (phase === 'FIGHT' && taken.length) {
+    /* Работ теперь может быть до трёх. Пишем все, а ту, которой занят прямо
+       сейчас, отбиваем цветом: иначе непонятно, чей счёт целей идёт. */
+    const here2 = locAt(P.x, P.y);
+    txt(here, 10, 50, 10, '#98a2ae');
+    let lx2 = 10 + 96;
+    for (const c of taken) {
+      const now = c === contract;
+      const wait = c.story && !c.arrived;
+      const there = c.loc === here2;
+      const s2 = (c.story ? '📖 ' : '') + c.t + (wait ? ' → место' : ' ' + Math.max(0, c.left) + '/' + c.n) +
+                 (there || wait ? '' : ' → ' + (LOCS[c.loc] || LOCS.woods).ico);
+      ctx.font = '10px Segoe UI';
+      const w2 = ctx.measureText(s2).width + 10;
+      if (lx2 + w2 > CW - 10) break;
+      ctx.fillStyle = now ? 'rgba(96,78,36,.55)' : 'rgba(30,28,24,.55)';
+      ctx.fillRect(lx2 - 4, 43, w2, 14);
+      txt(s2, lx2, 50, 10, now ? '#f2d59a' : '#98a2ae');
+      lx2 += w2 + 4;
+    }
   } else {
     txt(here + ' · контракт ' + (ci + 1) + ' · рекорд: ' + best, CW / 2, 50, 10, '#98a2ae', 'center');
   }
@@ -2785,8 +2953,9 @@ function drawBoard() {
     btn(CW - 116, y + 66, 82, 19, '📖 взяться', () => takeStory(), 'rgba(96,74,26,.95)');
     y += 100;
   }
-  txt('Работы с доски. Возьмёшь одну — остальные пропадут, появятся новые.',
-      CW / 2, y, 9, '#98a2ae', 'center');
+  txt(taken.length ? 'Взято работ: ' + taken.length + ' из ' + MAX_JOBS + ' — ' + taken.map(c => c.t).join(', ')
+                   : 'Работы с доски. Можно взять до трёх разом.',
+      CW / 2, y, 9, taken.length >= MAX_JOBS ? '#ff7a6a' : '#98a2ae', 'center');
   y += 12;
   for (const o of offers) {
     const S = LOCS[o.loc] || LOCS.woods;
@@ -2803,7 +2972,9 @@ function drawBoard() {
     txt(who.map(t => FOES[t].ico + ' ' + FOES[t].n).join('   ') + '   ·   целей ' + o.n,
         34, y + 45, 9, '#c2cad2');
     txt(fam, 34, y + 60, 10, famC);
-    btn(CW - 116, y + 50, 82, 19, '📜 взять', () => startContract(o), 'rgba(80,66,30,.95)');
+    const full = taken.length >= MAX_JOBS;
+    btn(CW - 116, y + 50, 82, 19, full ? 'занят' : '📜 взять', () => startContract(o),
+        'rgba(80,66,30,.95)', full, 'Три работы уже на руках — доделай что-нибудь');
     y += 80;
   }
   panelFooter('E или ✕ — закрыть · плата тем больше, чем злее работа');
@@ -2978,7 +3149,7 @@ function drawBench() {
 const TAB_N = { supply: 'Припасы', bolt: 'Болты', alch: 'Зелья', weapon: 'Арбалеты',
                 armor: 'Доспехи', bag: 'Мешки', sell: 'Продать' };
 const TAB_STACKS = {
-  supply: [['ore', 3, 66], ['hide', 3, 54], ['essence', 1, 34]],
+  supply: [['ore', 3, 66], ['hide', 3, 54], ['herb', 5, 40], ['essence', 1, 34]],
   bolt:   [['bolt', 10, 24], ['boltsil', 8, 76], ['boltarm', 8, 58], ['boltfir', 6, 72], ['boltbom', 4, 105]],
   alch:   [['swallow', 1, 40], ['thunder', 1, 55], ['honey', 1, 35], ['shit', 1, 90],
            ['oilsil', 1, 45], ['oilste', 1, 45]],
@@ -3145,6 +3316,81 @@ function drawVendor() {
   drawTrade(vendorNpc);
 }
 
+/* =====================  ОКНО НАВЫКОВ (K)  =====================
+   Три столбца по веткам. В каждой строке видно, сколько уже вложено, что
+   даёт ступень и что даст следующая — чтобы очко тратилось осознанно. */
+function drawSkills() {
+  panelBox('⭐ НАВЫКИ');
+  const need = xpNeed(P.lvl);
+  txt('Ступень ' + P.lvl + '   ·   опыт ' + P.xp + ' / ' + need, 24, 96, 11, '#e8d9a8');
+  txt(P.sp > 0 ? '⭐ очков навыка: ' + P.sp : 'очков нет — бей тварей и закрывай работы',
+      CW - 24, 96, 11, P.sp > 0 ? '#f2b134' : '#6c7683', 'right');
+  bar(24, 104, CW - 48, 7, clamp(P.xp / need, 0, 1), '#c9a227');
+
+  const colW = Math.floor((CW - 48 - 12) / 3);
+  BRANCHES.forEach((br, bi) => {
+    const x = 24 + bi * (colW + 6);
+    txt(br, x + colW / 2, 128, 11, '#f2d59a', 'center');
+    let y = 140;
+    for (const k of SKILL_KEYS) {
+      const S = SKILLS[k]; if (S.br !== br) continue;
+      const lv = sk(k), maxed = lv >= S.max, can = P.sp > 0 && !maxed;
+      ctx.fillStyle = lv > 0 ? 'rgba(40,44,32,.9)' : 'rgba(20,18,15,.8)';
+      ctx.fillRect(x, y, colW, 52);
+      ctx.strokeStyle = maxed ? 'rgba(242,177,52,.6)' : lv > 0 ? 'rgba(201,162,39,.35)' : 'rgba(255,255,255,.08)';
+      ctx.lineWidth = 1; ctx.strokeRect(x + .5, y + .5, colW - 1, 51);
+      txt(clipText(S.ico + ' ' + S.n, colW - 40, 10), x + 5, y + 12, 10, lv > 0 ? '#e8d9a8' : '#98a2ae');
+      txt(lv + '/' + S.max, x + colW - 5, y + 12, 10, maxed ? '#f2b134' : '#98a2ae', 'right');
+      // полоска вложенного: видно с одного взгляда, куда уже сыпал
+      for (let i = 0; i < S.max; i++) {
+        ctx.fillStyle = i < lv ? '#c9a227' : 'rgba(255,255,255,.10)';
+        ctx.fillRect(x + 5 + i * 11, y + 18, 9, 4);
+      }
+      txt(clipText(S.step, colW - 10, 8), x + 5, y + 32, 8, '#98a2ae');
+      btn(x + 5, y + 38, colW - 10, 12, maxed ? 'предел' : can ? '+ вложить очко' : 'нужно очко',
+          () => spend(k), null, !can,
+          maxed ? 'Дальше некуда' : 'Очки дают за ступени — бей тварей и закрывай работы');
+      y += 56;
+    }
+  });
+  panelFooter('K или ✕ — закрыть · опыт идёт за головы и за закрытые работы');
+}
+
+/* =====================  ВАРКА (C)  =====================
+   Открывается ГДЕ УГОДНО: котелок ведьмак носит с собой. Что можно сварить,
+   решает навык, а не место. */
+function drawCraft() {
+  panelBox('⚗ ВАРКА В ДОРОГЕ');
+  txt('Котелок при себе — варить можно хоть посреди болота.', 24, 96, 10, '#98a2ae');
+  txt('⚗ Травничество ' + sk('brew') + '/3   ·   ➶ Болторезка ' + sk('fletch') + '/3',
+      CW - 24, 96, 10, '#c9a227', 'right');
+  txt('🌿 травы ' + countStack('herb') + '   ⛏ руда ' + countStack('ore') + '   ✨ эссенции ' + countStack('essence'),
+      24, 112, 10, '#e8d9a8');
+
+  const list = RECIPES.filter(r => sk(r.s) > 0 || r.lvl === 1);
+  const top = 126;
+  const v = listView(list.length, top, CH - 66, 30, benchScroll);
+  benchScroll = v.from;
+  if (v.max > 0) scrollBtns(top - 8, v, () => benchScroll, n => { benchScroll = clamp(n, 0, v.max); });
+  let y = top;
+  if (!list.length) txt('Пока не умеешь ничего: вложи очко в Травничество или Болторезку (K)', 24, y + 12, 10, '#6c7683');
+  for (const r of list.slice(v.from, v.from + v.vis)) {
+    const why = canCraft(r), ok = !why;
+    ctx.fillStyle = ok ? 'rgba(34,40,28,.9)' : 'rgba(20,18,15,.75)';
+    ctx.fillRect(24, y, CW - 48, 28);
+    ctx.strokeStyle = ok ? 'rgba(127,214,160,.35)' : 'rgba(255,255,255,.06)';
+    ctx.lineWidth = 1; ctx.strokeRect(24.5, y + .5, CW - 49, 27);
+    const G = goodInfo(r.id);
+    txt(G.ico + ' ' + G.n + (r.out > 1 ? ' ×' + r.out : ''), 32, y + 10, 10, ok ? '#e8d9a8' : '#8a8f96');
+    const need = Object.keys(r.need).map(k => STUFF[k].ico + r.need[k] + ' (есть ' + countStack(k) + ')').join('   ');
+    txt(clipText(need + '   ·   ' + SKILLS[r.s].ico + ' ' + SKILLS[r.s].n + ' ' + r.lvl, CW - 190, 8),
+        32, y + 21, 8, ok ? '#98a2ae' : '#6c7683');
+    btn(CW - 118, y + 5, 94, 18, ok ? '⚗ сварить' : 'нельзя', () => craft(r), null, !ok, why);
+    y += 30;
+  }
+  panelFooter('C или ✕ — закрыть · рецепты открывает навык, а не место');
+}
+
 function render() {
   syncRes();
   uiHit = [];
@@ -3169,6 +3415,8 @@ function render() {
   drawHUD();
 
   if (panel === 'bag') drawBag();
+  else if (panel === 'skills') drawSkills();
+  else if (panel === 'craft') drawCraft();
   else if (panel === 'vendor') drawVendor();
   else if (panel === 'bench') drawBench();
   else if (panel === 'board') drawBoard();
@@ -3251,7 +3499,7 @@ function interact() {
   }
   // доска и верстак стоят в мире: подошёл — работает, ушёл — нет
   if (Math.hypot(P.x - BOARD.x, P.y - BOARD.y) < 52) {
-    if (phase === 'FIGHT') { message('Работа уже взята: ' + contract.t + ' — сперва доделай'); return; }
+    if (taken.length >= MAX_JOBS) { message('Взято три работы — больше не берут. Доделай что-нибудь.'); return; }
     if (!offers.length) offers = rollBoard(ci);
     panel = 'board'; return;
   }
@@ -3276,6 +3524,8 @@ document.addEventListener('keydown', e => {
   if (e.repeat) return;
   if (e.code === 'KeyI') { panel = panel === 'bag' ? null : 'bag'; bagScroll = 0; return; }
   if (e.code === 'KeyM') { panel = panel === 'map' ? null : 'map'; return; }   // карта земли
+  if (e.code === 'KeyK') { panel = panel === 'skills' ? null : 'skills'; return; }
+  if (e.code === 'KeyC') { panel = panel === 'craft' ? null : 'craft'; benchScroll = 0; return; }
   if (e.code === 'KeyU') {
     if (panel === 'bench') { panel = null; return; }
     // верстак стоит в лагере и никуда за тобой не ходит
@@ -3361,7 +3611,7 @@ if (typeof globalThis !== 'undefined') globalThis.__W = {
   getP: () => P, getFoes: () => foes, setFoes: v => { foes = v; }, getInv: () => inv, setInv: v => { inv = v; },
   getGold: () => gold, setGold: v => { gold = v; }, getDrops: () => drops, getShots: () => shots,
   getPhase: () => phase, setPhase: v => { phase = v; }, getOver: () => over, getCi: () => ci, setCi: v => { ci = v; },
-  getKillsLeft: () => killsLeft, setPanel: v => { panel = v; }, setMouse: (x, y) => { mouse.x = x; mouse.y = y; },
+  getKillsLeft: () => killsLeft, getTaken: () => taken, MAX_JOBS, focusJob, syncFocus, finishContract, setPanel: v => { panel = v; }, setMouse: (x, y) => { mouse.x = x; mouse.y = y; },
   swing, shootBolt, applyOil, swapHand, saveRun, loadRun, clearRun, freeSpot,
   LOCS, JOBS, STORY, SPOTS, SEEDS, PATHS, WORLD_W, WORLD_H, FIRE, BENCH, BOARD, CAMP_R,
   TOWNS, townAt, obstNear, buildObstGrid, nearPath, buildPaths, TILE, TW, TH,
@@ -3373,7 +3623,8 @@ if (typeof globalThis !== 'undefined') globalThis.__W = {
   getCam: () => cam,
   sellStack, stackPrice, unitPrice, rollHotGood, getHot: () => hotGood, setHot: v => { hotGood = v; },
   setBenchTab: v => { benchTab = v; }, getBenchTab: () => benchTab,
-  KINGDOMS, KD_KEYS, kdAt, goodKind, kdMul, kdLacks, buyPrice, sellCap, SHOP_UNIT, buildShopUnits, NPCS: () => NPCS, NPC_KINDS,
+  KINGDOMS, KD_KEYS, kdAt, goodKind, kdMul, kdLacks, buyPrice, sellCap, SHOP_UNIT, buildShopUnits,
+  SKILLS, SKILL_KEYS, BRANCHES, RECIPES, sk, spend, gainXP, xpNeed, canCraft, craft, NPCS: () => NPCS, NPC_KINDS,
   buildNPCs, npcNear, npcTalk, shopCards, TAB_STACKS, TAB_N, CAMP_VENDOR,
   getMarket: () => marketKd, setMarket: v => { marketKd = v; },
   setTradeTab: v => { tradeTab = v; }, getTradeTab: () => tradeTab,
