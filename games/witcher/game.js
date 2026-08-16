@@ -249,7 +249,7 @@ const LOCS = {
             note: 'костёр, верстак и ни одной твари' },
   swamp:  { n: 'Болото', ico: '🌫', ground: '#111a19', sp1: '#16211f', sp2: '#131d1c',
             veg: '🌿', rock: '🪨', obst: 9, rmin: 10, rmax: 18, spd: 0.82,
-            fog: true, home: 'drowner', pools: true,
+            fog: true, haze: 'rgba(150,170,175,.07)', home: 'drowner', pools: true,
             note: 'вязко — ходишь медленнее, а утопцы тут дома' },
   woods:  { n: 'Чаща',   ico: '🌲', ground: '#0f150f', sp1: '#141c14', sp2: '#121a13',
             veg: '🌲', rock: '🪨', obst: 22, rmin: 12, rmax: 22, spd: 1,
@@ -1797,6 +1797,11 @@ function bakeGround() {
       g.fillStyle = 'rgba(70,110,120,.18)';
       g.beginPath(); g.ellipse(x0 + 12, y0 + 12, 26 + h * 14, 13 + h * 8, h * 3, 0, 6.3); g.fill();
     }
+    /* Ровная мгла болота — сюда же, в печать. Раньше она заливалась поверх
+       ВСЕГО экрана каждый кадр: лишние 0.7 миллиона пикселей на кадр, из-за
+       чего в болоте и проседало. Оттенок постоянный, значит ему место в
+       земле, а не в каждом кадре. Живыми остаются только ползущие полосы. */
+    if (G.haze) { g.fillStyle = G.haze; g.fillRect(x0, y0, TILE + 1, TILE + 1); }
   }
   g.lineCap = 'round'; g.lineJoin = 'round';
   for (const p of PATHS) {                             // тропы поверх земли
@@ -1971,16 +1976,33 @@ function drawWorld() {
 
   /* Темнота чащи и туман болота — по тому краю, где СТОИШЬ ТЫ. Это не
      украшение, а правило места: в чаще тварь видно, только когда она рядом. */
+  /* Темнота чащи. Сам круг с растяжкой — только вокруг ведьмака, а всё, что
+     дальше трёхсот шагов, и так сплошная темень: там ровная заливка, которая
+     считается вчетверо дешевле растяжки. Раньше растяжкой мазался весь экран. */
   if (S.dark) {
-    const g = ctx.createRadialGradient(P.x, P.y, 105, P.x, P.y, 290);
+    const R = 290;
+    const bx = P.x - R, by = P.y - R, bw = R * 2, bh = R * 2;
+    ctx.fillStyle = 'rgba(0,0,0,.84)';
+    if (by > cam.y) ctx.fillRect(cam.x, cam.y, WW, by - cam.y);                       // сверху
+    const y2 = Math.min(cam.y + WH, by + bh), y1 = Math.max(cam.y, by);
+    if (y2 > y1) {
+      if (bx > cam.x) ctx.fillRect(cam.x, y1, bx - cam.x, y2 - y1);                   // слева
+      const rx = bx + bw;
+      if (rx < cam.x + WW) ctx.fillRect(rx, y1, cam.x + WW - rx, y2 - y1);            // справа
+    }
+    const bo = by + bh;
+    if (bo < cam.y + WH) ctx.fillRect(cam.x, bo, WW, cam.y + WH - bo);                // снизу
+    const g = ctx.createRadialGradient(P.x, P.y, 105, P.x, P.y, R);
     g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.84)');
-    ctx.fillStyle = g; ctx.fillRect(cam.x, cam.y, WW, WH);
+    ctx.fillStyle = g; ctx.fillRect(bx, by, bw, bh);
   }
+  /* Туман болота: ровная мгла ушла в печать земли (см. bakeGround), живыми
+     остались только ползущие полосы марева — их всего три и они узкие. */
   if (S.fog) {
-    ctx.fillStyle = 'rgba(150,170,175,.07)'; ctx.fillRect(cam.x, cam.y, WW, WH);
-    for (let i = 0; i < 3; i++) {                      // ползущие полосы марева
+    ctx.fillStyle = 'rgba(175,195,200,.05)';
+    for (let i = 0; i < 3; i++) {
       const y = cam.y + ((anim * (5 + i * 3) + i * 170) % (WH + 120)) - 60;
-      ctx.fillStyle = 'rgba(175,195,200,.05)'; ctx.fillRect(cam.x, y, WW, 44);
+      ctx.fillRect(cam.x, y, WW, 44);
     }
   }
   ctx.restore();                                       // конец мировых координат
