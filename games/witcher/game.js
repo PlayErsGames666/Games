@@ -481,7 +481,10 @@ function kdAt(x, y) {
 function goodKind(id) {
   if (id === 'ore' || id === 'hide') return 'mat';
   if (BOLTS[id]) return 'bolt';
-  if (POTIONS[id] || id === 'essence' || (STUFF[id] && STUFF[id].oil)) return 'alch';
+  /* Травы — сырьё для варки, а не железо. Без этой строчки они попадали в
+     «gear» по остаточному принципу, и выходила нелепица: в Вольных топях,
+     где трава растёт под ногами, она стоила ×1.15, а зелье из неё же — ×0.70. */
+  if (POTIONS[id] || id === 'essence' || id === 'herb' || (STUFF[id] && STUFF[id].oil)) return 'alch';
   return 'gear';
 }
 
@@ -1682,12 +1685,17 @@ function storyArrival() {
   if (contract.unique) {
     const u = contract.unique;
     spawnFoe(u.t, clamp(s.x + rnd(120) - 60, 20, WORLD_W - 20), clamp(s.y + rnd(120) - 60, 20, WORLD_H - 20), u);
+    /* Именная тварь ТОЖЕ помнит свою работу. Без этой строчки задание
+       закрывалось, пока Седой стоял живой посреди поля: проверка «все свои
+       твари побиты» его не видела, потому что своей работы у него не было.
+       Раньше проверка требовала пустого поля целиком и ловила это сама. */
+    foes[foes.length - 1].job = contract;
     message('📖 ' + s.n + ': ' + u.name + ' здесь. Целей ' + contract.n);
   } else {
     message('📖 ' + s.n + '. Началось: целей ' + contract.n);
   }
 }
-let spawnQueue = 0, spawnT = 0;
+let spawnT = 0;
 /* Выпускает тварей по ТОЙ работе, на чьей земле ведьмак стоит. Если взяты
    три и все в разных краях, работать будет та, куда пришёл, — остальные ждут
    своей очереди и своего края. */
@@ -2073,7 +2081,7 @@ function reset() {
   inv = [mkStack('bolt', 20), mkStack('swallow', 2), mkStack('honey', 1)];
   gold = 120; ci = 0; foes = []; drops = []; shots = []; parts = []; floaties = [];
   contract = null; taken = []; phase = 'CAMP'; over = false; cause = ''; panel = null; paused = false;
-  killsLeft = 0; spawnQueue = 0;
+  killsLeft = 0;
   // мир строится один раз на весь поход и больше не перетасовывается
   obst = buildWorld();
   obstGrid = null; buildObstGrid(obst);                // сетка для быстрого поиска соседей
@@ -2106,7 +2114,7 @@ function endGame(why) {
   downLost = Math.round(gold * 0.25);
   gold -= downLost;
   deaths++;
-  contract = null; taken = []; phase = 'CAMP'; killsLeft = 0; spawnQueue = 0;
+  contract = null; taken = []; phase = 'CAMP'; killsLeft = 0;
   foes = []; shots = [];
   saveRun();                                           // плата за лечение должна пережить закрытую вкладку
 }
