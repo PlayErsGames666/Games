@@ -230,6 +230,16 @@ const FOES = {
   archer:  { n: 'Лучник',    ico: '🏹', fam: 'mortal',  hp: 28,  sp: 52, dmg: 9,  r: 9,  atk: 1.7, reach: 210, ranged: true },
   merc:    { n: 'Наёмник',   ico: '🛡', fam: 'mortal',  hp: 88,  sp: 46, dmg: 16, r: 11, atk: 1.1, reach: 23, armor: 7 },
   boar:    { n: 'Кабан',     ico: '🐗', fam: 'mortal',  hp: 58,  sp: 84, dmg: 14, r: 10, atk: 1.0, reach: 21 },
+  // бестиарий новой земли: у каждой твари своя повадка, а не просто больше здоровья
+  ghoul:   { n: 'Гуль',      ico: '🧌', fam: 'monster', hp: 66,  sp: 60, dmg: 12, r: 10, atk: 0.85, reach: 21 },
+  harpy:   { n: 'Гарпия',    ico: '🦇', fam: 'monster', hp: 38,  sp: 96, dmg: 9,  r: 9,  atk: 0.80, reach: 20 },
+  kikimor: { n: 'Кикимора',  ico: '🕷', fam: 'monster', hp: 78,  sp: 72, dmg: 14, r: 11, atk: 1.00, reach: 25 },
+  wraith:  { n: 'Призрак',   ico: '👻', fam: 'monster', hp: 54,  sp: 66, dmg: 13, r: 10, atk: 1.10, reach: 22 },
+  endriag: { n: 'Эндриага',  ico: '🦂', fam: 'monster', hp: 126, sp: 50, dmg: 18, r: 13, atk: 1.20, reach: 26, armor: 5 },
+  griffin: { n: 'Грифон',    ico: '🦅', fam: 'monster', hp: 215, sp: 82, dmg: 24, r: 15, atk: 1.10, reach: 28, boss: true },
+  bruin:   { n: 'Медведь',   ico: '🐻', fam: 'mortal',  hp: 112, sp: 68, dmg: 20, r: 12, atk: 1.10, reach: 24 },
+  hound:   { n: 'Пёс',       ico: '🐕', fam: 'mortal',  hp: 40,  sp: 98, dmg: 10, r: 9,  atk: 0.75, reach: 19 },
+  ataman:  { n: 'Атаман',    ico: '🪓', fam: 'mortal',  hp: 124, sp: 56, dmg: 19, r: 12, atk: 1.00, reach: 24, armor: 9 },
 };
 
 /* =====================  МЕСТА И МИР  =====================
@@ -271,6 +281,19 @@ const LOCS = {
             veg: '🌾', rock: '🪨', obst: 6, rmin: 10, rmax: 16, spd: 0.94,
             pools: true, home: 'drowner',
             note: 'мокрый песок и камыш: место открытое, но под ногами хлюпает' },
+  // края, появившиеся вместе с новой землёй
+  farm:   { n: 'Пашня', ico: '🌾', ground: '#1b1a12', sp1: '#242316', sp2: '#201f14',
+            veg: '🌾', rock: '🪵', obst: 4, rmin: 9, rmax: 14, spd: 1.02,
+            open: true, home: 'hound',
+            note: 'борозды, межи и вешки: тут живут люди — и держат собак' },
+  crag:   { n: 'Скалы', ico: '🏔', ground: '#16161c', sp1: '#1f1f26', sp2: '#1b1b22',
+            veg: '🗿', rock: '⛰', obst: 26, rmin: 13, rmax: 24, spd: 0.9,
+            dark: 0, home: 'harpy',
+            note: 'камень на камне — не разбежишься, а сверху кричат' },
+  heath:  { n: 'Пустошь', ico: '🏜', ground: '#1a1712', sp1: '#231e16', sp2: '#1f1b14',
+            veg: '🌱', rock: '🪨', obst: 3, rmin: 10, rmax: 16, spd: 1.04,
+            open: true, home: 'ghoul',
+            note: 'голо и видно далеко — но и тебя видно тоже' },
 };
 
 /* =====================  КАРТА  =====================
@@ -281,7 +304,12 @@ const LOCS = {
    Генерация ЗАКРЕПЛЁННАЯ: и шум, и деревья считаются от постоянного зерна,
    поэтому мир у всех один и тот же и не перетасовывается между походами.
    Болото всегда там же, где было вчера. */
-const WORLD_W = 3200, WORLD_H = 2200;
+/* Земля стала ВТРОЕ больше по площади: 3200×2200 → 5600×3850. Всё, что было
+   расставлено руками, разъехалось ровно в 1.75 раза, поэтому старые приметные
+   места и сюжет остались на своих местах относительно друг друга — просто до
+   них теперь идти дольше. В освободившееся место легли новые края, деревни и
+   хутора: втрое больше пустоты никому не нужно. */
+const WORLD_W = 5600, WORLD_H = 3850;
 const WORLD_SEED = 20260815;
 
 // дешёвый воспроизводимый шум: хеш по решётке + сглаживание
@@ -310,44 +338,93 @@ function mulberry(seed) {
    середине, тракт через всю землю, за ним холмы с курганами, на западе
    низина с болотом и берегом, на севере чащи. */
 const SEEDS = [
-  { id: 'camp',   x: 1580, y: 1180 },
-  { id: 'road',   x: 1560, y: 1560 }, { id: 'road',   x: 2340, y: 1500 }, { id: 'road', x: 820, y: 1500 },
-  { id: 'field',  x: 1180, y: 900 },  { id: 'field',  x: 2050, y: 1050 }, { id: 'field', x: 1600, y: 1900 },
-  { id: 'woods',  x: 800,  y: 420 },  { id: 'woods',  x: 2100, y: 380 },  { id: 'woods', x: 2650, y: 900 },
-  { id: 'swamp',  x: 480,  y: 1150 }, { id: 'swamp',  x: 700,  y: 1850 },
-  { id: 'shore',  x: 220,  y: 1600 },
-  { id: 'barrow', x: 2900, y: 1450 }, { id: 'barrow', x: 2600, y: 1950 },
-  { id: 'ruins',  x: 2500, y: 620 },  { id: 'ruins',  x: 1150, y: 1950 },
+  // старая земля, разъехавшаяся в 1.75 раза
+  { id: 'camp',   x: 2765, y: 2065 },
+  { id: 'road',   x: 2730, y: 2730 }, { id: 'road',   x: 4095, y: 2625 }, { id: 'road',  x: 1435, y: 2625 },
+  { id: 'field',  x: 2065, y: 1575 }, { id: 'field',  x: 3588, y: 1838 }, { id: 'field', x: 2800, y: 3325 },
+  { id: 'woods',  x: 1400, y: 735 },  { id: 'woods',  x: 3675, y: 665 },  { id: 'woods', x: 4638, y: 1575 },
+  { id: 'swamp',  x: 840,  y: 2013 }, { id: 'swamp',  x: 1225, y: 3238 },
+  { id: 'shore',  x: 385,  y: 2800 },
+  { id: 'barrow', x: 5075, y: 2538 }, { id: 'barrow', x: 4550, y: 3413 },
+  { id: 'ruins',  x: 4375, y: 1085 }, { id: 'ruins',  x: 2013, y: 3413 },
+  // новые земли, легшие в освободившееся место
+  { id: 'farm',   x: 2400, y: 2350 }, { id: 'farm',   x: 3250, y: 2950 }, { id: 'farm',  x: 1850, y: 1150 },
+  { id: 'crag',   x: 5250, y: 1300 }, { id: 'crag',   x: 4900, y: 500 },  { id: 'crag',  x: 5300, y: 3550 },
+  { id: 'heath',  x: 700,  y: 900 },  { id: 'heath',  x: 350,  y: 1450 }, { id: 'heath', x: 1500, y: 3700 },
+  { id: 'woods',  x: 900,  y: 3000 }, { id: 'woods',  x: 3300, y: 3700 },
+  { id: 'swamp',  x: 4200, y: 3750 }, { id: 'shore',  x: 260,  y: 3400 },
+  { id: 'road',   x: 3400, y: 1300 }, { id: 'road',   x: 1900, y: 3050 },
+  { id: 'ruins',  x: 5400, y: 2050 }, { id: 'barrow', x: 3900, y: 2300 },
+  { id: 'field',  x: 4700, y: 2900 }, { id: 'field',  x: 1100, y: 1750 },
 ];
 
 /* Тропы: настоящие дороги от места к месту. По ним и ходится быстрее, и
    глазу есть за что зацепиться — мир перестаёт быть однородной кашей. */
 const PATHS = [
-  [{ x: 1580, y: 1180 }, { x: 1560, y: 1560 }, { x: 900, y: 1560 }, { x: 520, y: 1640 }],
-  [{ x: 1580, y: 1180 }, { x: 1900, y: 1100 }, { x: 2350, y: 1250 }, { x: 2820, y: 1420 }],
-  [{ x: 1580, y: 1180 }, { x: 1450, y: 880 },  { x: 1900, y: 620 },  { x: 2440, y: 640 }],
-  [{ x: 1450, y: 880 },  { x: 1050, y: 760 },  { x: 820, y: 480 }],
-  [{ x: 1560, y: 1560 }, { x: 1400, y: 1900 }, { x: 1180, y: 1950 }],
+  // главные тракты (прежние, разъехавшиеся)
+  [{ x: 2765, y: 2065 }, { x: 2730, y: 2730 }, { x: 1575, y: 2730 }, { x: 910, y: 2870 }],
+  [{ x: 2765, y: 2065 }, { x: 3325, y: 1925 }, { x: 4113, y: 2188 }, { x: 4935, y: 2485 }],
+  [{ x: 2765, y: 2065 }, { x: 2538, y: 1540 }, { x: 3325, y: 1085 }, { x: 4270, y: 1120 }],
+  [{ x: 2538, y: 1540 }, { x: 1838, y: 1330 }, { x: 1435, y: 840 }],
+  [{ x: 2730, y: 2730 }, { x: 2450, y: 3325 }, { x: 2065, y: 3413 }],
+  // новые дороги: к деревням, на перевал и вдоль берега
+  [{ x: 2765, y: 2065 }, { x: 2400, y: 2350 }, { x: 1900, y: 3050 }, { x: 1500, y: 3620 }],
+  [{ x: 4113, y: 2188 }, { x: 3900, y: 2300 }, { x: 3250, y: 2950 }, { x: 2800, y: 3325 }],
+  [{ x: 4935, y: 2485 }, { x: 5250, y: 1900 }, { x: 5250, y: 1300 }, { x: 4900, y: 640 }],
+  [{ x: 910,  y: 2870 }, { x: 500,  y: 3050 }, { x: 300,  y: 3400 }],
+  [{ x: 1435, y: 840 },  { x: 900,  y: 980 },  { x: 500,  y: 1450 }],
+  [{ x: 3250, y: 2950 }, { x: 4200, y: 3300 }, { x: 4700, y: 2900 }],
 ];
 const PATH_W = 30;                                   // ширина утоптанного
 
 /* Приметные места. К ним ведут сюжетные задания, они же — ориентиры. */
 const SPOTS = {
-  camp:   { n: 'Лагерь',            ico: '🔥', x: 1580, y: 1180 },
-  cart:   { n: 'Разбитая телега',   ico: '🛒', x: 1900, y: 1100 },
-  ford:   { n: 'Брод',              ico: '🌊', x: 640,  y: 1700 },
-  chapel: { n: 'Часовня в руинах',  ico: '⛪', x: 2500, y: 620 },
-  gully:  { n: 'Волчья балка',      ico: '🐺', x: 830,  y: 470 },
-  mound:  { n: 'Курганный вход',    ico: '🪦', x: 2900, y: 1450 },
-  gate:   { n: 'Застава на тракте', ico: '🚧', x: 2350, y: 1500 },
-  heart:  { n: 'Сердце чащи',       ico: '🌳', x: 2100, y: 330 },
+  camp:   { n: 'Лагерь',            ico: '🔥', x: 2765, y: 2065 },
+  cart:   { n: 'Разбитая телега',   ico: '🛒', x: 3325, y: 1925 },
+  ford:   { n: 'Брод',              ico: '🌊', x: 1120, y: 2975 },
+  chapel: { n: 'Часовня в руинах',  ico: '⛪', x: 4375, y: 1085 },
+  gully:  { n: 'Волчья балка',      ico: '🐺', x: 1453, y: 823 },
+  mound:  { n: 'Курганный вход',    ico: '🪦', x: 5075, y: 2538 },
+  gate:   { n: 'Застава на тракте', ico: '🚧', x: 4113, y: 2625 },
+  heart:  { n: 'Сердце чащи',       ico: '🌳', x: 3675, y: 578 },
   // второе действие: след того, чьё имя стоит на найденном клинке
-  mill:   { n: 'Старая мельница',   ico: '🏚', x: 2060, y: 1430 },
-  grave:  { n: 'Погост у болота',   ico: '⚰', x: 520,  y: 1330 },
-  pit:    { n: 'Смоляная яма',      ico: '🕳', x: 1150, y: 520 },
-  ferry:  { n: 'Перевоз',           ico: '⛵', x: 210,  y: 1690 },
-  stone:  { n: 'Ведьмин камень',    ico: '🗿', x: 2760, y: 1780 },
+  mill:   { n: 'Старая мельница',   ico: '🏚', x: 3605, y: 2503 },
+  grave:  { n: 'Погост у болота',   ico: '⚰', x: 910,  y: 2328 },
+  pit:    { n: 'Смоляная яма',      ico: '🕳', x: 2013, y: 910 },
+  ferry:  { n: 'Перевоз',           ico: '⛵', x: 368,  y: 2958 },
+  stone:  { n: 'Ведьмин камень',    ico: '🗿', x: 4830, y: 3115 },
+  // приметные места новой земли
+  pass:   { n: 'Перевал',           ico: '🏔', x: 5250, y: 1300 },
+  falls:  { n: 'Водопад',           ico: '💦', x: 4638, y: 1575 },
+  gallows:{ n: 'Виселица у дороги', ico: '🪢', x: 1900, y: 3050 },
+  idol:   { n: 'Старое капище',     ico: '🗿', x: 700,  y: 900 },
+  wreck:  { n: 'Разбитая ладья',    ico: '🚣', x: 260,  y: 3400 },
+  nest:   { n: 'Гнездовье',         ico: '🪺', x: 5300, y: 3550 },
+  hive:   { n: 'Эндриажьи ходы',    ico: '🕳', x: 4200, y: 3750 },
+  cross:  { n: 'Развилка трёх дорог', ico: '🪧', x: 3900, y: 2300 },
 };
+
+/* =====================  ПОСЕЛЕНИЯ  =====================
+   Мир был пуст: земля, деревья и твари по контракту. Теперь по нему стоят
+   люди — деревни, хутора, рудник, застава, пристань. У каждого поселения
+   свои дворы (они же преграды, сквозь избу не ходят), колодец посередине
+   и круг, в который нечисть не суётся: живут же люди.
+
+   Дворы считаются от постоянного зерна, значит деревня всегда одна и та же. */
+const TOWNS = [
+  { k: 'brody',   n: 'Броды',     ico: '🏘', x: 2400, y: 2350, huts: 7, r: 150, kind: 'село' },
+  { k: 'zapole',  n: 'Заполье',   ico: '🏘', x: 3250, y: 2950, huts: 6, r: 140, kind: 'село' },
+  { k: 'vyselki', n: 'Выселки',   ico: '🛖', x: 1850, y: 1150, huts: 4, r: 110, kind: 'хутор' },
+  { k: 'kamenec', n: 'Каменец',   ico: '🏰', x: 5250, y: 1900, huts: 9, r: 175, kind: 'городок' },
+  { k: 'ozerki',  n: 'Озёрки',    ico: '🛖', x: 900,  y: 3000, huts: 4, r: 110, kind: 'хутор' },
+  { k: 'rudnik',  n: 'Рудник',    ico: '⛏', x: 4900, y: 640,  huts: 5, r: 125, kind: 'рудник' },
+  { k: 'zastava', n: 'Застава',   ico: '🗼', x: 4113, y: 2625, huts: 3, r: 100, kind: 'застава' },
+  { k: 'pristan', n: 'Пристань',  ico: '⚓', x: 300,  y: 3400, huts: 5, r: 125, kind: 'пристань' },
+];
+function townAt(x, y) {
+  for (const t of TOWNS) if (Math.hypot(x - t.x, y - t.y) < t.r) return t;
+  return null;
+}
 const FIRE = { x: SPOTS.camp.x, y: SPOTS.camp.y + 30 };
 const BENCH = { x: SPOTS.camp.x - 96, y: SPOTS.camp.y + 30 };
 const BOARD = { x: SPOTS.camp.x + 96, y: SPOTS.camp.y + 30 };
@@ -398,7 +475,7 @@ function regionSpot(id) {
   return best ? { mx: best.x, my: best.y } : { mx: WORLD_W / 2, my: WORLD_H / 2 };
 }
 // расстояние до ближайшей тропы: по утоптанному идётся легче
-function onPath(x, y) {
+function nearPath(x, y) {                              // честный перебор отрезков
   for (const p of PATHS) for (let i = 1; i < p.length; i++) {
     const a = p[i - 1], b = p[i];
     const vx = b.x - a.x, vy = b.y - a.y, wx = x - a.x, wy = y - a.y;
@@ -409,6 +486,22 @@ function onPath(x, y) {
     if (dx * dx + dy * dy < PATH_W * PATH_W) return true;
   }
   return false;
+}
+/* Тропы тоже разложены по клеткам. Дорог стало вдвое больше, а onPath зовётся
+   каждый кадр (и на каждый шаг ведьмака): перебирать полсотни отрезков по
+   шестьдесят раз в секунду — впустую. Считаем один раз, дальше одно обращение
+   в массив. */
+let pathTiles = null;
+function buildPaths() {
+  pathTiles = new Uint8Array(TW * TH);
+  for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) {
+    if (nearPath(tx * TILE + TILE / 2, ty * TILE + TILE / 2)) pathTiles[ty * TW + tx] = 1;
+  }
+}
+function onPath(x, y) {
+  if (!pathTiles) buildPaths();
+  const tx = clamp(Math.floor(x / TILE), 0, TW - 1), ty = clamp(Math.floor(y / TILE), 0, TH - 1);
+  return pathTiles[ty * TW + tx] === 1;
 }
 
 /* =====================  СЮЖЕТ  =====================
@@ -587,6 +680,21 @@ const JOBS = [
   { t: 'Топляки на берегу',    pool: ['drowner', 'nekker', 'wolfen'],loc: 'shore',  d: 1.4 },
   { t: 'Кабаны в перелеске',   pool: ['boar', 'boar', 'boar'],       loc: 'field',  d: 0.75 },
   { t: 'Волки у околицы',      pool: ['wolfen', 'boar'],             loc: 'field',  d: 1.05 },
+  /* Работы новой земли. Пашня, скалы и пустошь без своих контрактов были бы
+     просто дорогой между старыми краями. */
+  { t: 'Псы потравили стадо',  pool: ['hound', 'hound'],             loc: 'farm',   d: 0.7 },
+  { t: 'Медведь на выселках',  pool: ['bruin', 'hound'],             loc: 'farm',   d: 1.15 },
+  { t: 'Кикиморы в бороздах',  pool: ['kikimor', 'kikimor'],         loc: 'farm',   d: 1.25 },
+  { t: 'Гарпии на перевале',   pool: ['harpy', 'harpy', 'harpy'],    loc: 'crag',   d: 1.0 },
+  { t: 'Гнездовье гарпий',     pool: ['harpy', 'harpy', 'griffin'],  loc: 'crag',   d: 1.8 },
+  { t: 'Атаман в скалах',      pool: ['ataman', 'bandit', 'archer'], loc: 'crag',   d: 1.5 },
+  { t: 'Гули на пустоши',      pool: ['ghoul', 'ghoul'],             loc: 'heath',  d: 0.95 },
+  { t: 'Падальщики у виселиц', pool: ['ghoul', 'ghoul', 'wraith'],   loc: 'heath',  d: 1.3 },
+  { t: 'Призраки на пустоши',  pool: ['wraith', 'wraith', 'ghoul'],  loc: 'heath',  d: 1.4 },
+  { t: 'Эндриажьи ходы',       pool: ['endriag', 'endriag'],         loc: 'barrow', d: 1.7 },
+  { t: 'Кикиморья кладка',     pool: ['kikimor', 'kikimor', 'drowner'], loc: 'swamp', d: 1.35 },
+  { t: 'Призрак на погосте',   pool: ['wraith', 'nekker'],           loc: 'ruins',  d: 1.2 },
+  { t: 'ГРИФОН',               pool: ['griffin', 'harpy', 'harpy'],  loc: 'crag',   d: 2.0 },
 ];
 function jobFam(j) {                                   // кем работа населена — от этого меч
   let m = 0;
@@ -1097,7 +1205,7 @@ function randomGear() {
 function freeSpot(x, y) {
   for (let k = 0; k < 12; k++) {
     let moved = false;
-    for (const o of obst) {
+    for (const o of obstNear(x, y)) {
       const d = Math.hypot(x - o.x, y - o.y), need = o.r + 12;
       if (d < need) {
         const a = d > 0.01 ? Math.atan2(y - o.y, x - o.x) : rnd(6.3);
@@ -1215,8 +1323,7 @@ function stepFoe(f, dt) {
   }
   /* Деревья и камни держат и нечисть тоже. Раньше игрок обегал сосну,
      а утопец шёл сквозь неё напрямик — укрытий в игре просто не было. */
-  for (const o of obst) {
-    if (Math.abs(o.x - f.x) > 60 || Math.abs(o.y - f.y) > 60) continue;
+  for (const o of obstNear(f.x, f.y)) {
     const need = o.r + f.r * 0.7, d = Math.hypot(f.x - o.x, f.y - o.y);
     if (d < need && d > 0.01) {
       const a = Math.atan2(f.y - o.y, f.x - o.x);
@@ -1231,15 +1338,21 @@ function stepFoe(f, dt) {
    где никто не тронет. Выталкиваем по ближней меже, но только по той, что
    ведёт в мир: низ лагеря — это край карты, туда выпихивать некуда. */
 function keepOutOfCamp(f) {
-  const dx = f.x - SPOTS.camp.x, dy = f.y - SPOTS.camp.y;
-  const d = Math.hypot(dx, dy);
-  if (d >= CAMP_R) return;
-  const a = d > 0.01 ? Math.atan2(dy, dx) : rnd(6.3);
-  // ставим на шаг ЗА черту, а не ровно на неё: ровно на черте расстояние
-  // считается то 300, то 299.99999999999994 — и тварь оказывается «внутри»
-  f.x = SPOTS.camp.x + Math.cos(a) * (CAMP_R + 2);
-  f.y = SPOTS.camp.y + Math.sin(a) * (CAMP_R + 2);
-  f.x = clamp(f.x, f.r, WORLD_W - f.r); f.y = clamp(f.y, f.r, WORLD_H - f.r);
+  push(SPOTS.camp.x, SPOTS.camp.y, CAMP_R);
+  // в деревню нечисть тоже не заходит: там живут, там собаки и вилы
+  const t = townAt(f.x, f.y);
+  if (t) push(t.x, t.y, t.r);
+  function push(cx, cy, R) {
+    const dx = f.x - cx, dy = f.y - cy;
+    const d = Math.hypot(dx, dy);
+    if (d >= R) return;
+    const a = d > 0.01 ? Math.atan2(dy, dx) : rnd(6.3);
+    // ставим на шаг ЗА черту, а не ровно на неё: ровно на черте расстояние
+    // считается то 300, то 299.99999999999994 — и тварь оказывается «внутри»
+    f.x = cx + Math.cos(a) * (R + 2);
+    f.y = cy + Math.sin(a) * (R + 2);
+    f.x = clamp(f.x, f.r, WORLD_W - f.r); f.y = clamp(f.y, f.r, WORLD_H - f.r);
+  }
 }
 
 /* =====================  КОНТРАКТЫ  ===================== */
@@ -1252,7 +1365,8 @@ function buildWorld() {
   const rng = mulberry(WORLD_SEED);
   const out = [];
   const want = { camp: 0.00004, field: 0.00006, road: 0.00003, woods: 0.00022,
-                 swamp: 0.00009, barrow: 0.00019, ruins: 0.00016, shore: 0.00006 };
+                 swamp: 0.00009, barrow: 0.00019, ruins: 0.00016, shore: 0.00006,
+                 farm: 0.00004, crag: 0.00026, heath: 0.00003 };
   const tries = Math.round(WORLD_W * WORLD_H * 0.00013);
   for (let i = 0; i < tries; i++) {
     const x = 30 + rng() * (WORLD_W - 60), y = 30 + rng() * (WORLD_H - 60);
@@ -1263,7 +1377,47 @@ function buildWorld() {
     let nearSpot = false;
     for (const k in SPOTS) if (Math.hypot(x - SPOTS[k].x, y - SPOTS[k].y) < 70) nearSpot = true;
     if (nearSpot) continue;                                  // и к приметным местам можно подойти
+    if (townAt(x, y)) continue;                              // и в деревне не растёт лес
     out.push({ x, y, r: S.rmin + rng() * (S.rmax - S.rmin), tree: rng() < (id === 'barrow' ? 0.25 : 0.6) });
+  }
+  /* Дворы поселений — такие же преграды, как камни: сквозь избу не ходят.
+     Ставим их кольцом вокруг колодца, чтобы получилась улица, а не куча. */
+  for (const t of TOWNS) {
+    const r2 = mulberry(WORLD_SEED + t.x * 31 + t.y);
+    for (let i = 0; i < t.huts; i++) {
+      const a = (i / t.huts) * 6.283 + r2() * 0.5;
+      const d = t.r * (0.42 + r2() * 0.36);
+      out.push({ x: t.x + Math.cos(a) * d, y: t.y + Math.sin(a) * d,
+                 r: 17 + r2() * 7, hut: true, town: t.k, big: r2() < 0.25 });
+    }
+  }
+  return out;
+}
+/* Сетка препятствий. Мир втрое больше — значит и камней втрое больше, а
+   перебирались они ЦЕЛИКОМ каждый кадр: и для ведьмака, и для каждой твари.
+   Раскладываем по клеткам в 128 шагов и берём только соседние девять. */
+const OG = 128;
+let obstGrid = null, obstGW = 0, obstGH = 0;
+function buildObstGrid(list) {
+  obstGW = Math.ceil(WORLD_W / OG); obstGH = Math.ceil(WORLD_H / OG);
+  obstGrid = new Array(obstGW * obstGH);
+  for (const o of list) {
+    const gx = clamp(Math.floor(o.x / OG), 0, obstGW - 1), gy = clamp(Math.floor(o.y / OG), 0, obstGH - 1);
+    const i = gy * obstGW + gx;
+    (obstGrid[i] || (obstGrid[i] = [])).push(o);
+  }
+}
+function obstNear(x, y) {                              // всё, что может задеть точку
+  if (!obstGrid) buildObstGrid(obst);
+  const gx = clamp(Math.floor(x / OG), 0, obstGW - 1), gy = clamp(Math.floor(y / OG), 0, obstGH - 1);
+  const out = [];
+  for (let j = gy - 1; j <= gy + 1; j++) {
+    if (j < 0 || j >= obstGH) continue;
+    for (let i = gx - 1; i <= gx + 1; i++) {
+      if (i < 0 || i >= obstGW) continue;
+      const c = obstGrid[j * obstGW + i];
+      if (c) for (const o of c) out.push(o);
+    }
   }
   return out;
 }
@@ -1317,9 +1471,29 @@ function spawnTick(dt) {
     const a = rnd(6.3), d = 230 + rnd(240);
     x = clamp(P.x + Math.cos(a) * d, 20, WORLD_W - 20);
     y = clamp(P.y + Math.sin(a) * d, 20, WORLD_H - 20);
-    ok = !inCamp(x, y) && (S ? Math.hypot(x - S.x, y - S.y) < 470 : locAt(x, y) === contract.loc);
+    ok = !inCamp(x, y) && !townAt(x, y) &&
+         (S ? Math.hypot(x - S.x, y - S.y) < 470 : locAt(x, y) === contract.loc);
   }
-  if (!ok) return;                                     // тесно у межи — подождём шаг
+  /* Шестьдесят тычков наугад — и ни одного попадания: значит ведьмак стоит в
+     узком месте, где кольцо в 230–470 шагов почти целиком лежит за межой.
+     Такие точки редки (одна на четыре десятка на тракте), но работа в них
+     вставала намертво: целей осталось восемь, а выходить некому. Тогда ищем
+     не наугад, а ПО КАРТЕ КРАЁВ — она и так посчитана по клеткам. */
+  if (!ok) {
+    const good = [];
+    for (let ty = Math.max(0, ((P.y - 700) / TILE) | 0); ty < Math.min(TH, ((P.y + 700) / TILE) | 0); ty++) {
+      for (let tx = Math.max(0, ((P.x - 700) / TILE) | 0); tx < Math.min(TW, ((P.x + 700) / TILE) | 0); tx++) {
+        const gx = tx * TILE + TILE / 2, gy = ty * TILE + TILE / 2;
+        const d = Math.hypot(gx - P.x, gy - P.y);
+        if (d < 150 || d > 700) continue;
+        if (inCamp(gx, gy) || townAt(gx, gy)) continue;
+        if (S ? Math.hypot(gx - S.x, gy - S.y) > 470 : SEEDS[regionTiles[ty * TW + tx]].id !== contract.loc) continue;
+        good.push({ x: gx, y: gy });
+      }
+    }
+    if (!good.length) return;                          // совсем некуда — подождём шаг
+    const g = pick(good); x = g.x; y = g.y;
+  }
   spawnFoe(pick(contract.pool), x, y);
   spawnQueue--;
 }
@@ -1486,7 +1660,7 @@ function saveRun() {
   const downed = over;
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify({
-      v: 1, ci, gold, hp: downed ? maxHP() * 0.5 : P.hp,
+      v: 1, wv: 2, ci, gold, hp: downed ? maxHP() * 0.5 : P.hp,
       tox: downed ? 0 : P.tox, mutGauge: downed ? 0 : P.mutGauge, hand: P.hand, potSel: P.potSel,
       steel: P.steel, silver: P.silver, armor: P.armor, xbow: P.xbow, boltSel: P.boltSel,
       inv, offers, hot: hotGood,
@@ -1547,8 +1721,13 @@ function loadRun() {
   }));
   if (!offers.length) offers = rollBoard(ci);
   hotGood = TRADEABLE.indexOf(s.hot) >= 0 ? s.hot : hotGood;
-  if (isFinite(+s.x) && isFinite(+s.y)) {           // где стоял, там и встанешь
-    P.x = clamp(+s.x, 9, WORLD_W - 9); P.y = clamp(+s.y, 9, WORLD_H - 9);
+  /* Где стоял, там и встанешь. Записи, сделанные до того, как земля выросла
+     втрое, помнят старые координаты: тогда лагерь был на 1580,1180, а теперь
+     на 2765,2065. Растягиваем их тем же множителем 1.75 — иначе вернувшийся
+     игрок обнаружил бы себя за тридевять земель от костра. */
+  if (isFinite(+s.x) && isFinite(+s.y)) {
+    const k = (+s.wv || 1) < 2 ? 1.75 : 1;
+    P.x = clamp(+s.x * k, 9, WORLD_W - 9); P.y = clamp(+s.y * k, 9, WORLD_H - 9);
   }
   P.bag = BAGS[s.bag] && s.bag !== 'none' ? s.bag : null;
   storyIdx = clamp(Math.floor(+s.story) || 0, 0, STORY.length);
@@ -1584,6 +1763,7 @@ function reset() {
   killsLeft = 0; spawnQueue = 0;
   // мир строится один раз на весь поход и больше не перетасовывается
   obst = buildWorld();
+  obstGrid = null; buildObstGrid(obst);                // сетка для быстрого поиска соседей
   curLoc = 'camp'; syncCam();
   offers = rollBoard(0); rollHotGood(); benchTab = 'work'; storyIdx = 0;
   deaths = 0; downT = 0; downLost = 0;
@@ -1666,8 +1846,7 @@ function update(dt) {
   }
   P.x = clamp(P.x, 9, WORLD_W - 9); P.y = clamp(P.y, 9, WORLD_H - 9);
   // препятствия (перебираем только те, что рядом: их на весь мир под сотню)
-  for (const o of obst) {
-    if (Math.abs(o.x - P.x) > 60 || Math.abs(o.y - P.y) > 60) continue;
+  for (const o of obstNear(P.x, P.y)) {
     const d = Math.hypot(P.x - o.x, P.y - o.y);
     if (d < o.r + 9 && d > 0) {
       const a = Math.atan2(P.y - o.y, P.x - o.x);
@@ -1863,9 +2042,34 @@ function drawWorld() {
   txt('U — верстак', BENCH.x, BENCH.y + 24, 10, '#98a2ae', 'center');
   txt('E — доска работ', BOARD.x, BOARD.y + 24, 10, '#c9a227', 'center');
 
-  // гуща и камни: у каждого края свои
+  /* Поселения: колодец, площадь и название. Дворы стоят отдельно (они же
+     преграды и рисуются вместе с камнями) — здесь только то, что делает из
+     кучки изб деревню. */
+  for (const t of TOWNS) {
+    if (t.x < cam.x - t.r - 60 || t.x > cam.x + WW + t.r + 60 ||
+        t.y < cam.y - t.r - 60 || t.y > cam.y + WH + t.r + 60) continue;
+    ctx.fillStyle = 'rgba(60,52,38,.20)';              // утоптанная площадь
+    ctx.beginPath(); ctx.arc(t.x, t.y, t.r * 0.62, 0, 6.3); ctx.fill();
+    ctx.font = '20px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(t.kind === 'пристань' ? '⚓' : t.kind === 'рудник' ? '⛏' : '🪣', t.x, t.y);
+    txt(t.ico + ' ' + t.n, t.x, t.y - t.r * 0.62 - 8, 11, '#e8d9a8', 'center');
+    txt(t.kind, t.x, t.y + 16, 9, '#98a2ae', 'center');
+  }
+
+  // гуща, камни и дворы: у каждого края своё
   for (const o of obst) {
     if (o.x < cam.x - 40 || o.x > cam.x + WW + 40 || o.y < cam.y - 40 || o.y > cam.y + WH + 40) continue;
+    if (o.hut) {                                       // изба: сруб и крыша
+      const w = o.r * 1.7, h = o.r * 1.25;
+      ctx.fillStyle = o.big ? '#3a2f22' : '#332a1f';
+      ctx.fillRect(o.x - w / 2, o.y - h / 2, w, h);
+      ctx.fillStyle = '#4a3a26';
+      ctx.beginPath(); ctx.moveTo(o.x - w / 2 - 3, o.y - h / 2);
+      ctx.lineTo(o.x, o.y - h / 2 - o.r * 0.75); ctx.lineTo(o.x + w / 2 + 3, o.y - h / 2); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = 'rgba(242,177,52,.45)';          // окошко: в избе горит
+      ctx.fillRect(o.x - 3, o.y - 2, 6, 5);
+      continue;
+    }
     const G = LOCS[locAt(o.x, o.y)];
     ctx.font = (o.r * 1.9 | 0) + 'px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText(o.tree ? G.veg : G.rock, o.x, o.y);
@@ -2447,6 +2651,14 @@ function drawMap() {
   }
   ctx.lineCap = 'butt'; ctx.lineJoin = 'miter';
 
+  // поселения: где живут люди — их видно раньше приметных мест
+  for (const t of TOWNS) {
+    ctx.fillStyle = 'rgba(201,162,39,.14)';
+    ctx.beginPath(); ctx.arc(px(t.x), py(t.y), t.r * k, 0, 6.3); ctx.fill();
+    ctx.font = '14px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(t.ico, px(t.x), py(t.y));
+    txt(t.n, px(t.x), py(t.y) + 13, 9, '#f2d59a', 'center');
+  }
   // приметные места
   for (const key in SPOTS) {
     const s = SPOTS[key];
@@ -2913,6 +3125,7 @@ if (typeof globalThis !== 'undefined') globalThis.__W = {
   getKillsLeft: () => killsLeft, setPanel: v => { panel = v; }, setMouse: (x, y) => { mouse.x = x; mouse.y = y; },
   swing, shootBolt, applyOil, swapHand, saveRun, loadRun, clearRun, freeSpot,
   LOCS, JOBS, SHOP, STORY, SPOTS, SEEDS, PATHS, WORLD_W, WORLD_H, FIRE, BENCH, BOARD, CAMP_R,
+  TOWNS, townAt, obstNear, buildObstGrid, nearPath, buildPaths, TILE, TW, TH,
   buildWorld, buildRegions, locAt, regionSpot, onPath, inCamp, questGoal, takeStory, storyNow,
   compareNote, rollBoard, makeContract, jobFam, syncCam,
   getStory: () => storyIdx, setStory: v => { storyIdx = v; },
