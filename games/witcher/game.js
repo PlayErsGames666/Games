@@ -342,26 +342,68 @@ function mulberry(seed) {
 /* Опорные точки краёв. Расставлены руками, как рисуют карту: лагерь в
    середине, тракт через всю землю, за ним холмы с курганами, на западе
    низина с болотом и берегом, на севере чащи. */
+/* =====================  КОРОЛЕВСТВА  =====================
+   Земля не однородна: у каждого края есть хозяин, и у хозяина свой торг.
+   Там, где рудники, железо дёшево, а травы везут издалека и дерут втридорога;
+   на топях наоборот. Отсюда и смысл возить: купил у одних — продал другим.
+
+   Наживаться позволено, но в меру: разница ходит в пределах трети цены, а
+   больше тридцати килограммов руды на спину всё равно не влезет. Дорога
+   через полкарты — тоже цена.
+
+   Товары делятся на четыре рода, и у каждого королевства свой множитель:
+     mat  — руда, шкуры        alch — эссенции, зелья, масла
+     bolt — болты всех сортов  gear — мечи, доспехи, арбалеты, мешки */
+const KINGDOMS = {
+  mezh:   { n: 'Междуречье', ico: '🌾', c: '#d8c07a',
+            mul: { mat: 1.00, alch: 1.00, bolt: 1.00, gear: 1.00 }, lacks: [],
+            note: 'середина земли: цены ровные, зато есть всё' },
+  ard:    { n: 'Ард',        ico: '⛏', c: '#b8c4d8',
+            mul: { mat: 0.72, alch: 1.34, bolt: 0.86, gear: 0.92 }, lacks: ['shit'],
+            note: 'рудники и кузни: железо дёшево, травы везут за тридевять земель' },
+  topi:   { n: 'Вольные топи', ico: '🌿', c: '#9ad9a0',
+            mul: { mat: 1.30, alch: 0.70, bolt: 1.12, gear: 1.15 }, lacks: ['oilste'],
+            note: 'травы под ногами, а железа нет вовсе — всё привозное' },
+  kurgan: { n: 'Курганный удел', ico: '🪦', c: '#c9a0ff',
+            mul: { mat: 1.05, alch: 1.12, bolt: 0.74, gear: 1.06 }, lacks: ['honey'],
+            note: 'живут раскопками: серебро и болты дёшевы, всё живое — дорого' },
+};
+const KD_KEYS = Object.keys(KINGDOMS);
+
 const SEEDS = [
   // старая земля, разъехавшаяся в 1.75 раза
-  { id: 'camp',   x: 2765, y: 2065 },
-  { id: 'road',   x: 2730, y: 2730 }, { id: 'road',   x: 4095, y: 2625 }, { id: 'road',  x: 1435, y: 2625 },
-  { id: 'field',  x: 2065, y: 1575 }, { id: 'field',  x: 3588, y: 1838 }, { id: 'field', x: 2800, y: 3325 },
-  { id: 'woods',  x: 1400, y: 735 },  { id: 'woods',  x: 3675, y: 665 },  { id: 'woods', x: 4638, y: 1575 },
-  { id: 'swamp',  x: 840,  y: 2013 }, { id: 'swamp',  x: 1225, y: 3238 },
-  { id: 'shore',  x: 385,  y: 2800 },
-  { id: 'barrow', x: 5075, y: 2538 }, { id: 'barrow', x: 4550, y: 3413 },
-  { id: 'ruins',  x: 4375, y: 1085 }, { id: 'ruins',  x: 2013, y: 3413 },
+  { id: 'camp',   x: 2765, y: 2065, kd: 'mezh' },
+  { id: 'road',   x: 2730, y: 2730, kd: 'mezh' }, { id: 'road',   x: 4095, y: 2625, kd: 'kurgan' }, { id: 'road',  x: 1435, y: 2625, kd: 'topi' },
+  { id: 'field',  x: 2065, y: 1575, kd: 'mezh' }, { id: 'field',  x: 3588, y: 1838, kd: 'mezh' },   { id: 'field', x: 2800, y: 3325, kd: 'mezh' },
+  { id: 'woods',  x: 1400, y: 735,  kd: 'ard' },  { id: 'woods',  x: 3675, y: 665,  kd: 'ard' },    { id: 'woods', x: 4638, y: 1575, kd: 'ard' },
+  { id: 'swamp',  x: 840,  y: 2013, kd: 'topi' }, { id: 'swamp',  x: 1225, y: 3238, kd: 'topi' },
+  { id: 'shore',  x: 385,  y: 2800, kd: 'topi' },
+  { id: 'barrow', x: 5075, y: 2538, kd: 'kurgan' }, { id: 'barrow', x: 4550, y: 3413, kd: 'kurgan' },
+  { id: 'ruins',  x: 4375, y: 1085, kd: 'ard' },    { id: 'ruins',  x: 2013, y: 3413, kd: 'topi' },
   // новые земли, легшие в освободившееся место
-  { id: 'farm',   x: 2400, y: 2350 }, { id: 'farm',   x: 3250, y: 2950 }, { id: 'farm',  x: 1850, y: 1150 },
-  { id: 'crag',   x: 5250, y: 1300 }, { id: 'crag',   x: 4900, y: 500 },  { id: 'crag',  x: 5300, y: 3550 },
-  { id: 'heath',  x: 700,  y: 900 },  { id: 'heath',  x: 350,  y: 1450 }, { id: 'heath', x: 1500, y: 3700 },
-  { id: 'woods',  x: 900,  y: 3000 }, { id: 'woods',  x: 3300, y: 3700 },
-  { id: 'swamp',  x: 4200, y: 3750 }, { id: 'shore',  x: 260,  y: 3400 },
-  { id: 'road',   x: 3400, y: 1300 }, { id: 'road',   x: 1900, y: 3050 },
-  { id: 'ruins',  x: 5400, y: 2050 }, { id: 'barrow', x: 3900, y: 2300 },
-  { id: 'field',  x: 4700, y: 2900 }, { id: 'field',  x: 1100, y: 1750 },
+  { id: 'farm',   x: 2400, y: 2350, kd: 'mezh' }, { id: 'farm',   x: 3250, y: 2950, kd: 'mezh' }, { id: 'farm',  x: 1850, y: 1150, kd: 'mezh' },
+  { id: 'crag',   x: 5250, y: 1300, kd: 'ard' },  { id: 'crag',   x: 4900, y: 500,  kd: 'ard' },  { id: 'crag',  x: 5300, y: 3550, kd: 'kurgan' },
+  { id: 'heath',  x: 700,  y: 900,  kd: 'topi' }, { id: 'heath',  x: 350,  y: 1450, kd: 'topi' }, { id: 'heath', x: 1500, y: 3700, kd: 'topi' },
+  { id: 'woods',  x: 900,  y: 3000, kd: 'topi' }, { id: 'woods',  x: 3300, y: 3700, kd: 'mezh' },
+  { id: 'swamp',  x: 4200, y: 3750, kd: 'kurgan' }, { id: 'shore', x: 260,  y: 3400, kd: 'topi' },
+  { id: 'road',   x: 3400, y: 1300, kd: 'ard' },  { id: 'road',   x: 1900, y: 3050, kd: 'mezh' },
+  { id: 'ruins',  x: 5400, y: 2050, kd: 'kurgan' }, { id: 'barrow', x: 3900, y: 2300, kd: 'kurgan' },
+  { id: 'field',  x: 4700, y: 2900, kd: 'kurgan' }, { id: 'field', x: 1100, y: 1750, kd: 'topi' },
 ];
+/* Чьё это место. Считается по той же карте клеток, что и край, поэтому и
+   межа между королевствами получается такой же кривой, а не по линейке. */
+function kdAt(x, y) {
+  if (!regionTiles) buildRegions();
+  const tx = clamp(Math.floor(x / TILE), 0, TW - 1), ty = clamp(Math.floor(y / TILE), 0, TH - 1);
+  return SEEDS[regionTiles[ty * TW + tx]].kd || 'mezh';
+}
+// к какому роду товара относится добро — от этого зависит множитель королевства
+function goodKind(id) {
+  if (id === 'ore' || id === 'hide') return 'mat';
+  if (BOLTS[id]) return 'bolt';
+  if (POTIONS[id] || id === 'essence' || (STUFF[id] && STUFF[id].oil)) return 'alch';
+  return 'gear';
+}
 
 /* Тропы: настоящие дороги от места к месту. По ним и ходится быстрее, и
    глазу есть за что зацепиться — мир перестаёт быть однородной кашей. */
@@ -417,18 +459,82 @@ const SPOTS = {
 
    Дворы считаются от постоянного зерна, значит деревня всегда одна и та же. */
 const TOWNS = [
-  { k: 'brody',   n: 'Броды',     ico: '🏘', x: 2400, y: 2350, huts: 7, r: 150, kind: 'село' },
-  { k: 'zapole',  n: 'Заполье',   ico: '🏘', x: 3250, y: 2950, huts: 6, r: 140, kind: 'село' },
-  { k: 'vyselki', n: 'Выселки',   ico: '🛖', x: 1850, y: 1150, huts: 4, r: 110, kind: 'хутор' },
-  { k: 'kamenec', n: 'Каменец',   ico: '🏰', x: 5250, y: 1900, huts: 9, r: 175, kind: 'городок' },
-  { k: 'ozerki',  n: 'Озёрки',    ico: '🛖', x: 900,  y: 3000, huts: 4, r: 110, kind: 'хутор' },
-  { k: 'rudnik',  n: 'Рудник',    ico: '⛏', x: 4900, y: 640,  huts: 5, r: 125, kind: 'рудник' },
-  { k: 'zastava', n: 'Застава',   ico: '🗼', x: 4113, y: 2625, huts: 3, r: 100, kind: 'застава' },
-  { k: 'pristan', n: 'Пристань',  ico: '⚓', x: 300,  y: 3400, huts: 5, r: 125, kind: 'пристань' },
+  { k: 'brody',   n: 'Броды',     ico: '🏘', x: 2400, y: 2350, huts: 7, r: 150, kind: 'село',
+    who: ['trader', 'smith', 'peasant'] },
+  { k: 'zapole',  n: 'Заполье',   ico: '🏘', x: 3250, y: 2950, huts: 6, r: 140, kind: 'село',
+    who: ['trader', 'herb', 'inn'] },
+  { k: 'vyselki', n: 'Выселки',   ico: '🛖', x: 1850, y: 1150, huts: 4, r: 110, kind: 'хутор',
+    who: ['herb', 'peasant'] },
+  { k: 'kamenec', n: 'Каменец',   ico: '🏰', x: 5250, y: 1900, huts: 9, r: 175, kind: 'городок',
+    who: ['trader', 'smith', 'bagman', 'guard', 'inn'] },
+  { k: 'ozerki',  n: 'Озёрки',    ico: '🛖', x: 900,  y: 3000, huts: 4, r: 110, kind: 'хутор',
+    who: ['herb', 'peasant'] },
+  { k: 'rudnik',  n: 'Рудник',    ico: '⛏', x: 4900, y: 640,  huts: 5, r: 125, kind: 'рудник',
+    who: ['smith', 'trader'] },
+  { k: 'zastava', n: 'Застава',   ico: '🗼', x: 4113, y: 2625, huts: 3, r: 100, kind: 'застава',
+    who: ['guard', 'smith'] },
+  { k: 'pristan', n: 'Пристань',  ico: '⚓', x: 300,  y: 3400, huts: 5, r: 125, kind: 'пристань',
+    who: ['trader', 'bagman', 'inn'] },
 ];
 function townAt(x, y) {
   for (const t of TOWNS) if (Math.hypot(x - t.x, y - t.y) < t.r) return t;
   return null;
+}
+
+/* =====================  ЛЮДИ  =====================
+   В деревне мало домов — в ней должны быть люди. У каждого своё дело: одни
+   торгуют (и торгуют по ценам СВОЕГО королевства), другим сказать нечего,
+   кроме слуха, — но слух этот полезный: он и рассказывает, где что дешевле.
+
+   Подошёл на сорок шагов, нажал E — вот и весь разговор. */
+const NPC_KINDS = {
+  trader:  { n: 'Торговец',   ico: '🧔', tabs: ['supply', 'bolt', 'alch'] },
+  smith:   { n: 'Кузнец',     ico: '🔨', tabs: ['weapon', 'armor'] },
+  herb:    { n: 'Травница',   ico: '👵', tabs: ['alch', 'supply'] },
+  inn:     { n: 'Трактирщик', ico: '🍺', tabs: ['alch'] },
+  bagman:  { n: 'Шорник',     ico: '🎒', tabs: ['bag', 'supply'] },
+  guard:   { n: 'Стражник',   ico: '💂' },
+  peasant: { n: 'Селянин',    ico: '👨' },
+};
+let NPCS = [];
+function buildNPCs() {
+  NPCS = [];
+  for (const t of TOWNS) {
+    const kd = kdAt(t.x, t.y);
+    (t.who || []).forEach((k, i) => {
+      const K = NPC_KINDS[k]; if (!K) return;
+      const a = (i / Math.max(1, t.who.length)) * 6.283 + 0.45;
+      const d = t.r * 0.3;
+      NPCS.push({ k, n: K.n, ico: K.ico, tabs: K.tabs || null, kd, town: t,
+                  x: t.x + Math.cos(a) * d, y: t.y + Math.sin(a) * d, bob: (i * 1.7) % 6.28 });
+    });
+  }
+}
+function npcNear(x, y, r) {
+  let best = null, bd = r * r;
+  for (const p of NPCS) {
+    const d = (p.x - x) * (p.x - x) + (p.y - y) * (p.y - y);
+    if (d < bd) { bd = d; best = p; }
+  }
+  return best;
+}
+/* Что говорит тот, кому нечем торговать. Не «привет-привет», а подсказка:
+   куда идти и где что дешевле — иначе про королевства никто не узнает. */
+function npcTalk(p) {
+  const K = KINGDOMS[p.kd];
+  const ord = Object.entries(K.mul).sort((a, b) => a[1] - b[1]);
+  const cheap = ord[0], dear = ord[ord.length - 1];
+  const RU = { mat: 'руда и шкуры', alch: 'зелья и травы', bolt: 'болты', gear: 'железо и доспехи' };
+  // с большой буквы: «Курганный удел. живут раскопками» читается как обрубок
+  const note = K.note.charAt(0).toUpperCase() + K.note.slice(1);
+  if (p.k === 'guard') return '💂 «' + p.town.n + ', ' + K.n + '. ' + note + '»';
+  if (p.k === 'peasant') {
+    /* Там, где все множители единица (Междуречье), «дёшево X, дорого X» —
+       бессмыслица: сортировка при равенстве даёт один и тот же товар. */
+    if (dear[1] - cheap[1] < 0.05) return '👨 «У нас цены ровные, ни на чём не наживёшься. Вот в других уделах — дело другое.»';
+    return '👨 «У нас ' + RU[cheap[0]] + ' задёшево, а ' + RU[dear[0]] + ' втридорога. Езжай торговать в другой удел.»';
+  }
+  return '«' + K.n + ': ' + K.note + '»';
 }
 const FIRE = { x: SPOTS.camp.x, y: SPOTS.camp.y + 30 };
 const BENCH = { x: SPOTS.camp.x - 96, y: SPOTS.camp.y + 30 };
@@ -1592,13 +1698,53 @@ const TRADEABLE = ['ore', 'hide', 'essence', 'bolt', 'boltsil', 'boltarm', 'bolt
                    'oilsil', 'oilste', 'swallow', 'thunder', 'honey', 'shit'];
 function rollHotGood() { hotGood = pick(TRADEABLE); }
 function goodInfo(id) { return POTIONS[id] || STUFF[id]; }
+/* С кем сейчас торгуем: у костра — своё королевство, у торговца в Каменце —
+   его. Множитель королевства ложится и на покупку, и на продажу: где железо
+   дёшево, там его и покупают дёшево. Поэтому возить выгодно, но не бесконечно. */
+let marketKd = 'mezh';
+function market() { return KINGDOMS[marketKd] || KINGDOMS.mezh; }
+function kdMul(id) { return market().mul[goodKind(id)] || 1; }
+function kdLacks(id) { return market().lacks.indexOf(id) >= 0; }
+function buyPrice(id, base) { return Math.max(1, Math.round(base * kdMul(id))); }
+
 function sellRate(id) { return id === hotGood ? 1 : TRADE_RATE; }
 /* Цена за ШТУКУ округляется один раз, и связка — просто штука × количество.
    Раньше округлялась вся связка целиком, и арифметика в лавке не сходилась:
    строка говорила «4💰 за штуку», а кнопка «всё» за семь давала 25 вместо 28.
    Хуже того, продать семь раз по одной выходило дороже, чем всё разом, —
    лавка превращалась в кнопочную ферму. */
-function unitPrice(id) { return Math.max(1, Math.round(goodInfo(id).price * sellRate(id))); }
+/* ПОТОЛОК СКУПКИ. Разные цены по уделам — это хорошо, но без потолка выходит
+   вечный двигатель: купил зелье в Топях за 28, дошёл до Арда, продал за 54,
+   вернулся. Проверка так и показала — наживаться можно было на ЛЮБОМ товаре.
+
+   Правило простое и честное: скупщик не платит за вещь больше, чем за неё
+   просят там, где она дешевле всего. Тогда разница в ценах остаётся (закупаться
+   выгоднее в своём уделе), а возить туда-сюда — уже нет. */
+const SHOP_UNIT = {};                                  // сколько стоит ОДНА штука на прилавке
+function buildShopUnits() {
+  for (const tab in TAB_STACKS) for (const [id, n, base] of TAB_STACKS[tab]) SHOP_UNIT[id] = base / n;
+}
+function sellCap(id) {
+  if (SHOP_UNIT[id] == null) buildShopUnits();
+  const u = SHOP_UNIT[id];
+  if (u == null) return Infinity;                      // не торгуется на прилавке — потолка нет
+  const kind = goodKind(id);
+  let lo = Infinity;
+  for (const k of KD_KEYS) {
+    const K = KINGDOMS[k];
+    if (K.lacks.indexOf(id) >= 0) continue;
+    lo = Math.min(lo, u * (K.mul[kind] || 1));
+  }
+  return lo * 0.9;
+}
+function unitPrice(id) {
+  const raw = goodInfo(id).price * sellRate(id) * kdMul(id);
+  /* Округляем ВНИЗ, а не к ближайшему. Иначе дешёвый товар округляется вверх
+     через потолок и щель открывается снова: болт стоил 1.8 при закупке, а
+     потолок 1.6 округлялся до 2 — и десяток болтов приносил две кроны из
+     воздуха. Вниз — значит никогда не больше потолка. */
+  return Math.max(1, Math.floor(Math.min(raw, sellCap(id))));
+}
 function stackPrice(id, n) { return unitPrice(id) * Math.max(0, n | 0); }
 function sellStack(id, n) {
   const have = countStack(id);
@@ -1615,7 +1761,8 @@ function sell(it) {
   // ПОСЛЕДНИЙ предмет сумки — чужой и ни в чём не виноватый
   const i = inv.indexOf(it);
   if (i < 0) { message('Сначала сними: надетое не продаётся'); return; }
-  const p = Math.max(1, Math.round(itemPrice(it) * 0.6));
+  const gm = Math.min(kdMul('gear'), 0.9 * Math.min.apply(null, KD_KEYS.map(k => KINGDOMS[k].mul.gear)) / 0.6);
+  const p = Math.max(1, Math.round(itemPrice(it) * 0.6 * gm));
   inv.splice(i, 1);
   gold += p;
   message('💰 Продано за ' + p);
@@ -1625,8 +1772,9 @@ function buyBag(id) {
   const B = BAGS[id];
   if (!B) return;
   if (P.bag === id) { message('Такой уже за спиной'); return; }
-  if (gold < B.price) { message('Нужно ' + B.price + ' крон, у тебя ' + Math.floor(gold)); return; }
-  gold -= B.price;
+  const price = buyPrice('bag', B.price);
+  if (gold < price) { message('Нужно ' + price + ' крон, у тебя ' + Math.floor(gold)); return; }
+  gold -= price;
   const old = P.bag ? BAGS[P.bag].n.toLowerCase() : null;
   P.bag = id;
   message('🎒 ' + B.n + ': предел веса теперь ' + capacity() + ' кг' + (old ? ' (' + old + ' ушёл в уплату)' : ''));
@@ -1638,8 +1786,11 @@ function buyBag(id) {
 function buyXbow(type) {
   const X = XBOW[type];
   if (!X) return;
-  if (gold < X.price) { message('Нужно ' + X.price + ' крон, у тебя ' + Math.floor(gold)); return; }
-  gold -= X.price;
+  // цену берёт та же функция, что рисует карточку: иначе на прилавке одно, а
+  // из кошеля уходит другое — и это заметили ровно на кузнеце в Каменце
+  const price = buyPrice('xbow', X.price);
+  if (gold < price) { message('Нужно ' + price + ' крон, у тебя ' + Math.floor(gold)); return; }
+  gold -= price;
   const it = mkXbow(type, 0, null);
   if (!P.xbow) { P.xbow = it; message('🏹 ' + X.n + ' за спину: ' + X.bon); }
   else { inv.push(it); message('🏹 ' + X.n + ' — в сумке. «Надеть» на вкладке «Работа с железом»'); }
@@ -1650,8 +1801,9 @@ function buyXbow(type) {
 function buyArmor(type) {
   const A = ARMOR[type];
   if (!A) return;
-  if (gold < A.price) { message('Нужно ' + A.price + ' крон, у тебя ' + Math.floor(gold)); return; }
-  gold -= A.price;
+  const price = buyPrice('armor', A.price);
+  if (gold < price) { message('Нужно ' + price + ' крон, у тебя ' + Math.floor(gold)); return; }
+  gold -= price;
   const it = mkArmor(type, 0, null);
   if (!P.armor) { P.armor = it; P.hp = Math.min(P.hp, maxHP()); message('🛡 ' + A.n + ': ' + schoolNote(it)); }
   else { inv.push(it); message('🛡 ' + A.n + ' — в сумке. «Надеть» на вкладке «Железо» или в сумке (I)'); }
@@ -1782,6 +1934,8 @@ function reset() {
   // мир строится один раз на весь поход и больше не перетасовывается
   obst = buildWorld();
   obstGrid = null; buildObstGrid(obst);                // сетка для быстрого поиска соседей
+  buildNPCs();                                         // люди по деревням
+  vendorNpc = null; marketKd = kdAt(FIRE.x, FIRE.y); tradeTab = 'supply';
   curLoc = 'camp'; syncCam();
   offers = rollBoard(0); rollHotGood(); benchTab = 'work'; storyIdx = 0;
   deaths = 0; downT = 0; downLost = 0;
@@ -2073,7 +2227,21 @@ function drawWorld() {
     ctx.font = '20px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText(t.kind === 'пристань' ? '⚓' : t.kind === 'рудник' ? '⛏' : '🪣', t.x, t.y);
     txt(t.ico + ' ' + t.n, t.x, t.y - t.r * 0.62 - 8, 11, '#e8d9a8', 'center');
-    txt(t.kind, t.x, t.y + 16, 9, '#98a2ae', 'center');
+    const K = KINGDOMS[kdAt(t.x, t.y)];
+    txt(t.kind + ' · ' + K.ico + ' ' + K.n, t.x, t.y + 16, 9, K.c, 'center');
+  }
+  /* Люди. Кто торгует — у того над головой монета, кто нет — тому просто
+     есть что сказать. Рядом подписываем, что жать: без этого человек так и
+     останется картинкой. */
+  for (const p of NPCS) {
+    if (p.x < cam.x - 40 || p.x > cam.x + WW + 40 || p.y < cam.y - 40 || p.y > cam.y + WH + 40) continue;
+    const near = Math.hypot(P.x - p.x, P.y - p.y) < 46;
+    const bob = Math.sin(anim * 2 + p.bob) * 1.5;
+    ctx.font = '20px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(p.ico, p.x, p.y + bob);
+    if (p.tabs) { ctx.font = '10px serif'; ctx.fillText('💰', p.x + 11, p.y - 10 + bob); }
+    txt(p.n, p.x, p.y + 17, 9, near ? '#f2d59a' : '#98a2ae', 'center');
+    if (near) txt('E — ' + (p.tabs ? 'торговать' : 'говорить'), p.x, p.y + 28, 9, '#c9a227', 'center');
   }
 
   // гуща, камни и дворы: у каждого края своё
@@ -2645,6 +2813,8 @@ function drawBoard() {
    список железа упирался в полку с товаром, а продавать припасы было
    негде вовсе — руда и лишние зелья просто копили вес. */
 let benchTab = 'work';
+// купец у костра держит всё: он и есть прежняя лавка верстака
+const CAMP_VENDOR = { n: 'Купец у костра', ico: '🛒', tabs: null };
 /* Карта земли на весь экран (клавиша M). Маленькая карта в углу говорит
    «ты где-то там», а эта отвечает на вопрос «куда идти и что вокруг»:
    настоящие очертания краёв, тропы, все приметные места с именами,
@@ -2726,18 +2896,18 @@ function drawMap() {
 
 function drawBench() {
   panelBox('⚒ ВЕРСТАК И ЛАВКА');
-  const tabs = [['work', '⚒ Железо'], ['shop', '💰 Припасы'], ['gear', '🏹 Оружейник'], ['armor', '🛡 Бронник']];
+  /* Вкладок стало две, а не четыре: ковка отдельно, торг отдельно. Внутри
+     торга свои вкладки-карточки — по родам товара, а не «всё в одну кучу». */
+  const tabs = [['work', '⚒ Ковка'], ['trade', '💰 Лавка']];
   let tx = 24;
-  const tw = Math.min(150, Math.floor((CW - 48 - 6 * (tabs.length - 1)) / tabs.length));
+  const tw = Math.min(170, Math.floor((CW - 48 - 6) / 2));
   for (const [id, label] of tabs) {
     const on = benchTab === id;
     btn(tx, 62, tw, 20, label, () => { benchTab = id; benchScroll = 0; },
         on ? 'rgba(96,78,36,.95)' : 'rgba(34,31,26,.9)');
     tx += tw + 6;
   }
-  if (benchTab === 'shop') { drawShop(); return; }
-  if (benchTab === 'gear') { drawArmory(); return; }
-  if (benchTab === 'armor') { drawArmors(); return; }
+  if (benchTab === 'trade') { marketKd = kdAt(FIRE.x, FIRE.y); drawTrade(CAMP_VENDOR); return; }
 
   let y = 92;
   txt('Улучшение: обычный → улучшенный → отличный → мастерский → гроссмейстер', 24, y - 4, 9, '#98a2ae');
@@ -2797,152 +2967,182 @@ function drawBench() {
   panelFooter('U или ✕ — закрыть · зачарование даёт случайное свойство (120💰 + 2✨)');
 }
 
-/* Лавка: купить и — впервые — ПРОДАТЬ припасы.
-   Раньше продать можно было только меч или доспех, а руда, шкуры, лишние
-   зелья и болты копились мёртвым весом: выбросить жалко, деть некуда. */
-const SHOP = [
-  ['⛏ Руда ×3', 'ore', 3, 66], ['🧵 Шкуры ×3', 'hide', 3, 54],
-  ['✨ Эссенция', 'essence', 1, 34],
-  ['🧪 Ласточка', 'swallow', 1, 40], ['⚗ Гром', 'thunder', 1, 55],
-  ['🍯 Белый мёд', 'honey', 1, 35], ['💩 Зелье гавна', 'shit', 1, 90],
-  ['🧴 Масло: нечисть', 'oilsil', 1, 45], ['🛢 Масло: люди', 'oilste', 1, 45],
-];
-/* Болты стоят отдельным рядком: их пять сортов, и вперемешку с зельями
-   выбрать нужный уже не глазами, а перебором. Цена связки ВЫШЕ полной
-   скупочной — иначе на «сегодня в цене» делались бы деньги из воздуха. */
-const SHOP_BOLTS = [
-  ['➶ Обычные ×10', 'bolt', 10, 24],
-  ['✧ Серебряные ×8', 'boltsil', 8, 76],
-  ['➹ Бронебойные ×8', 'boltarm', 8, 58],
-  ['🔥 Зажигат. ×6', 'boltfir', 6, 72],
-  ['💥 Разрывные ×4', 'boltbom', 4, 105],
-];
-function shopGrid(list, y, w) {
-  let x = 24;
-  for (const [label, id, n, price] of list) {
-    if (x + w > CW - 20) { x = 24; y += 23; }
-    btn(x, y, w, 20, label + ' — ' + price + '💰', () => buy(id, n, price), null, gold < price,
-        'Нужно ' + price + ' крон, у тебя ' + Math.floor(gold));
-    x += w + 3;
+/* =====================  ЛАВКА КАРТОЧКАМИ  =====================
+   Лавка была списком кнопок в строчку: всё вперемешку, и чтобы найти нужное,
+   приходилось читать подряд. Теперь товар разложен КАРТОЧКАМИ и разбит по
+   родам — припасы, болты, зелья, арбалеты, доспехи, мешки, — и у каждой
+   карточки написано, что это, чем берёт и сколько уже есть в сумке.
+
+   Одна и та же лавка обслуживает и купца у костра, и любого торговца в
+   деревне: разница только в том, ЧЕМ он торгует и в каком он королевстве. */
+const TAB_N = { supply: 'Припасы', bolt: 'Болты', alch: 'Зелья', weapon: 'Арбалеты',
+                armor: 'Доспехи', bag: 'Мешки', sell: 'Продать' };
+const TAB_STACKS = {
+  supply: [['ore', 3, 66], ['hide', 3, 54], ['essence', 1, 34]],
+  bolt:   [['bolt', 10, 24], ['boltsil', 8, 76], ['boltarm', 8, 58], ['boltfir', 6, 72], ['boltbom', 4, 105]],
+  alch:   [['swallow', 1, 40], ['thunder', 1, 55], ['honey', 1, 35], ['shit', 1, 90],
+           ['oilsil', 1, 45], ['oilste', 1, 45]],
+};
+/* Что лежит на прилавке в этой вкладке. Королевство может чего-то не знать
+   вовсе — тогда карточки просто нет, и это честнее мёртвой кнопки. */
+function shopCards(tab) {
+  const out = [];
+  if (TAB_STACKS[tab]) {
+    for (const [id, n, base] of TAB_STACKS[tab]) {
+      if (kdLacks(id)) continue;
+      const S = goodInfo(id);
+      out.push({ kind: 'stack', id, n, price: buyPrice(id, base), ico: S.ico,
+                 name: S.n + (n > 1 ? ' ×' + n : ''), sub: S.desc,
+                 have: countStack(id), buy: () => buy(id, n, buyPrice(id, base)) });
+    }
+  } else if (tab === 'weapon') {
+    for (const id of XBOW_KEYS) {
+      const X = XBOW[id], mine = P.xbow && P.xbow.type === id;
+      out.push({ kind: 'xbow', id, price: buyPrice('xbow', X.price), ico: X.ico, name: X.n,
+                 sub: 'урон ' + X.dmg + ' · взвод ' + X.cd.toFixed(2) + 'с · ' +
+                      Math.round(X.spd * X.life) + ' шагов · ' + X.w + ' кг',
+                 bon: X.bon, mine, buy: () => buyXbow(id) });
+    }
+  } else if (tab === 'armor') {
+    for (const id of ARMOR_KEYS) {
+      const A = ARMOR[id], mine = P.armor && P.armor.type === id;
+      out.push({ kind: 'armor', id, price: buyPrice('armor', A.price), ico: A.ico, name: A.n,
+                 sub: 'броня ' + A.def + ' · ' + A.w + ' кг · шаг ×' + A.spd.toFixed(2),
+                 bon: schoolRange(id), mine, buy: () => buyArmor(id) });
+    }
+  } else if (tab === 'bag') {
+    for (const id of ['hide', 'hunter', 'master']) {
+      const B = BAGS[id], mine = P.bag === id;
+      out.push({ kind: 'bag', id, price: buyPrice('bag', B.price), ico: B.ico, name: B.n,
+                 sub: B.desc, mine, buy: () => buyBag(id) });
+    }
   }
-  return y + 20;
+  return out;
 }
-function drawShop() {
+/* Одна карточка. Вся она — кнопка: целиться в узкую полоску «купить» на
+   ощупь неудобно, а промахнуться по карточке трудно. */
+function drawCard(c, x, y, w, h) {
+  const poor = gold < c.price, dim = c.mine || poor;
+  const hov = mouse.x >= x && mouse.x <= x + w && mouse.y >= y && mouse.y <= y + h;
+  ctx.fillStyle = c.mine ? 'rgba(40,58,36,.9)' : hov && !dim ? 'rgba(52,45,32,.95)' : 'rgba(22,20,17,.9)';
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = c.mine ? 'rgba(127,214,160,.55)' : poor ? 'rgba(255,255,255,.07)' : 'rgba(201,162,39,.35)';
+  ctx.lineWidth = 1; ctx.strokeRect(x + .5, y + .5, w - 1, h - 1);
+  ctx.font = '17px serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillText(c.ico, x + 7, y + 15);
+  txt(clipText(c.name, w - 34, 10), x + 28, y + 15, 10, dim ? '#8a8f96' : '#e8d9a8');
+  txt(clipText(c.sub || '', w - 14, 8), x + 7, y + 30, 8, '#98a2ae');
+  if (c.bon) txt(clipText(c.bon, w - 14, 8), x + 7, y + 41, 8, '#6c7683');
+  // нижняя полоса: цена, сколько уже есть, и состояние
+  ctx.fillStyle = c.mine ? 'rgba(60,90,55,.6)' : poor ? 'rgba(40,30,28,.7)' : 'rgba(70,58,30,.75)';
+  ctx.fillRect(x + 1, y + h - 17, w - 2, 16);
+  txt(c.mine ? '✓ уже твоё' : c.price + '💰', x + 7, y + h - 9, 10,
+      c.mine ? '#9ad9a0' : poor ? '#ff7a6a' : '#f2d59a');
+  if (c.have != null) txt('в сумке ' + c.have, x + w - 7, y + h - 9, 9, '#98a2ae', 'right');
+  else if (!c.mine) txt(poor ? 'не хватает' : 'купить', x + w - 7, y + h - 9, 9, poor ? '#ff7a6a' : '#c9a227', 'right');
+  uiHit.push({ x, y, w, h, fn: dim
+    ? () => { snd('deny'); message(c.mine ? 'Это уже твоё' : 'Нужно ' + c.price + ' крон, у тебя ' + Math.floor(gold)); }
+    : () => { snd('ui'); c.buy(); } });
+}
+
+/* Прилавок целиком: заголовок с королевством, вкладки, сетка карточек. */
+let tradeTab = 'supply';
+function drawTrade(vendor) {
+  const tabs = (vendor.tabs || ['supply', 'bolt', 'alch', 'weapon', 'armor', 'bag']).concat(['sell']);
+  if (tabs.indexOf(tradeTab) < 0) tradeTab = tabs[0];
+  const K = market();
+
+  txt(vendor.ico + ' ' + vendor.n + (vendor.town ? ' · ' + vendor.town.n : ''), 24, 96, 11, '#e8d9a8');
+  txt(K.ico + ' ' + K.n, CW - 24, 96, 11, K.c, 'right');
+  txt(K.note, 24, 109, 9, '#98a2ae');
+  // чем этот удел хорош и чем плох — иначе про множители никто не догадается
+  const RU = { mat: 'руда и шкуры', alch: 'зелья и травы', bolt: 'болты', gear: 'железо' };
+  const ord = Object.entries(K.mul).sort((a, b) => a[1] - b[1]);
+  txt('дёшево: ' + RU[ord[0][0]] + ' ×' + ord[0][1].toFixed(2) +
+      '   ·   дорого: ' + RU[ord[ord.length - 1][0]] + ' ×' + ord[ord.length - 1][1].toFixed(2),
+      CW - 24, 109, 9, '#c9a227', 'right');
+
+  let tx = 24;
+  const tw = Math.min(96, Math.floor((CW - 48 - 5 * (tabs.length - 1)) / tabs.length));
+  for (const t of tabs) {
+    btn(tx, 120, tw, 19, TAB_N[t] || t, () => { tradeTab = t; benchScroll = 0; },
+        tradeTab === t ? 'rgba(96,78,36,.95)' : 'rgba(34,31,26,.9)');
+    tx += tw + 5;
+  }
+
+  if (tradeTab === 'sell') { drawSellList(150); return; }
+
+  const cards = shopCards(tradeTab);
+  if (!cards.length) {
+    txt('Тут этого не держат — ' + K.n + ' обходится своим.', CW / 2, 200, 11, '#6c7683', 'center');
+    panelFooter('вкладки сверху · у каждого удела свой прилавок и свои цены');
+    return;
+  }
+  const gap = 8;
+  const cols = Math.max(1, Math.floor((CW - 48 + gap) / (150 + gap)));
+  const cw2 = Math.floor((CW - 48 - gap * (cols - 1)) / cols), ch2 = 64;
+  const top = 150, bottom = CH - 66;
+  const rows = Math.max(1, Math.floor((bottom - top) / (ch2 + gap)));
+  const lines = Math.ceil(cards.length / cols);
+  const maxScroll = Math.max(0, lines - rows);
+  benchScroll = clamp(benchScroll, 0, maxScroll);
+  const from = benchScroll * cols;
+  cards.slice(from, from + rows * cols).forEach((c, i) => {
+    drawCard(c, 24 + (i % cols) * (cw2 + gap), top + ((i / cols) | 0) * (ch2 + gap), cw2, ch2);
+  });
+  if (maxScroll > 0) {
+    txt('строки ' + (benchScroll + 1) + '–' + Math.min(benchScroll + rows, lines) + ' из ' + lines +
+        ' · колесо мыши', CW / 2 - 10, CH - 58, 9, '#98a2ae', 'center');
+    btn(CW - 78, CH - 66, 25, 17, '▲', () => { benchScroll--; }, null, benchScroll <= 0);
+    btn(CW - 50, CH - 66, 25, 17, '▼', () => { benchScroll++; }, null, benchScroll >= maxScroll);
+  }
+  panelFooter('вкладки сверху · цены зависят от королевства · продать — вкладка «Продать»');
+}
+
+/* Продажа осталась списком: тут важны не картинки, а «сколько дадут». */
+function drawSellList(y) {
   const H = goodInfo(hotGood);
-  txt('Скупщик берёт вещи за 60% цены.', 24, 96, 10, '#98a2ae');
-  txt('Сегодня в цене: ' + H.ico + ' ' + H.n + ' — платит ПОЛНУЮ (' + H.price + '💰 за штуку)',
-      24, 110, 10, '#f2b134');
-
-  txt('Припасы:', 24, 130, 10, '#e8d9a8');
-  let sy = shopGrid(SHOP, 140, 116);
-
-  const cur = STUFF[boltInfo()];
-  txt('Болты (в жёлобе ' + cur.ico + ' ' + cur.n.toLowerCase() + ' ×' + countStack(boltInfo()) + ', переключает B):',
-      24, sy + 22, 10, '#e8d9a8');
-  sy = shopGrid(SHOP_BOLTS, sy + 32, 152);
-
-  let y = sy + 26;
-  const stacks = inv.filter(i => i.k === 'stack');
-  txt('Продать из сумки:', 24, y, 10, '#e8d9a8');
-  /* Сортов припасов стало больше, чем строк на экране: список катается тем
-     же колесом, что и остальные. Раньше нижние связки просто уезжали под
-     нижний край панели, и продать их было нельзя.
-     Строку прокрутки и присказку справа рисуем ПООЧЕРЁДНО: они делят одно
-     место, и вместе наползали бы друг на друга. */
-  const v = listView(stacks.length, y + 12, CH - 70, 24, benchScroll);
+  txt('Скупщик берёт за 60% цены. Сегодня в цене: ' + H.ico + ' ' + H.n + ' — платит полную.',
+      24, y, 9, '#f2b134');
+  y += 14;
+  const rowsAll = inv.filter(i => i.k === 'stack').concat(inv.filter(i => i.k !== 'stack'));
+  const v = listView(rowsAll.length, y + 12, CH - 70, 24, benchScroll);
   benchScroll = v.from;
   if (v.max > 0) scrollBtns(y, v, () => benchScroll, n => { benchScroll = clamp(n, 0, v.max); });
-  else txt(stacks.length ? 'всё лишнее — в кроны' : 'припасов нет', CW - 24, y, 9, '#6c7683', 'right');
+  else txt(rowsAll.length ? 'всё лишнее — в кроны' : 'продавать нечего', CW - 24, y, 9, '#6c7683', 'right');
   y += 12;
-  for (const it of stacks.slice(v.from, v.from + v.vis)) {
-    const one = unitPrice(it.id), all = stackPrice(it.id, it.n), hot = it.id === hotGood;
+  for (const it of rowsAll.slice(v.from, v.from + v.vis)) {
+    const isStack = it.k === 'stack';
+    const hot = isStack && it.id === hotGood;
     ctx.fillStyle = hot ? 'rgba(50,42,20,.85)' : 'rgba(20,18,15,.75)';
     ctx.fillRect(24, y, CW - 48, 22);
     if (hot) { ctx.fillStyle = 'rgba(242,177,52,.75)'; ctx.fillRect(24, y, 3, 22); }
-    txt(itemIco(it) + '  ' + itemName(it) + ' ×' + it.n, 32, y + 11, 10, hot ? '#f2d59a' : '#e6ebf2');
-    txt(one + '💰 за штуку', CW - 190, y + 11, 9, hot ? '#f2b134' : '#98a2ae', 'right');
-    txt(itemWeight(it).toFixed(1) + ' кг', CW - 128, y + 11, 9, '#6c7683', 'right');
-    btn(CW - 120, y + 3, 44, 16, '×1', () => sellStack(it.id, 1), 'rgba(70,60,30,.9)');
-    btn(CW - 72, y + 3, 48, 16, 'всё ' + all + '💰', () => sellStack(it.id, it.n), 'rgba(70,60,30,.9)');
+    txt(clipText(itemIco(it) + '  ' + fullName(it), CW - 240, 10), 32, y + 11, 10,
+        hot ? '#f2d59a' : isStack ? '#e6ebf2' : TIERS[it.tier].c);
+    if (isStack) {
+      const one = unitPrice(it.id), all = stackPrice(it.id, it.n);
+      txt(one + '💰 за штуку', CW - 190, y + 11, 9, hot ? '#f2b134' : '#98a2ae', 'right');
+      txt(itemWeight(it).toFixed(1) + ' кг', CW - 128, y + 11, 9, '#6c7683', 'right');
+      btn(CW - 120, y + 3, 44, 16, '×1', () => sellStack(it.id, 1), 'rgba(70,60,30,.9)');
+      btn(CW - 72, y + 3, 48, 16, 'всё ' + all + '💰', () => sellStack(it.id, it.n), 'rgba(70,60,30,.9)');
+    } else {
+      // тот же потолок и для железа: 0.83 от самой дешёвой закупки по уделам
+      const gm = Math.min(kdMul('gear'), 0.9 * Math.min.apply(null, KD_KEYS.map(k => KINGDOMS[k].mul.gear)) / 0.6);
+      const p = Math.max(1, Math.round(itemPrice(it) * 0.6 * gm));
+      txt(itemWeight(it).toFixed(1) + ' кг', CW - 128, y + 11, 9, '#6c7683', 'right');
+      btn(CW - 120, y + 3, 96, 16, 'продать ' + p + '💰', () => sell(it), 'rgba(70,60,30,.9)');
+    }
     y += 24;
   }
-  panelFooter('U или ✕ — закрыть · товар «в цене» меняется после каждого контракта');
+  panelFooter('надетое не продаётся — сперва сними · цены зависят от королевства');
 }
 
-/* Оружейник: арбалеты и рюкзаки. Отдельной вкладкой, потому что тут про
-   каждую вещь надо прочитать три строки, а не выбрать из списка цену. */
-function drawArmory() {
-  const xb = P.xbow;
-  txt('🏹 Арбалеты. Тип решает урон, перезарядку и полёт болта — и это разные ремёсла.',
-      24, 96, 9, '#98a2ae');
-  txt(xb ? 'За спиной: ' + fullName(xb) + ' · урон ' + Math.round(XBOW[xb.type].dmg * TIERS[xb.tier].m) +
-           ' · взвод ' + XBOW[xb.type].cd.toFixed(2) + ' с'
-         : 'За спиной пусто — стрелять нечем',
-      24, 110, 10, xb ? '#f2d59a' : '#ff7a6a');
-
-  let y = 122;
-  for (const id of XBOW_KEYS) {
-    const X = XBOW[id], mine = xb && xb.type === id;
-    ctx.fillStyle = mine ? 'rgba(34,30,22,.85)' : 'rgba(20,18,15,.75)';
-    ctx.fillRect(24, y, CW - 48, 34);
-    if (mine) { ctx.fillStyle = 'rgba(201,162,39,.7)'; ctx.fillRect(24, y, 3, 34); }
-    txt(X.ico + ' ' + X.n, 32, y + 10, 10, mine ? '#f2d59a' : '#e6ebf2');
-    txt('урон ' + X.dmg + ' · взвод ' + X.cd.toFixed(2) + ' с · болт ' + X.spd + ' шагов/с · ' +
-        Math.round(X.spd * X.life) + ' шагов вдаль · ' + X.w + ' кг', 32, y + 21, 8, '#98a2ae');
-    txt(X.bon, 32, y + 30, 8, '#6c7683');
-    btn(CW - 116, y + 8, 92, 18, mine ? 'за спиной' : 'купить ' + X.price + '💰',
-        () => buyXbow(id), mine ? 'rgba(60,80,50,.9)' : null, mine || gold < X.price,
-        mine ? 'Такой уже за спиной. Улучшать его — на вкладке «Железо»'
-             : 'Нужно ' + X.price + ' крон, у тебя ' + Math.floor(gold));
-    y += 36;
-  }
-
-  // рюкзаки: предел веса носят на спине, а не выдают свыше
-  y += 12;
-  txt('🎒 Рюкзаки (предел веса сейчас ' + capacity() + ' кг):', 24, y, 10, '#e8d9a8');
-  y += 10;
-  let bx = 24;
-  const bw = Math.min(152, Math.floor((CW - 48 - 8) / 3));
-  for (const id of ['hide', 'hunter', 'master']) {
-    const B = BAGS[id], mine = P.bag === id;
-    btn(bx, y, bw, 20, B.ico + ' ' + B.n + (mine ? ' — на тебе' : ' — ' + B.price + '💰'),
-        () => buyBag(id), mine ? 'rgba(60,80,50,.9)' : null, mine || gold < B.price,
-        mine ? 'Этот уже за спиной' : 'Нужно ' + B.price + ' крон, у тебя ' + Math.floor(gold));
-    txt(B.desc, bx + 4, y + 30, 8, '#6c7683');
-    bx += bw + 4;
-  }
-  panelFooter('U или ✕ — закрыть · купленный арбалет улучшают и чаруют на вкладке «Железо»');
-}
-
-/* Бронник. Три обычных доспеха и пять ведьмачьих школ. У школьного доспеха
-   ступень качает не только броню, но и саму школу, поэтому под каждым
-   написано, что он даёт СЕЙЧАС (обычным) и что даст гроссмейстерским. */
-function drawArmors() {
-  const ar = P.armor;
-  txt('🛡 Доспехи. У ведьмачьих школ ступень качает не только броню, но и саму школу.',
-      24, 96, 9, '#98a2ae');
-  txt(ar ? 'На тебе: ' + fullName(ar) + ' · броня ' + Math.round(armorDef()) + ' · ' + schoolNote(ar)
-         : 'На тебе ничего — любой удар идёт в полную силу',
-      24, 110, 10, ar ? (ARMOR[ar.type].c || '#f2d59a') : '#ff7a6a');
-
-  let y = 122;
-  for (const id of ARMOR_KEYS) {
-    const A = ARMOR[id], mine = ar && ar.type === id;
-    ctx.fillStyle = mine ? 'rgba(34,30,22,.85)' : 'rgba(20,18,15,.75)';
-    ctx.fillRect(24, y, CW - 48, 32);
-    if (mine) { ctx.fillStyle = 'rgba(201,162,39,.7)'; ctx.fillRect(24, y, 3, 32); }
-    txt(A.ico + ' ' + A.n, 32, y + 10, 10, mine ? '#f2d59a' : (A.school ? A.c : '#e6ebf2'));
-    txt('броня ' + A.def + ' · вес ' + A.w + ' кг · шаг ×' + A.spd.toFixed(2) + ' · энергия ×' + A.mpr.toFixed(2),
-        32, y + 20, 8, '#98a2ae');
-    // обычному доспеху хвастать нечем, у школьного показываем рост «от и до»
-    txt(clipText(schoolRange(id), CW - 160, 8), 32, y + 29, 8, A.school ? A.c : '#6c7683');
-    btn(CW - 116, y + 7, 92, 18, mine ? 'на тебе' : 'купить ' + A.price + '💰',
-        () => buyArmor(id), mine ? 'rgba(60,80,50,.9)' : null, mine || gold < A.price,
-        mine ? 'Этот уже на тебе. Улучшать его — на вкладке «Железо»'
-             : 'Нужно ' + A.price + ' крон, у тебя ' + Math.floor(gold));
-    y += 34;
-  }
-  panelFooter('U или ✕ — закрыть · доспех улучшают шкурами 🧵 на вкладке «Железо» — школа растёт вместе со ступенью');
+/* Разговор с торговцем: та же лавка, только прилавок его и цены его удела. */
+let vendorNpc = null;
+function drawVendor() {
+  if (!vendorNpc) { panel = null; return; }
+  panelBox(vendorNpc.ico + ' ' + vendorNpc.n.toUpperCase());
+  drawTrade(vendorNpc);
 }
 
 function render() {
@@ -2969,6 +3169,7 @@ function render() {
   drawHUD();
 
   if (panel === 'bag') drawBag();
+  else if (panel === 'vendor') drawVendor();
   else if (panel === 'bench') drawBench();
   else if (panel === 'board') drawBoard();
   else if (panel === 'map') drawMap();
@@ -3027,7 +3228,7 @@ canvas.addEventListener('wheel', e => {
   if (!panel) return;
   e.preventDefault();
   const d = e.deltaY > 0 ? 1 : -1;
-  if (panel === 'bag') bagScroll += d; else if (panel === 'bench') benchScroll += d;
+  if (panel === 'bag') bagScroll += d; else benchScroll += d;   // прилавок и верстак катаются одним счётчиком
 }, { passive: false });
 canvas.addEventListener('pointerup', () => { mouse.down = false; });
 canvas.addEventListener('pointerleave', () => { mouse.down = false; });
@@ -3035,7 +3236,19 @@ canvas.addEventListener('contextmenu', e => e.preventDefault());
 
 function interact() {
   if (panel === 'board') { panel = null; return; }      // E у доски — и закрыть тоже
+  if (panel === 'vendor') { panel = null; vendorNpc = null; return; }
   if (panel) return;
+  /* Люди в деревне. Торговец открывает свой прилавок и торгует по ценам
+     СВОЕГО королевства; тому, кому торговать нечем, есть что сказать. */
+  const who = npcNear(P.x, P.y, 46);
+  if (who) {
+    if (who.tabs) {
+      vendorNpc = who; marketKd = who.kd; tradeTab = who.tabs[0];
+      benchScroll = 0; panel = 'vendor'; snd('ui');
+      message(who.ico + ' ' + who.n + ' (' + who.town.n + '): «Показывай, чего надо»');
+    } else { snd('ui'); message(npcTalk(who)); }
+    return;
+  }
   // доска и верстак стоят в мире: подошёл — работает, ушёл — нет
   if (Math.hypot(P.x - BOARD.x, P.y - BOARD.y) < 52) {
     if (phase === 'FIGHT') { message('Работа уже взята: ' + contract.t + ' — сперва доделай'); return; }
@@ -3141,7 +3354,7 @@ if (typeof globalThis !== 'undefined') globalThis.__W = {
   reset, update, render, startContract, finishContract, spawnFoe, castRune, drink, upgrade, enchant, sell, buy,
   equip, addStack, countStack, dropItem, swordDamage, damageTaken, hurtFoe, hurtPlayer, toggleMutation,
   carried, capacity, loadState, itemWeight, itemPrice, fullName, mkSword, mkArmor, mkXbow, mkStack, lootFrom,
-  XBOW, BOLTS, BOLT_IDS, SHOP_BOLTS, buyXbow, cycleBolt, boltHit, xbowDamage, randomGear,
+  XBOW, BOLTS, BOLT_IDS, buyXbow, cycleBolt, boltHit, xbowDamage, randomGear,
   ARMOR_KEYS, buyArmor, schoolNote, schoolRange, schoolPow, schoolStep, wornSchool,
   runeCost, runePower, armorDef, maxHP, mpRegen, moveSpeed,
   getBolt: () => P.boltSel, setBolt: v => { P.boltSel = v; },
@@ -3150,7 +3363,7 @@ if (typeof globalThis !== 'undefined') globalThis.__W = {
   getPhase: () => phase, setPhase: v => { phase = v; }, getOver: () => over, getCi: () => ci, setCi: v => { ci = v; },
   getKillsLeft: () => killsLeft, setPanel: v => { panel = v; }, setMouse: (x, y) => { mouse.x = x; mouse.y = y; },
   swing, shootBolt, applyOil, swapHand, saveRun, loadRun, clearRun, freeSpot,
-  LOCS, JOBS, SHOP, STORY, SPOTS, SEEDS, PATHS, WORLD_W, WORLD_H, FIRE, BENCH, BOARD, CAMP_R,
+  LOCS, JOBS, STORY, SPOTS, SEEDS, PATHS, WORLD_W, WORLD_H, FIRE, BENCH, BOARD, CAMP_R,
   TOWNS, townAt, obstNear, buildObstGrid, nearPath, buildPaths, TILE, TW, TH,
   buildWorld, buildRegions, locAt, regionSpot, onPath, inCamp, questGoal, takeStory, storyNow,
   compareNote, rollBoard, makeContract, jobFam, syncCam,
@@ -3160,6 +3373,11 @@ if (typeof globalThis !== 'undefined') globalThis.__W = {
   getCam: () => cam,
   sellStack, stackPrice, unitPrice, rollHotGood, getHot: () => hotGood, setHot: v => { hotGood = v; },
   setBenchTab: v => { benchTab = v; }, getBenchTab: () => benchTab,
+  KINGDOMS, KD_KEYS, kdAt, goodKind, kdMul, kdLacks, buyPrice, sellCap, SHOP_UNIT, buildShopUnits, NPCS: () => NPCS, NPC_KINDS,
+  buildNPCs, npcNear, npcTalk, shopCards, TAB_STACKS, TAB_N, CAMP_VENDOR,
+  getMarket: () => marketKd, setMarket: v => { marketKd = v; },
+  setTradeTab: v => { tradeTab = v; }, getTradeTab: () => tradeTab,
+  setVendor: v => { vendorNpc = v; }, getVendor: () => vendorNpc,
   getLoc: () => curLoc, getObst: () => obst, getOffers: () => offers, setOffers: v => { offers = v; },
   SWORD, ARMOR, TIERS, FOES, POTIONS, STUFF, RUNES, ENCH, WX0, WY0, WX1, WY1,
   getScroll: () => ({ bag: bagScroll, bench: benchScroll }),
