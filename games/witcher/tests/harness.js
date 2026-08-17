@@ -43,17 +43,32 @@ function makeCtx() {
     set(t, k, v) { t[k] = v; return true; },
   });
 }
+const canvasHandlers = {};
 function makeCanvas(w, h) {
   return {
     width: w || 520, height: h || 640, _ctx: null,
     getContext() { return this._ctx || (this._ctx = makeCtx()); },
     getBoundingClientRect() { return { left: 0, top: 0, width: this.width, height: this.height }; },
-    addEventListener() {}, style: {},
+    // мышь по холсту тоже надо уметь: пояс, руны и зелья живут только там
+    addEventListener(type, fn) { (canvasHandlers[type] || (canvasHandlers[type] = [])).push(fn); },
+    style: {},
   };
 }
 
 const store = {};
 const docHandlers = {};
+/* Кнопки под игрой (⚔ сменить меч, 🎒 инвентарь, 🩸 мутация, ⏸ пауза…).
+   Раньше getElementById отвечал на них null, onBtn молча ничего не вешал —
+   и весь этот ряд не проверялся ничем. Ровно там и жило «мутацию можно
+   сжечь на паузе»: клавиша R закрыта, а кнопка рядом с ней открыта. */
+const buttons = {};
+function makeButton(id) {
+  return buttons[id] || (buttons[id] = {
+    id, textContent: '', fns: [],
+    addEventListener(type, fn) { if (type === 'click') this.fns.push(fn); },
+    blur() {},
+  });
+}
 const sandbox = {
   console, Math, JSON, Object, Array, String, Number, Boolean, Set, Map, Date, RegExp,
   Infinity, NaN, Uint8Array, Uint8ClampedArray, isFinite, parseInt, parseFloat,
@@ -67,7 +82,7 @@ const sandbox = {
      не проверялся ничем. Так и уцелело «E у доски закрывает тоже»: строки в
      interact() были, добраться до них было нельзя. Ловим обработчики. */
   document: {
-    getElementById: id => (id === 'game' ? sandbox.__canvas : null),
+    getElementById: id => (id === 'game' ? sandbox.__canvas : makeButton(id)),
     createElement: () => makeCanvas(1, 1),
     addEventListener(type, fn) { (docHandlers[type] || (docHandlers[type] = [])).push(fn); },
     fullscreenElement: null,
@@ -115,6 +130,20 @@ function frame() {
 }
 // Есть ли среди написанного строка с таким куском.
 function said(lines, part) { return lines.some(s => s.indexOf(part) >= 0); }
+// Нажать кнопку под игрой по её id из index.html.
+function click(id) {
+  const b = buttons[id];
+  if (!b) throw new Error('такой кнопки игра не заводила: ' + id);
+  for (const fn of b.fns) fn();
+  return b;
+}
+// Клик по холсту: бьём по последней подходящей кнопке, ровно как pointerdown.
+function tap(x, y) {
+  for (const fn of canvasHandlers.pointerdown || []) {
+    fn({ clientX: x, clientY: y, button: 0, preventDefault() {} });
+  }
+}
 
 module.exports = { W: sandbox.__W, store, sandbox, ok, note, head, done, makeCanvas, GAME,
-                   key, frame, said, peek: name => vm.runInContext(name, sandbox) };
+                   key, frame, said, click, tap, buttons,
+                   peek: name => vm.runInContext(name, sandbox) };

@@ -9,7 +9,7 @@
    (см. frame() в стенде), и нажатия, которые игра действительно разобрала.
    ======================================================================= */
 'use strict';
-const { W, ok, note, head, done, key, frame, said, peek } = require('./harness.js');
+const { W, ok, note, head, done, key, frame, said, peek, click, tap } = require('./harness.js');
 
 /* ---------------------------------------------------------------- клавиши */
 head('E закрывает то, что E и открыло');
@@ -46,6 +46,75 @@ ok(W.getOver(), 'ведьмак пал');
 key('KeyI'); key('KeyM'); key('KeyR');
 ok(peek('panel') === null, 'ни сумка, ни карта лёжа не открываются');
 ok(W.getP().mut <= 0, 'и мутацию с того света не сжечь');
+
+/* ------------------------------------------------------------------ пауза */
+/* Пауза останавливает время — значит она должна останавливать и всё, что
+   этим временем распоряжается. Раньше отказ стоял ниже разбора панелей, а
+   кнопки под игрой про паузу не знали вовсе: игра стоит, а снаряжаться,
+   торговать и жечь мутацию можно. */
+head('На паузе не работает ничего, кроме самой паузы');
+W.reset(); W.setPanel(null);
+key('KeyP');
+ok(peek('paused'), 'P поставило паузу');
+for (const k of ['KeyI', 'KeyM', 'KeyK', 'KeyC', 'KeyU']) key(k);
+ok(peek('panel') === null, 'ни сумка, ни карта, ни навыки, ни варка, ни верстак не открываются');
+const p5 = W.getP();
+p5.mutGauge = 100;
+key('KeyR');
+ok(p5.mut <= 0, 'и мутацию клавишей не сжечь');
+const hand0 = p5.hand;
+key('KeyQ');
+ok(p5.hand === hand0, 'и меч не сменить');
+key('KeyP');
+ok(!peek('paused'), 'а вторым P пауза снимается');
+
+/* Тыкаем НЕ в одну кнопку, а во все подряд, и сравниваем состояние целиком.
+   Проверка, метящая в одну кнопку, однажды уже промахнулась: попала в выбор
+   зелья, а следила за мутацией — и «мышь на паузе» осталась непроверенной. */
+head('И мышью по холсту на паузе не потыкать');
+W.reset(); W.setPanel(null);
+const p6 = W.getP();
+p6.mutGauge = 100;
+W.render();                                            // чтобы пояс попал в uiHit
+const belt = W.getHits().filter(h => h.y > W.WY1);
+ok(belt.length > 0, 'пояс набрал ' + belt.length + ' кнопок');
+const snap = () => JSON.stringify([p6.mut, p6.mut2, p6.mp, p6.potSel, p6.hand, p6.tox,
+                                   p6.boltSel, W.countStack('swallow'), peek('panel')]);
+key('KeyP');
+const was = snap();
+for (const b of belt) tap(b.x + 2, b.y + 2);
+ok(snap() === was, 'все ' + belt.length + ' кнопок пояса на паузе молчат');
+key('KeyP');
+for (const b of belt) tap(b.x + 2, b.y + 2);
+ok(snap() !== was, 'а без паузы те же клики что-то да делают — значит целились верно');
+
+head('Кнопки под игрой про паузу тоже знают');
+W.reset(); W.setPanel(null);
+const p7 = W.getP();
+p7.mutGauge = 100;
+key('KeyP');
+click('mutBtn');
+ok(p7.mut <= 0, '🩸 Мутация на паузе молчит');
+click('bagBtn');
+ok(peek('panel') === null, '🎒 Инвентарь на паузе молчит');
+const hand1 = p7.hand;
+click('swapBtn');
+ok(p7.hand === hand1, '⚔ Сменить меч на паузе молчит');
+click('pause');
+ok(!peek('paused'), 'а ⏸ работает — иначе с паузы было бы не сойти');
+
+head('И про открытую панель — тоже');
+W.reset(); W.setPanel(null);
+const p8 = W.getP();
+p8.mutGauge = 100;
+p8.x = W.BENCH.x; p8.y = W.BENCH.y;                    // верстак работает, только если подошёл
+key('KeyU');
+note('открыто: ' + peek('panel'));
+click('mutBtn');
+ok(p8.mut <= 0, 'в лавке мутацию не сжечь: там время стоит так же, как на паузе');
+W.setPanel(null);
+click('mutBtn');
+ok(p8.mut > 0, 'а без панели — жжётся как прежде');
 
 /* --------------------------------------------------------------- подсказки */
 function hintAt(x, y, re) {

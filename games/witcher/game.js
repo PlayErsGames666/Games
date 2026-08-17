@@ -4381,6 +4381,11 @@ canvas.addEventListener('pointerdown', e => {
   const p = canvasPos(e); mouse.x = p.x; mouse.y = p.y;
   if (mouseInWorld() && P) { const m = mw(); P.face = Math.atan2(m.y - P.y, m.x - P.x); }   // бьём сразу туда, куда ткнули
   if (over) return;                                    // лежачего не поднять тычком — встанет сам
+  /* На паузе холст не слушает мышь вовсе. Отрисовка-то идёт (иначе экран
+     погас бы), а значит все кнопки нарисованы и по ним можно щёлкнуть: на
+     паузе покупалось, ковалось, варилось и пилось. Пауза должна быть паузой.
+     Снять её нечем, кроме P/Esc и кнопки ⏸ под игрой, — а они не на холсте. */
+  if (paused) return;
   for (let i = uiHit.length - 1; i >= 0; i--) {
     const b = uiHit[i];
     if (p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h) { b.fn(); return; }
@@ -4447,6 +4452,11 @@ document.addEventListener('keydown', e => {
     e.preventDefault(); return;
   }
   if (over) return;                                    // ждём, пока отлежится
+  /* И тут же — пауза. Раньше этот отказ стоял НИЖЕ, под разбором панелей, и
+     на паузе спокойно открывались сумка, карта, навыки, варка и верстак: игра
+     стоит, а снаряжаться можно. Теперь на паузе не работает ничего, кроме
+     самой паузы — она разобрана выше и сюда не доходит. */
+  if (paused) return;
   if (e.repeat) return;
   if (e.code === 'KeyI') { panel = panel === 'bag' ? null : 'bag'; bagScroll = 0; return; }
   if (e.code === 'KeyM') { panel = panel === 'map' ? null : 'map'; return; }   // карта земли
@@ -4476,7 +4486,6 @@ document.addEventListener('keydown', e => {
     if (e.code === 'KeyE') interact();
     return;
   }
-  if (paused) return;
   if (e.code === 'KeyQ') { swapHand(); return; }
   // B катает болты только вперёд: Shift занят увёртыванием, и «назад»
   // через Shift+B означало бы прыжок в кусты вместо смены болта
@@ -4510,12 +4519,17 @@ function swapHand() {
           (s && s.oil > 0 ? ' · смазан, ' + s.oil + ' ударов' : ''));
 }
 function onBtn(id, fn) { const b = document.getElementById(id); if (b) b.addEventListener('click', () => { b.blur(); fn(); }); }
-/* Кнопки под игрой тоже молчат, пока ведьмак лежит: клавиши-то мы закрыли,
-   а через них можно было и меч сменить, и сумку открыть, и мутацию сжечь —
-   лёжа без сознания. Пауза — исключение, она останавливает счёт. */
-onBtn('swapBtn', () => { if (!over) swapHand(); });
-onBtn('bagBtn', () => { if (over) return; panel = panel === 'bag' ? null : 'bag'; bagScroll = 0; });
-onBtn('mutBtn', () => { if (!over) toggleMutation(); });
+/* Кнопки под игрой тоже молчат, пока ведьмак лежит или пока пауза: клавиши-то
+   мы закрыли, а через них можно было и меч сменить, и сумку открыть, и мутацию
+   сжечь — лёжа без сознания или на остановленном времени. Сама ⏸ и «Заново»
+   ниже — исключение, иначе с паузы было бы не сойти. */
+const idle = () => !over && !paused;
+onBtn('swapBtn', () => { if (idle()) swapHand(); });
+onBtn('bagBtn', () => { if (!idle()) return; panel = panel === 'bag' ? null : 'bag'; bagScroll = 0; });
+/* Мутации вдобавок мешает открытая панель: в лавке и на верстаке время стоит
+   так же, как на паузе, — шкала сгорала бы в замершие секунды, а сорваться во
+   вторую ступень можно было бы, разглядывая прилавок. */
+onBtn('mutBtn', () => { if (idle() && !panel) toggleMutation(); });
 onBtn('pause', () => { paused = !paused; updateButtons(); });
 onBtn('sndBtn', () => { if (window.sfx) window.sfx.toggle(); updateButtons(); });
 onBtn('restart', () => { clearRun(); reset(); message('Новый ведьмак, новый поход.'); });
