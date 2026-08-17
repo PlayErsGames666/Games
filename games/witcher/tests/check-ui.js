@@ -297,6 +297,36 @@ ok(!loops.length, 'нет дорог, выходящих из точки и в �
   note('узлов ' + all.length + ', достижимо из первого ' + seen2.size);
   ok(seen2.size === all.length, 'сеть дорог осталась единой, без островов');
 }
+/* Застава посреди поля не заставляет никого: мимо неё объезжают, не заметив.
+   Место называлось «Застава на тракте», а до ближайшей дороги от него было
+   семьсот шестьдесят один шаг. Правило общее — оно и держит смысл слова. */
+head('Застава стоит на дороге, иначе она не застава');
+{
+  const toRoad = t => {
+    let best = Infinity;
+    for (const p of W.PATHS) for (let j = 1; j < p.length; j++) {
+      const a = p[j - 1], b = p[j];
+      const vx = b.x - a.x, vy = b.y - a.y, L2 = vx * vx + vy * vy;
+      let s = L2 ? ((t.x - a.x) * vx + (t.y - a.y) * vy) / L2 : 0;
+      s = s < 0 ? 0 : s > 1 ? 1 : s;
+      best = Math.min(best, Math.hypot(t.x - (a.x + vx * s), t.y - (a.y + vy * s)));
+    }
+    return Math.round(best);
+  };
+  const posts = W.TOWNS.filter(t => t.kind === 'застава');
+  posts.forEach(t => note(t.n + ': до дороги ' + toRoad(t) + ' шагов'));
+  ok(posts.length > 0, 'застав на земле ' + posts.length);
+  const offRoad = posts.filter(t => toRoad(t) > t.r);
+  ok(!offRoad.length, 'каждая стоит на дороге, а не поодаль' +
+     (offRoad.length ? ': ' + offRoad.map(t => t.n + ' (' + toRoad(t) + ')').join(', ') : ''));
+  // и через саму Заставу дорога именно ПРОХОДИТ, а не задевает краем
+  const z = W.TOWNS.find(t => t.k === 'zastava');
+  ok(W.onPath(z.x, z.y), 'через колодец Заставы дорога проходит насквозь');
+  note('прочие деревни, до дороги дальше околицы: ' +
+       (W.TOWNS.filter(t => t.kind !== 'застава' && toRoad(t) > t.r + 120)
+         .map(t => t.n + ' ' + toRoad(t)).join(', ') || 'нет'));
+}
+
 {
   // и ни один конец не обрывается в чистом поле
   const orphan = [];
