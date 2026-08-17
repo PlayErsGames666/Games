@@ -25,9 +25,14 @@ const GAME = process.env.WITCHER_GAME || path.join(__dirname, '..', 'game.js');
 /* Холст-заглушка. Рисовать некуда, поэтому все действия — пустышки, но
    измерения (measureText) отвечают правдоподобно: без этого обрезка длинных
    имён зациклилась бы. */
+/* Всё, что игра НАПИСАЛА на экране за кадр. Подсказки, ценники и подписи —
+   локальные переменные внутри отрисовки, наружу их не достать; а врут они
+   не реже, чем считает бой. Подменяем fillText и собираем строки. */
+const drawn = [];
 function makeCtx() {
   return new Proxy({}, {
     get(t, k) {
+      if (k === 'fillText') return s => { drawn.push(String(s)); };
       if (k === 'measureText') return s => ({ width: String(s).length * 5 });
       if (k === 'createImageData') return (w, h) => ({ width: w, height: h, data: new Uint8ClampedArray(w * h * 4) });
       if (k === 'createRadialGradient' || k === 'createLinearGradient') return () => ({ addColorStop() {} });
@@ -48,6 +53,7 @@ function makeCanvas(w, h) {
 }
 
 const store = {};
+const docHandlers = {};
 const sandbox = {
   console, Math, JSON, Object, Array, String, Number, Boolean, Set, Map, Date, RegExp,
   Infinity, NaN, Uint8Array, Uint8ClampedArray, isFinite, parseInt, parseFloat,
@@ -57,10 +63,13 @@ const sandbox = {
     removeItem: k => { delete store[k]; },
   },
   requestAnimationFrame: () => 0,
+  /* Клавиатуру раньше глушили вместе со всем document — и весь разбор нажатий
+     не проверялся ничем. Так и уцелело «E у доски закрывает тоже»: строки в
+     interact() были, добраться до них было нельзя. Ловим обработчики. */
   document: {
     getElementById: id => (id === 'game' ? sandbox.__canvas : null),
     createElement: () => makeCanvas(1, 1),
-    addEventListener() {},
+    addEventListener(type, fn) { (docHandlers[type] || (docHandlers[type] = [])).push(fn); },
     fullscreenElement: null,
   },
   devicePixelRatio: 1,
@@ -91,4 +100,21 @@ function done() {
   return failed;
 }
 
-module.exports = { W: sandbox.__W, store, sandbox, ok, note, head, done, makeCanvas, GAME };
+/* ---- клавиатура и то, что вышло на экран ---------------------------- */
+// Нажатие. code — как в браузере: 'KeyE', 'Digit1', 'Escape'.
+function key(code, opt) {
+  const e = Object.assign({ code, repeat: false, target: null, preventDefault() {} }, opt || {});
+  for (const fn of docHandlers.keydown || []) fn(e);
+  for (const fn of docHandlers.keyup || []) fn({ code });
+}
+// Кадр отрисовки + все строки, которые он написал.
+function frame() {
+  drawn.length = 0;
+  sandbox.__W.render();
+  return drawn.slice();
+}
+// Есть ли среди написанного строка с таким куском.
+function said(lines, part) { return lines.some(s => s.indexOf(part) >= 0); }
+
+module.exports = { W: sandbox.__W, store, sandbox, ok, note, head, done, makeCanvas, GAME,
+                   key, frame, said, peek: name => vm.runInContext(name, sandbox) };

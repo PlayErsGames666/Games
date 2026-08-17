@@ -102,6 +102,9 @@ const sh = W.getFoes().find(f => f.t === 'sheep'), nk = W.getFoes().find(f => f.
 ok(sh && Math.hypot(sh.x - town.x, sh.y - town.y) < town.r, 'овца осталась в деревне');
 ok(!nk || Math.hypot(nk.x - town.x, nk.y - town.y) >= town.r, 'накера из деревни вытолкнуло');
 
+/* Здесь стенд однажды сам себя обманул: он считал оставшихся с оговоркой
+   «и не злых» — ровно тех, кого уборка и так убирала. Злые же не убирались
+   НИКОГДА, и это осталось незамеченным. Считаем всех подряд. */
 head('Отставшие расходятся, кормушки нет');
 place('meadow'); W.setFoes([]);
 const P8 = W.getP();
@@ -109,9 +112,47 @@ for (let i = 0; i < 400; i++) W.update(0.05);
 const before = W.getFoes().length;
 P8.x = Math.max(50, Math.min(W.WORLD_W - 50, P8.x + 3000)); W.syncCam();
 for (let i = 0; i < 60; i++) W.update(0.05);
-const after = W.getFoes().filter(f => f.free && !f.mad).length;
+const after = W.getFoes().filter(f => f.free).length;
 note('было вольных ' + before + ' → после ухода за 3000 шагов осталось ' + after);
 ok(after < before, 'отставшие вольные твари расходятся');
+
+/* Злость ставится навсегда и не только ударом: всякой твари с повадкой wild
+   её ставит само внимание. Если такая не расходится, она держит место в
+   дюжине до конца похода — и вольный мир глохнет по дороге. */
+head('Злая тоже теряет след');
+function chase(type, hit) {
+  place('swamp'); W.setFoes([]);
+  const p = W.getP();
+  W.spawnFoe(type, p.x + 150, p.y, null, true);
+  const f = W.getFoes()[0];
+  for (let i = 0; i < 40; i++) { p.hp = 1e9; W.update(0.05); }   // дать заметить
+  if (hit) W.hurtFoe(f, 1, 'sword');
+  const wasMad = f.mad;
+  p.x = W.WORLD_W - 300; p.y = W.WORLD_H - 300; W.syncCam();
+  // ведьмака держим живым: иначе его добьют вольные твари нового края, endGame
+  // вычистит foes — и «разошлись» будет означать «все погибли вместе с игроком»
+  for (let i = 0; i < 600; i++) { p.hp = 1e9; W.update(0.05); }
+  return { wasMad, left: W.getFoes().indexOf(f) >= 0 };
+}
+const dr = chase('drowner', false);
+ok(dr.wasMad, 'утопец разозлился, просто заметив, — удара не понадобилось');
+ok(!dr.left, 'и всё же разошёлся, когда ведьмак ушёл за тридевять земель');
+const bo = chase('boar', true);
+ok(bo.wasMad && !bo.left, 'тронутый кабан тоже теряет след и уходит');
+note('срок забвения: ' + W.WILD_FORGET + ' с дальше ' + W.WILD_NEAR + ' шагов');
+
+head('А место в дюжине освобождается для нового края');
+place('swamp'); W.setFoes([]);
+const P9 = W.getP();
+for (let i = 0; i < W.WILD_CAP; i++) W.spawnFoe('drowner', P9.x + 160 + i * 8, P9.y + i * 8, null, true);
+for (let i = 0; i < 60; i++) { P9.hp = 1e9; W.update(0.05); }
+const angry = W.getFoes().filter(f => f.free && f.mad).length;
+note('злых вольных набралось: ' + angry + ' из ' + W.WILD_CAP);
+P9.x = W.WORLD_W - 300; P9.y = W.WORLD_H - 300; W.syncCam();
+for (let i = 0; i < 1200; i++) { P9.hp = 1e9; W.update(0.05); }
+const near = W.getFoes().filter(f => f.free && Math.hypot(f.x - P9.x, f.y - P9.y) < W.WILD_NEAR).length;
+note('через минуту в новом краю рядом с игроком: ' + near + ' вольных');
+ok(near > angry, 'новый край заселяется, а не стоит пустым при занятом потолке');
 
 head('Вольная тварь не растёт от контракта к контракту');
 W.reset(); W.setCi(0);

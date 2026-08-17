@@ -1889,6 +1889,7 @@ function spawnFoe(type, x, y, uniq, free) {
        позвали по твою душу, ей незачем присматриваться. */
     free: !!free, mad: !free && S.mood === 'wild', flee: false,
     noticeT: 0, seen: false, wanderT: 0, wa: rnd(6.3),
+    lost: 0,                                           // сколько секунд не видит тебя (см. wildTick)
   });
 }
 /* Заметила ли тварь ведьмака. Возвращает true, когда «!» над головой догорело
@@ -2282,13 +2283,29 @@ function spawnOne(contract) {
    утопца на болоте, будучи на работе про утопцев на болоте, — засчитано. */
 const WILD_CAP = 12;                                   // сколько вольных держим рядом
 const WILD_NEAR = 1700;                                // дальше этого — расходятся
+const WILD_FORGET = 6;                                 // сколько злая держит след, потеряв тебя
 let wildT = 0;
 function wildTick(dt) {
   wildT -= dt;
-  // разошлись: кто отстал далеко и не гонится — того больше нет
+  /* Кто отстал — того больше нет.
+     Злую тварь эта уборка раньше пропускала вовсе, и выходило скверно: злость
+     ставится НАВСЕГДА и не только ударом — всякой твари с повадкой wild её
+     ставит само внимание, стоит ей тебя заметить с двухсот шагов. Такой утопец
+     потом шёл за ведьмаком через всю землю и держал место в дюжине вольных до
+     конца похода. За поход через десяток краёв дюжина забивалась целиком, и
+     живой мир глох: вокруг пусто, а места заняты теми, кто плетётся за семь
+     тысяч шагов позади.
+     Теперь злая сперва ТЕРЯЕТ СЛЕД: продержалась дальше WILD_NEAR несколько
+     секунд подряд — забыла, кого гнала, и дальше расходится, как все. */
   for (const f of foes) {
-    if (!f.free || f.dead || f.mad) continue;
-    if (Math.hypot(f.x - P.x, f.y - P.y) > WILD_NEAR) f.dead = true;
+    if (!f.free || f.dead) continue;
+    if (Math.hypot(f.x - P.x, f.y - P.y) <= WILD_NEAR) { f.lost = 0; continue; }
+    if (f.mad) {
+      f.lost += dt;
+      if (f.lost < WILD_FORGET) continue;
+      f.mad = false; f.seen = false; f.noticeT = 0;
+    }
+    f.dead = true;
   }
   if (wildT > 0) return;
   wildT = 1.1;
@@ -3481,11 +3498,21 @@ function drawHUD() {
   // не обрабатывалось вовсе — человек тыкал, и «магия не показывалась».
   RUNES.forEach((R, i) => {
     const h = 30, y = by + 4, x = slot[i].x, w = slot[i].w;
-    const cost = runeCost(R);                          // грифоний доспех делает знаки дешевле
+    const cost = runeCost(R);                          // грифон и «Расчёт» делают знаки дешевле
     const ready = P.runeCd[i] <= 0 && P.mp >= cost;
     uiHit.push({ x, y, w, h, fn: () => castRune(i) });
+    /* Кто именно скинул цену. Скидок две — грифоний доспех и навык «Расчёт», —
+       а подсказка валила обе на грифона: с «Расчётом» и в тяжёлом доспехе
+       игра благодарила доспех, которого на тебе нет. */
+    let why = '';
+    if (cost < R.mp) {
+      const who = [];
+      if (schoolPow('sign')) who.push('🦅 грифон');
+      if (sk('thrift')) who.push('🧿 расчёт');
+      why = ' (вместо ' + R.mp + (who.length ? ' — ' + who.join(' и ') : '') + ')';
+    }
     if (hov(x, y, w, h)) hint = R.ico + ' ' + R.n + ' — ' + R.desc + ' · ' + cost + ' энергии' +
-      (cost < R.mp ? ' (вместо ' + R.mp + ' — 🦅 грифон)' : '') + ' · клавиша ' + (i + 1);
+      why + ' · клавиша ' + (i + 1);
     ctx.fillStyle = ready ? 'rgba(60,80,110,.55)' : 'rgba(35,32,28,.9)';
     ctx.fillRect(x, y, w, h);
     ctx.strokeStyle = ready ? '#6aa6e8' : 'rgba(255,255,255,.1)'; ctx.lineWidth = 1; ctx.strokeRect(x + .5, y + .5, w - 1, h - 1);
@@ -3545,7 +3572,12 @@ function drawHUD() {
     const x = slot[7].x, w = slot[7].w, y = by + 4, h = 30;
     const ready = P.mut > 0 || P.mutGauge >= 100;
     uiHit.push({ x, y, w, h, fn: () => toggleMutation() });
-    if (hov(x, y, w, h)) hint = P.mut > 0 && P.mut2 <= 0
+    /* Три состояния — три разных ответа. Про зверя ветки не было вовсе, и во
+       второй ступени наведение выдавало текст первой: «копится с убийств,
+       урон вдвое» — ровно то, что в этот миг уже неправда. */
+    if (hov(x, y, w, h)) hint = P.mut2 > 0
+      ? '🩸 ЗВЕРЬ: урон втрое, кровь лечит вдвое — но знаки и зелья отрезаны, отрава на пределе, и обратно уже никак'
+      : P.mut > 0
       ? '🩸 СОРВАТЬСЯ ДАЛЬШЕ (R): урон втрое и кровь лечит вдвое, но знаки и зелья отрезаны, а отрава уйдёт на предел и осядет не скоро'
       : '🩸 Кровавая ебатня — копится с убийств. Урон вдвое и чужая кровь лечит, но и по тебе бьёт больнее · клавиша R';
     ctx.fillStyle = P.mut2 > 0 ? 'rgba(190,20,20,.75)' : P.mut > 0 ? 'rgba(140,30,30,.6)' : ready ? 'rgba(110,40,40,.55)' : 'rgba(35,32,28,.9)';
@@ -3827,13 +3859,35 @@ function drawBoard() {
 let benchTab = 'work';
 // купец у костра держит всё: он и есть прежняя лавка верстака
 const CAMP_VENDOR = { n: 'Купец у костра', ico: '🛒', tabs: null };
+/* ЛЕГЕНДА КРАСОК. Раскладываем её ДО карты: сколько выйдет строк, столько
+   карта и уступит снизу. Список был вбит руками и знал восемь краёв из
+   пятнадцати — те, что были на прежней земле. Пашня, скалы, пустошь, плавни,
+   гарь, луга и дубрава остались без образца, а это ПОЛОВИНА земли (51%):
+   карта показывала цвет, объяснить который было негде, хотя она ровно для
+   того и открывается. Теперь идём по самому LOCS — новый край попадёт в
+   легенду сам, без правки этого места. */
+const LEG_ROW = 15;
+function mapLegend() {
+  ctx.font = '9px Segoe UI';
+  const rows = [[]];
+  let lx = 24;
+  for (const id in LOCS) {
+    const G = LOCS[id];
+    const w = 14 + ctx.measureText(G.ico + ' ' + G.n).width + 12;
+    if (lx + w > CW - 24 && rows[rows.length - 1].length) { rows.push([]); lx = 24; }
+    rows[rows.length - 1].push({ id, x: lx });
+    lx += w;
+  }
+  return rows;
+}
 /* Карта земли на весь экран (клавиша M). Маленькая карта в углу говорит
    «ты где-то там», а эта отвечает на вопрос «куда идти и что вокруг»:
    настоящие очертания краёв, тропы, все приметные места с именами,
    ты сам и цель. */
 function drawMap() {
   panelBox('🗺 КАРТА ЗЕМЛИ', 1e9);   // карту не сужаем: чем шире, тем больше видно
-  const x0 = 24, y0 = 92, mw2 = CW - 48, mh = CH - 170;
+  const leg = mapLegend();
+  const x0 = 24, y0 = 92, mw2 = CW - 48, mh = CH - 163 - (leg.length - 1) * LEG_ROW;
   const k = Math.min(mw2 / WORLD_W, mh / WORLD_H);     // одинаковый масштаб по осям
   const w = WORLD_W * k, h = WORLD_H * k;
   const x = x0 + (mw2 - w) / 2, y = y0 + (mh - h) / 2;
@@ -3902,16 +3956,17 @@ function drawMap() {
   const S = L();
   txt('Ты в ' + S.ico + ' ' + S.n.toLowerCase() + ' — ' + S.note, CW / 2, 74, 10, '#c9a227', 'center');
 
-  // легенда красками краёв
-  const legend = ['camp', 'field', 'road', 'woods', 'swamp', 'shore', 'ruins', 'barrow'];
-  let lx = 24, ly = CH - 68;
-  for (const id of legend) {
-    const G = LOCS[id];
-    ctx.fillStyle = G.ground; ctx.fillRect(lx, ly - 6, 12, 12);
-    ctx.strokeStyle = 'rgba(255,255,255,.15)'; ctx.lineWidth = 1; ctx.strokeRect(lx + .5, ly - 5.5, 11, 11);
-    txt(G.ico + ' ' + G.n, lx + 16, ly, 9, '#98a2ae');
-    lx += 62 + (G.n.length > 6 ? 12 : 0);
-    if (lx > CW - 90) { lx = 24; ly += 16; }
+  // легенда красками краёв — все пятнадцать, разложены выше (см. mapLegend)
+  let ly = CH - 62 - (leg.length - 1) * LEG_ROW;
+  for (const row of leg) {
+    for (const c of row) {
+      const G = LOCS[c.id];
+      ctx.fillStyle = G.ground; ctx.fillRect(c.x, ly - 5, 10, 10);
+      ctx.strokeStyle = 'rgba(255,255,255,.15)'; ctx.lineWidth = 1; ctx.strokeRect(c.x + .5, ly - 4.5, 9, 9);
+      // край, на котором стоишь, отбиваем — иначе в пятнадцати красках себя не найти
+      txt(G.ico + ' ' + G.n, c.x + 14, ly, 9, c.id === curLoc ? '#f2d59a' : '#98a2ae');
+    }
+    ly += LEG_ROW;
   }
   panelFooter('M или ✕ — закрыть · пунктиром обведён круг лагеря: туда нечисть не заходит');
 }
@@ -4413,6 +4468,12 @@ document.addEventListener('keydown', e => {
       if (panel === 'bag') bagScroll += d; else benchScroll += d;
       e.preventDefault();
     }
+    /* E закрывает то, что E и открыло: доску и прилавок. Этот разбор стоял
+       НИЖЕ отбивки панелей — то есть первые строки interact(), где доска и
+       закрывается, не работали вовсе, хотя подпись внизу панели обещала
+       «E или ✕ — закрыть». У сумки, карты, навыков и варки свои клавиши, и
+       для них interact() сам ничего не делает. */
+    if (e.code === 'KeyE') interact();
     return;
   }
   if (paused) return;
@@ -4490,7 +4551,7 @@ if (typeof globalThis !== 'undefined') globalThis.__W = {
   compareNote, rollBoard, makeContract, jobFam, syncCam,
   getStory: () => storyIdx, setStory: v => { storyIdx = v; },
   POWER, powerNear, takePower, getPower: () => powerUsed, interact,
-  wildTick, wander, noticeTick, clampFoe, FAUNA_HIDE, WILD_CAP,
+  wildTick, wander, noticeTick, clampFoe, FAUNA_HIDE, WILD_CAP, WILD_NEAR, WILD_FORGET, mapLegend,
   getDown: () => downT, getDeaths: () => deaths, rise,
   BAGS, buyBag, capacity,
   getCam: () => cam,
