@@ -595,12 +595,23 @@ const PATHS = [
   [{ x: 6500, y: 5900 }, { x: 8400, y: 6600 }, { x: 9400, y: 5800 }],
   /* Дороги к новым деревням: каждая тянется от околицы к ближайшему уже
      связанному узлу, так что сеть остаётся единой, а не распадается на
-     острова. Середина отведена в сторону — дорога должна вилять. */
-  [{ x: 3000, y: 7240 }, { x: 3029, y: 7213 }, { x: 3000, y: 7240 }],
-  [{ x: 5076, y: 3080 }, { x: 5243, y: 2970 }, { x: 5076, y: 3080 }],
-  [{ x: 5600, y: 6650 }, { x: 5762, y: 6555 }, { x: 5600, y: 6650 }],
-  [{ x: 4130, y: 6826 }, { x: 3960, y: 6683 }, { x: 4130, y: 6826 }],
-  [{ x: 8226, y: 4376 }, { x: 8385, y: 4334 }, { x: 8226, y: 4376 }],
+     острова. Середина отведена в сторону — дорога должна вилять.
+
+     Было их десять, осталось пять. Пять деревень сели РОВНО НА КОНЦЫ УЖЕ
+     СУЩЕСТВУЮЩИХ ДОРОГ — Волчьи Ямы, Мытня, Липовка, Старый Двор и
+     Дубравка, — и «ближайшим связанным узлом» для них оказались они сами.
+     Выходила дорога вида [A, B, A]: вышла из деревни, отошла на двести
+     шагов и вернулась в ту же точку.
+
+     У Старого Двора и Дубравки это торчало настоящим тупиком в чистое
+     поле (222 и 164 шага мимо всех прочих дорог), у Липовки чуть выпирало,
+     у Мытни и Волчьих Ям ложилось поверх существующей дороги и было просто
+     невидимо. И все пять при этом пеклись в каждую плитку земли, рисовались
+     на карте и давали прибавку к скорости на своём пятачке.
+
+     Дорога, ведущая в никуда, — это недоделка, а не пейзаж; но и дописывать
+     их некуда: все пять деревень и без того стоят на дорогах — потому
+     самопетля и родилась. Убраны. */
   [{ x: 5440, y: 600 }, { x: 5941, y: 1332 }, { x: 6650, y: 2170 }],
   [{ x: 5660, y: 1480 }, { x: 5740, y: 1190 }, { x: 5440, y: 600 }],
   [{ x: 3240, y: 3900 }, { x: 3563, y: 3463 }, { x: 3676, y: 2660 }],
@@ -772,6 +783,29 @@ function buildTownGrid() {
       }
     }
   }
+}
+/* Приметное место, севшее ПРЯМО НА КОЛОДЕЦ деревни, рисовать отдельно не надо:
+   деревня уже назвала это место собой. «Застава на тракте» и деревня «Застава»
+   стоят в одной и той же точке — ноль шагов, — и на экране выходила каша:
+   значок 🚧 под колодцем 🪣, а подписи «Застава на тракте» и «застава · удел»
+   расходились на шесть пикселей при кегле девять, то есть налезали друг на
+   друга. На карте — то же самое.
+
+   Само место из SPOTS не убираем: по нему идёт сюжетное дело «Застава барона»,
+   на него смотрит стрелка и по нему считается прибытие. Прячем только
+   ВТОРУЮ картинку. Считается один раз — колодец с места не сходит. */
+let spotHidden = null;
+function buildSpotHidden() {
+  spotHidden = {};
+  for (const k in SPOTS) {
+    if (k === 'camp') continue;
+    const s = SPOTS[k], t = townAt(s.x, s.y);
+    if (t && Math.hypot(s.x - t.x, s.y - t.y) < 40) spotHidden[k] = t;
+  }
+}
+function spotEaten(k) {
+  if (!spotHidden) buildSpotHidden();
+  return !!spotHidden[k];
 }
 function townAt(x, y) {
   if (!townGrid) buildTownGrid();
@@ -1506,6 +1540,29 @@ function clipText(s, px, size) {
   if (ctx.measureText(s).width <= px) return s;
   while (s.length > 4 && ctx.measureText(s + '…').width > px) s = s.slice(0, -1);
   return s + '…';
+}
+/* Разбить строку по словам, но не больше чем на maxLines строк; что не
+   влезло в последнюю — подрезать многоточием.
+
+   Заведено ради сюжетных развязок. Строка сообщения одна и рисуется ПО
+   ЦЕНТРУ, а развязка с наградой выходит длиной в 164 знака — 791 пиксель
+   при поле в 504. Резало с ОБОИХ концов сразу: и начало фразы, и название
+   награды. Это последние строки четырнадцати заданий — ровно то, ради чего
+   их и проходят. */
+function wrapText(s, px, size, maxLines) {
+  ctx.font = size + 'px Segoe UI';
+  const words = String(s).split(' ');
+  const lines = [];
+  let cur = '';
+  for (const w of words) {
+    const next = cur ? cur + ' ' + w : w;
+    // на последней разрешённой строке уже не переносим, а копим на подрезку
+    if (cur && ctx.measureText(next).width > px && lines.length + 1 < maxLines) {
+      lines.push(cur); cur = w;
+    } else cur = next;
+  }
+  lines.push(lines.length + 1 >= maxLines ? clipText(cur, px, size) : cur);
+  return lines;
 }
 function fullName(it) {
   if (it.k === 'stack') return itemName(it) + ' ×' + it.n;
@@ -3086,7 +3143,10 @@ function bakeCompass(w, h) {
   g.scale(icoScale, icoScale);
   g.drawImage(miniCv, 0, 0, TW, TH, 0, 0, w, h);
   g.font = '7px serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#1a1712';
-  for (const k in SPOTS) g.fillText(SPOTS[k].ico, (SPOTS[k].x / WORLD_W) * w, (SPOTS[k].y / WORLD_H) * h);
+  for (const k in SPOTS) {
+    if (spotEaten(k)) continue;                        // и на компасе тоже не двоим
+    g.fillText(SPOTS[k].ico, (SPOTS[k].x / WORLD_W) * w, (SPOTS[k].y / WORLD_H) * h);
+  }
   compassScale = icoScale;
 }
 
@@ -3106,6 +3166,7 @@ function drawWorld() {
   for (const k in SPOTS) {
     const s = SPOTS[k];
     if (k === 'camp') continue;                        // лагерь рисуется своими вещами
+    if (spotEaten(k)) continue;                        // а это место — уже деревня, см. buildSpotHidden
     if (s.x < cam.x - 60 || s.x > cam.x + WW + 60 || s.y < cam.y - 60 || s.y > cam.y + WH + 60) continue;
     drawIco(s.ico, 24, s.x, s.y);
     txt(s.n, s.x, s.y + 22, 9, '#98a2ae', 'center');
@@ -3620,8 +3681,11 @@ function drawHUD() {
   // на кнопки рун и срезало им верхушки.
   if (msgT > 0) {
     ctx.globalAlpha = clamp(msgT, 0, 1);
-    ctx.fillStyle = 'rgba(0,0,0,.66)'; ctx.fillRect(WX0, WY1 - 19, WW, 17);
-    txt(msg, CW / 2, WY1 - 11, 10, '#f2d59a', 'center');
+    // до двух строк: длинные развязки в одну не влезали и обрезались с двух концов
+    const lines = wrapText(msg, WW - 16, 10, 2);
+    const h = 6 + lines.length * 13, y0 = WY1 - 2 - h;
+    ctx.fillStyle = 'rgba(0,0,0,.66)'; ctx.fillRect(WX0, y0, WW, h);
+    lines.forEach((l, i) => txt(l, CW / 2, y0 + h / 2 - (lines.length - 1) * 6.5 + i * 13, 10, '#f2d59a', 'center'));
     ctx.globalAlpha = 1;
   }
 }
@@ -3788,11 +3852,14 @@ function drawBag() {
    закрыт открытой панелью — поэтому отказы вроде «не хватает руды»
    игрок просто не видел. Здесь они и показываются. */
 function panelFooter(hint) {
+  /* Здесь строка остаётся ОДНА и подрезается: во вторую расти некуда — под
+     панелью подвал, а на карте прямо над ним лежит легенда красок. Зато
+     подрезка честная, с многоточием на конце, а не обрубок с обеих сторон. */
   if (msgT > 0) {
     ctx.fillStyle = 'rgba(60,48,20,.75)'; ctx.fillRect(24, CH - 54, CW - 48, 19);
-    txt(msg, CW / 2, CH - 44, 9, '#f2d59a', 'center');
+    txt(clipText(msg, CW - 64, 9), CW / 2, CH - 44, 9, '#f2d59a', 'center');
   } else {
-    txt(hint, CW / 2, CH - 44, 9, '#6c7683', 'center');
+    txt(clipText(hint, CW - 64, 9), CW / 2, CH - 44, 9, '#6c7683', 'center');
   }
 }
 
@@ -3917,6 +3984,7 @@ function drawMap() {
   }
   // приметные места
   for (const key in SPOTS) {
+    if (spotEaten(key)) continue;                      // деревня уже подписала это место собой
     const s = SPOTS[key];
     drawIco(s.ico, 13, px(s.x), py(s.y));
     txt(s.n, px(s.x), py(s.y) + 12, 8, '#c2cad2', 'center');
@@ -4566,6 +4634,7 @@ if (typeof globalThis !== 'undefined') globalThis.__W = {
   getStory: () => storyIdx, setStory: v => { storyIdx = v; },
   POWER, powerNear, takePower, getPower: () => powerUsed, interact,
   wildTick, wander, noticeTick, clampFoe, FAUNA_HIDE, WILD_CAP, WILD_NEAR, WILD_FORGET, mapLegend,
+  wrapText, clipText, spotEaten, PATH_W,
   getDown: () => downT, getDeaths: () => deaths, rise,
   BAGS, buyBag, capacity,
   getCam: () => cam,

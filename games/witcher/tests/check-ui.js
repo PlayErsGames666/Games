@@ -183,6 +183,133 @@ ok(legBottom <= CH - 56, 'нижняя строка легенды не наез
 const mapBottom = 92 + (CH - 163 - (rows.length - 1) * 15);
 ok(mapBottom < CH - 62 - (rows.length - 1) * 15 - 5, 'а карта не наезжает на легенду');
 
+/* ------------------------------------------------- длинные строки на экране */
+/* Сюжетная развязка с наградой — 164 знака: в одну строку это 791 пиксель
+   при поле в 504, и рисуется оно ПО ЦЕНТРУ, то есть режется с обоих концов
+   сразу. Ловится только замером, глазом это читается как «странная фраза». */
+head('Длинное сообщение переносится, а не обрезается с двух концов');
+W.reset(); W.setPanel(null);
+const WWl = W.WX1 - W.WX0;
+const long1 = '📖 Лешак осел трухой, а под ним — то, что осталось от барона. Барон кончился, ' +
+              'а имя на клинке — нет.  ·  Награда: гроссмейстерский средний доспех (Оберег) — в сумке';
+const wrapped = W.wrapText(long1, WWl - 16, 10, 2);
+note('знаков ' + long1.length + ' → строк ' + wrapped.length);
+wrapped.forEach(l => note('   «' + l + '»'));
+ok(wrapped.length === 2, 'длинная развязка стала двумя строками');
+ok(wrapped.join(' ').replace(/…$/, '').length > long1.length * 0.9,
+   'и почти вся уместилась, а не потерялась');
+ok(long1.indexOf(wrapped[0]) === 0, 'первая строка — это НАЧАЛО фразы, а не её середина');
+ok(wrapped.length > 1 && /Оберег|сумке|…/.test(wrapped[1]),
+   'и хвост с наградой тоже: «' + String(wrapped[1]).slice(-28) + '»');
+
+/* А теперь то же самое, но НЕ через wrapText напрямую, а через настоящую
+   отрисовку: проверка, которая зовёт вспомогательную функцию, стережёт
+   функцию, а не игру. Этот стенд уже один раз на этом попался. */
+head('И игра эти две строки действительно рисует');
+W.reset(); W.setPanel(null); W.setPhase('CAMP');
+W.takeStory();
+{
+  const job = W.getTaken().find(c => c.story);
+  job.done = 'Лешак осел трухой, а под ним — то, что осталось от барона. Барон кончился, а имя на клинке — нет.';
+  job.reward = { kind: 'armor', type: 'medium', tier: 4, ench: 'ward' };
+  W.finishContract(job);
+  const drawn = frame().filter(s => s.indexOf('Лешак осел трухой') >= 0 || s.indexOf('Награда:') >= 0);
+  drawn.forEach(l => note('   рисует: «' + l + '»'));
+  ok(drawn.length === 2, 'развязка вышла на экран двумя кусками, а не одним длинным');
+  ok(drawn.every(l => l.length < long1.length), 'и ни один не длиннее целой фразы');
+}
+
+/* В подвале открытой панели строка одна — во вторую расти некуда: под ней
+   край панели, а на карте прямо над ней легенда красок. Значит она обязана
+   подрезаться, а не уходить за оба края. */
+head('В подвале панели длинное сообщение подрезается');
+{
+  W.setPanel('bag');
+  // панель рисуется ПОВЕРХ пояса, значит её подвал — последняя такая строка
+  const all = frame().filter(s => s.indexOf('осел трухой') >= 0);
+  const foot = all[all.length - 1] || '';
+  note('подвал: «' + foot + '»');
+  ok(/…$/.test(foot), 'строка честно оборвана многоточием, а не обрезана краем экрана');
+  ok(foot.length < long1.length, 'то есть короче исходной фразы');
+  W.setPanel(null);
+}
+
+const short1 = 'Выпил: Ласточка (токсичность +18)';
+ok(W.wrapText(short1, WWl - 16, 10, 2).length === 1, 'короткое сообщение остаётся одной строкой');
+const huge = 'слово '.repeat(120);
+const cut = W.wrapText(huge, WWl - 16, 10, 2);
+ok(cut.length === 2 && /…$/.test(cut[1]), 'а совсем несуразное подрезается многоточием, а не уходит за край');
+
+head('Каждое сообщение игры влезает в два ряда');
+W.reset(); W.setPanel(null);
+{
+  // самые длинные строки, какие игра вообще способна показать
+  const worst = W.STORY.map(q => {
+    let tail = '  ·  ' + q.gold + ' крон в кошель.';
+    if (q.reward) tail = q.reward.kind === 'stack'
+      ? '  ·  Награда: Эссенция ×' + q.reward.n
+      : '  ·  Награда: гроссмейстерский серебряный меч (Кровосос) — в сумке';
+    return '📖 ' + q.done + tail;
+  });
+  const overflow = worst.filter(s => W.wrapText(s, WWl - 16, 10, 2).join('').length < s.length - 1);
+  note('развязок всего ' + worst.length + ', не влезло в два ряда: ' + overflow.length);
+  ok(!overflow.length, 'все четырнадцать развязок читаются целиком');
+}
+
+head('Приметное место не двоится с деревней');
+W.reset();
+const eaten = Object.keys(W.SPOTS).filter(k => W.spotEaten(k));
+note('спрятано как двойник: ' + (eaten.map(k => W.SPOTS[k].n).join(', ') || 'нет'));
+for (const k of eaten) {
+  const s = W.SPOTS[k], t = W.townAt(s.x, s.y);
+  ok(t && Math.hypot(s.x - t.x, s.y - t.y) < 40,
+     '«' + s.n + '» и правда сидит на колодце «' + t.n + '» (' + Math.round(Math.hypot(s.x - t.x, s.y - t.y)) + ' шагов)');
+}
+/* И снова: проверяем не справочник, а ЭКРАН. Встаём на Заставу и смотрим,
+   что игра написала — в мире и на карте. */
+{
+  const gate = W.SPOTS.gate, town = W.townAt(gate.x, gate.y);
+  W.setPanel(null);
+  const p9 = W.getP(); p9.x = gate.x; p9.y = gate.y; W.syncCam(); W.update(0.016);
+  const world = frame();
+  ok(said(world, town.n), 'в мире деревня подписана: «' + town.n + '»');
+  ok(!said(world, gate.n), 'а «' + gate.n + '» второй подписью поверх неё не идёт');
+  W.setPanel('map');
+  const map = frame();
+  ok(said(map, town.n) && !said(map, gate.n), 'на карте — то же самое, без двойника');
+  W.setPanel(null);
+}
+// но из справочника оно никуда не делось: по нему идёт сюжет
+ok(W.STORY.every(q => W.SPOTS[q.spot]), 'все сюжетные места на месте — прячем только вторую картинку');
+ok(!!W.SPOTS.gate, '«Застава на тракте» осталась в справочнике: по ней идёт «Застава барона»');
+
+head('Дороги никуда не ведут только если ведут');
+const loops = W.PATHS.filter(p => p[0].x === p[p.length - 1].x && p[0].y === p[p.length - 1].y);
+ok(!loops.length, 'нет дорог, выходящих из точки и в неё же возвращающихся (' + W.PATHS.length + ' дорог)');
+{
+  const key = v => Math.round(v.x) + ',' + Math.round(v.y), adj = {};
+  for (const p of W.PATHS) for (let i = 0; i < p.length; i++) {
+    const k = key(p[i]); adj[k] = adj[k] || new Set();
+    if (i) { adj[k].add(key(p[i - 1])); (adj[key(p[i - 1])] = adj[key(p[i - 1])] || new Set()).add(k); }
+  }
+  const all = Object.keys(adj), seen2 = new Set([all[0]]), q = [all[0]];
+  while (q.length) { const c = q.pop(); for (const n of adj[c]) if (!seen2.has(n)) { seen2.add(n); q.push(n); } }
+  note('узлов ' + all.length + ', достижимо из первого ' + seen2.size);
+  ok(seen2.size === all.length, 'сеть дорог осталась единой, без островов');
+}
+{
+  // и ни один конец не обрывается в чистом поле
+  const orphan = [];
+  for (const p of W.PATHS) for (const pt of [p[0], p[p.length - 1]]) {
+    const near = Object.values(W.SPOTS).some(s => Math.hypot(s.x - pt.x, s.y - pt.y) < 260) ||
+                 W.TOWNS.some(t => Math.hypot(t.x - pt.x, t.y - pt.y) < t.r + 150) ||
+                 W.PATHS.some(q2 => q2 !== p && q2.some(v => Math.hypot(v.x - pt.x, v.y - pt.y) < 60));
+    if (!near) orphan.push(Math.round(pt.x) + ',' + Math.round(pt.y));
+  }
+  ok(!orphan.length, 'каждый конец дороги упирается в место, деревню или другую дорогу' +
+     (orphan.length ? ': ' + orphan.join(' · ') : ''));
+}
+
 head('Карта и панели рисуются');
 let drew = true;
 try {
