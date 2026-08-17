@@ -1362,7 +1362,7 @@ function swordDamage(sw, fam) {
   if (sw.oil > 0) d *= OIL_MUL;                        // смазанный клинок
   d *= 1 + 0.06 * schoolPow('blade');                  // волчий доспех — про меч
   d *= 1 + 0.06 * sk('blade');                         // и навык «Клинок»
-  if (P.mut > 0) d *= 2.2;
+  if (P.mut > 0) d *= P.mut2 > 0 ? 3.4 : 2.2;        // зверь бьёт втрое
   if (P.buffThunder > 0) d *= 1.45;
   return d;
 }
@@ -1386,7 +1386,7 @@ function damageTaken(raw) {
   const d = armorDef();
   let out = raw * (1 - d / (d + 42));                  // броня режет долю, а не «минус N»
   out *= 1 - 0.05 * schoolPow('tank');                 // медведь гасит сверх брони
-  if (P.mut > 0) out *= 1.4;                           // в мутации сам стеклянный
+  if (P.mut > 0) out *= P.mut2 > 0 ? 1.6 : 1.4;        // в мутации сам стеклянный, зверь — вдвойне
   return Math.max(1, out);
 }
 function moveSpeed() {
@@ -1395,7 +1395,7 @@ function moveSpeed() {
   s *= L().spd;                                        // болото вяжет, тракт торопит
   if (onPath(P.x, P.y)) s *= 1.14;                     // по утоптанному быстрее
   s *= loadState().mul;
-  if (P.mut > 0) s *= 1.12;
+  if (P.mut > 0) s *= P.mut2 > 0 ? 1.22 : 1.12;
   if (P.slow > 0) s *= 0.55;
   return s;
 }
@@ -1517,15 +1517,22 @@ function fullName(it) {
 /* =====================  ЗЕЛЬЯ И ТОКСИЧНОСТЬ  ===================== */
 
 function drink(id) {
+  // зверь не варит эликсиров и не откупоривает склянок
+  if (P.mut2 > 0) { message('🩸 Зверю не до зелий — остались когти'); snd('deny'); return; }
   if (!useStack(id, 1)) { message('Нет такого зелья'); snd('deny'); return; }
   snd('drink');
   const p = POTIONS[id];
-  P.tox = clamp(P.tox + p.tox, 0, 100);
+  /* Белый мёд против МУТАГЕННОЙ отравы бессилен наполовину: то, что осталось
+     после срыва во вторую ступень, — не похмелье от зелий, и мёдом его не
+     вымыть. Иначе вся цена второй ступени стоила бы тридцать пять крон. */
+  const heavy = P.toxLock > 0 && p.tox < 0;
+  P.tox = clamp(P.tox + (heavy ? p.tox * 0.5 : p.tox), 0, 100);
   const long = 1 + 0.15 * schoolPow('brew');           // змеиный доспех тянет действие
   if (id === 'swallow') P.regen = 8 * long;
   if (id === 'thunder') P.buffThunder = 20 * long;
   if (id === 'shit') { P.biz = 12 * long; message('💼 Деловое предложение! Мечи в сторону — работаем.'); }
   else message('Выпил: ' + p.n + (p.tox > 0 ? ' (токсичность +' + p.tox + ')' : '') +
+               (heavy ? ' · 🩸 мутаген мёдом не вымыть, взял вполсилы' : '') +
                (long > 1 ? ' · 🐍 держится дольше' : ''));
 }
 
@@ -1557,7 +1564,7 @@ function throwContract() {
 function xbowDamage() {
   if (!P.xbow) return 0;
   return XBOW[P.xbow.type].dmg * TIERS[P.xbow.tier].m * (1 + 0.06 * sk('aim')) *
-         (P.buffThunder > 0 ? 1.45 : 1) * (P.mut > 0 ? 2.2 : 1);
+         (P.buffThunder > 0 ? 1.45 : 1) * (P.mut2 > 0 ? 3.4 : P.mut > 0 ? 2.2 : 1);
 }
 /* Какой болт в жёлобе. Проверяем по BOLTS, а не по STUFF: в STUFF лежат ещё
    руда, шкуры и масла — с битой записью в жёлоб попала бы шкура. */
@@ -1642,7 +1649,7 @@ function hurtFoe(f, dmg, src, pierce) {
   floaties.push({ x: f.x, y: f.y - 14, txt: Math.round(real), t: 0, c: weak ? '#8a8f96' : '#ffd166' });
   if (weak) floaties.push({ x: f.x, y: f.y - 26, txt: src === 'wrong' ? 'не тот меч' : 'не тот болт', t: 0, c: '#8a8f96' });
   if (hasEnch('vamp')) P.hp = Math.min(maxHP(), P.hp + real * 0.12);
-  if (P.mut > 0) P.hp = Math.min(maxHP(), P.hp + real * 0.25);
+  if (P.mut > 0) P.hp = Math.min(maxHP(), P.hp + real * (P.mut2 > 0 ? 0.5 : 0.25));
   if (hasEnch('flame')) f.burn = Math.max(f.burn, 3);
   if (hasEnch('frost')) f.slow = Math.max(f.slow, 1.6);
   blood(f.x, f.y, 5);
@@ -1694,6 +1701,8 @@ function runeCost(R) { return Math.max(1, Math.round(R.mp * (1 - 0.08 * schoolPo
 function runePower() { return 1 + 0.12 * schoolPow('sign') + 0.08 * sk('power'); }
 function castRune(i) {
   const R = RUNES[i]; if (!R) return;
+  // зверю не до знаков: во второй ступени остались только когти
+  if (P.mut2 > 0) { message('🩸 Зверю не до знаков — остались когти'); snd('deny'); return; }
   if (P.runeCd[i] > 0) return;
   const cost = runeCost(R);
   if (P.mp < cost) { message('Мало энергии для «' + R.n + '»'); return; }
@@ -1741,12 +1750,40 @@ function inCone(f, a, len, half) {
 
 /* =====================  МУТАЦИЯ  ===================== */
 
+/* Две ступени, и вторая — не улучшение, а СРЫВ.
+
+   Первая копится с убийств и жмётся, когда накипело. Вторая не копится
+   вовсе: в неё срываются прямо из первой, вторым нажатием R, пока та ещё
+   держит. Нового ресурса нет намеренно — решение принимается не в меню
+   между боями, а в те самые десять секунд, когда уже поздно передумывать.
+   Отменить нельзя.
+
+   Что меняется: урон ×3.4 вместо ×2.2, чужая кровь лечит половиной вместо
+   четверти, ноги быстрее — но ЗНАКИ И ЗЕЛЬЯ ОТРЕЗАНЫ. Зверь не рисует
+   знаков и не варит эликсиров, у него остались когти.
+
+   Чем платится — дважды. В бою: отрава мгновенно на сотне, а это уже за
+   порогом в семьдесят, и здоровье течёт само собой; выживаешь, только пока
+   убиваешь. После боя: отрава сходит вчетверо медленнее почти минуту, и
+   Белый мёд берёт её вполсилы — это не похмелье от зелий, это мутаген.
+
+   Оттого это и выбор, а не кнопка «стать сильнее»: сорваться — значит
+   отказаться от Квена, Ирдена и Ласточки на весь остаток драки. На толпу
+   накеров выгодно, на лешака — вряд ли. */
+const MUT2_TIME = 8, TOXLOCK_TIME = 50;
 function toggleMutation() {
-  if (P.mut > 0) return;
+  if (P.mut2 > 0) { message('🩸 Дальше срываться некуда'); return; }
+  if (P.mut > 0) {                                     // срыв во вторую ступень
+    P.mut2 = MUT2_TIME; P.mut = MUT2_TIME;
+    P.tox = 100; P.toxLock = TOXLOCK_TIME;
+    snd('mutate');
+    message('🩸 ЗВЕРЬ! Урон втрое, кровь лечит вдвое — но знаки и зелья отрезаны, и отрава на пределе.');
+    return;
+  }
   if (P.mutGauge < 100) { message('🩸 Ещё не накипело: ' + Math.round(P.mutGauge) + '/100'); return; }
   P.mut = 10; P.mutGauge = 0;
   snd('mutate');
-  message('🩸 КРОВАВАЯ ЕБАТНЯ! Урон вдвое, кровь чужая — твоя.');
+  message('🩸 КРОВАВАЯ ЕБАТНЯ! Урон вдвое, кровь чужая — твоя. Ещё раз R — сорваться дальше.');
 }
 
 /* =====================  ДОБЫЧА  ===================== */
@@ -2493,7 +2530,8 @@ function saveRun() {
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify({
       v: 1, wv: 3, ci, gold, hp: downed ? maxHP() * 0.5 : P.hp,
-      tox: downed ? 0 : P.tox, mutGauge: downed ? 0 : P.mutGauge, hand: P.hand, potSel: P.potSel,
+      tox: downed ? 0 : P.tox, toxLock: downed ? 0 : P.toxLock,
+      mutGauge: downed ? 0 : P.mutGauge, hand: P.hand, potSel: P.potSel,
       steel: P.steel, silver: P.silver, armor: P.armor, xbow: P.xbow, boltSel: P.boltSel,
       inv, offers, hot: hotGood,
       x: downed ? FIRE.x : P.x, y: downed ? FIRE.y + 60 : P.y,
@@ -2547,6 +2585,8 @@ function loadRun() {
   P.potSel = POTIONS[s.potSel] ? s.potSel : 'swallow';
   P.tox = clamp(+s.tox || 0, 0, 100);
   P.mutGauge = clamp(+s.mutGauge || 0, 0, 100);
+  // мутагенную отраву не пересидеть у костра: она едет вместе с записью
+  P.toxLock = clamp(+s.toxLock || 0, 0, TOXLOCK_TIME);
   // доска: работы из записи, но только целые и понятные. Битые — пересдаём
   offers = (Array.isArray(s.offers) ? s.offers : []).filter(okOffer).slice(0, 3).map(o => ({
     t: String(o.t).slice(0, 60), pool: o.pool.slice(0, 6), loc: o.loc, fam: o.fam || 'mixed',
@@ -2610,7 +2650,8 @@ function reset() {
     xbow: mkXbow('light', 0, null),   // арбалет теперь вещь, а не вечная кнопка
     boltSel: 'bolt',                  // какой болт в жёлобе — переключается на B
     atkCd: 0, boltCd: 0, dodge: 0, dodgeCd: 0, dx: 0, dy: 0, inv: 0, swing: null,
-    runeCd: [0, 0, 0, 0], quen: 0, quenT: 0, yrden: null, mut: 0, mutGauge: 0,
+    runeCd: [0, 0, 0, 0], quen: 0, quenT: 0, yrden: null, mut: 0, mut2: 0, mutGauge: 0,
+    toxLock: 0,               // сколько ещё держится мутагенная отрава после срыва
     regen: 0, buffThunder: 0, biz: 0, slow: 0, shake: 0, face: -Math.PI / 2,
     potSel: 'swallow',        // после «Заново» выбор зелья не должен слетать в никуда
     lvl: 1, xp: 0, sp: 0, sk: {},   // ступень, опыт, нерастраченные очки и вложенное
@@ -2663,7 +2704,7 @@ function rise() {
   over = false; downT = 0;
   P.x = FIRE.x; P.y = FIRE.y + 60;
   P.hp = maxHP() * 0.5; P.mp = maxMP() * 0.5;
-  P.tox = 0; P.mut = 0; P.mutGauge = 0; P.regen = 0; P.buffThunder = 0; P.biz = 0;
+  P.tox = 0; P.mut = 0; P.mut2 = 0; P.toxLock = 0; P.mutGauge = 0; P.regen = 0; P.buffThunder = 0; P.biz = 0;
   P.quen = 0; P.quenT = 0; P.yrden = null; P.slow = 0; P.dodge = 0; P.inv = 1.5;
   curLoc = locAt(P.x, P.y); syncCam();
   message('🔥 Очнулся у костра. Работа сорвана, ' + downLost + ' крон ушло за лечение. Снаряжение и сюжет целы.');
@@ -2686,13 +2727,29 @@ function update(dt) {
   for (let i = 0; i < 4; i++) if (P.runeCd[i] > 0) P.runeCd[i] -= dt;
   if (P.quenT > 0) { P.quenT -= dt; if (P.quenT <= 0) P.quen = 0; }
   if (P.yrden) { P.yrden.t -= dt; if (P.yrden.t <= 0) P.yrden = null; }
-  if (P.mut > 0) { P.mut -= dt; P.tox = clamp(P.tox + dt * 1.5, 0, 100); if (P.mut <= 0) message('Отпустило.'); }
+  if (P.mut2 > 0) P.mut2 -= dt;
+  if (P.toxLock > 0) P.toxLock -= dt;
+  if (P.mut > 0) {
+    /* Признак срыва держим отдельным полем, а не по остатку mut2: обе
+       ступени кончаются в один и тот же миг, и по нулю их уже не различить,
+       а сказать надо разное. */
+    const beast = P.mut2 > 0;
+    P.mut -= dt; P.tox = clamp(P.tox + dt * 1.5, 0, 100);
+    if (P.mut <= 0) {
+      P.mut2 = 0;
+      message(beast ? '🩸 Зверь ушёл. Отрава осядет не скоро.' : 'Отпустило.');
+    }
+  }
   if (P.buffThunder > 0) P.buffThunder -= dt;
   if (P.biz > 0) { P.biz -= dt; if (P.biz <= 0) message('Сделка закрыта. Обратно в ведьмаки.'); }
   if (P.slow > 0) P.slow -= dt;
   if (P.regen > 0) { P.regen -= dt; P.hp = Math.min(maxHP(), P.hp + 5.6 * dt); }
   P.mp = Math.min(maxMP(), P.mp + mpRegen() * dt);
-  P.tox = Math.max(0, P.tox - 1.2 * (1 + 0.3 * schoolPow('brew') + 0.2 * sk('purge')) * dt);
+  /* Мутагенная отрава сходит ВЧЕТВЕРО медленнее обычной. Это и есть вторая
+     половина платы за срыв: сам бой ты, может, и вытянул, а следующие
+     полминуты ходишь отравленным и без права на глоток. */
+  P.tox = Math.max(0, P.tox - 1.2 * (P.toxLock > 0 ? 0.25 : 1) *
+                     (1 + 0.3 * schoolPow('brew') + 0.2 * sk('purge')) * dt);
   if (P.tox > 70) {                                    // передоз травит сам по себе
     P.hp -= (P.tox - 70) * 0.055 * dt * 3;
     if (P.hp <= 0) { endGame('Отравился зельями. Токсичность не прощает.'); return; }
@@ -3190,9 +3247,10 @@ function drawWorld() {
   if (P.biz > 0) {
     drawIco('💼', 22, px, py);
   } else {
-    ctx.fillStyle = P.mut > 0 ? '#c0303a' : '#2b2f38';
+    ctx.fillStyle = P.mut2 > 0 ? '#ff2a2a' : P.mut > 0 ? '#c0303a' : '#2b2f38';
     ctx.beginPath(); ctx.arc(px, py, 9, 0, 6.3); ctx.fill();
-    ctx.strokeStyle = P.mut > 0 ? '#ff6a5a' : '#8a8f96'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.strokeStyle = P.mut2 > 0 ? '#ffd0a0' : P.mut > 0 ? '#ff6a5a' : '#8a8f96';
+    ctx.lineWidth = P.mut2 > 0 ? 3 : 2; ctx.stroke();
     ctx.fillStyle = '#e8d9a8';                                  // белая грива
     ctx.beginPath(); ctx.arc(px, py - 2, 5, 0, 6.3); ctx.fill();
   }
@@ -3332,12 +3390,22 @@ function drawHUD() {
   txt('✨ ' + Math.round(P.mp), 14, 29, 9, '#cfe3ff');
   // токсичность
   bar(10, 38, 150, 6, P.tox / 100, P.tox > 70 ? '#8ac04a' : '#5a7a3a');
-  txt('☠ токсичность ' + Math.round(P.tox), 14, 41, 8, P.tox > 70 ? '#c8ff8a' : '#98a2ae');
+  /* Мутагенная отрава дописывается сюда же, к токсичности: место у неё
+     ровно тут, и без этой пометки непонятно, почему мёд вдруг берёт вполсилы
+     и почему отрава стоит на месте. */
+  txt('☠ токсичность ' + Math.round(P.tox) + (P.toxLock > 0 ? ' · 🩸 мутаген ' + Math.ceil(P.toxLock) + 'с' : ''),
+      14, 41, 8, P.toxLock > 0 ? '#ff8a6a' : P.tox > 70 ? '#c8ff8a' : '#98a2ae');
 
   // мутация
   const mx = 174;
-  bar(mx, 10, 92, 9, P.mut > 0 ? P.mut / 10 : P.mutGauge / 100, P.mut > 0 ? '#ff3a3a' : '#8a2a30');
-  txt(P.mut > 0 ? '🩸 ЕБАТНЯ ' + P.mut.toFixed(1) + 'с' : '🩸 ' + Math.round(P.mutGauge) + '/100 (R)', mx + 2, 15, 8, '#ffb0a8');
+  /* Полоса показывает ступень: пока идёт первая — ещё и зовёт сорваться,
+     иначе про вторую можно за весь поход не узнать. */
+  bar(mx, 10, 92, 9, P.mut > 0 ? P.mut / (P.mut2 > 0 ? MUT2_TIME : 10) : P.mutGauge / 100,
+      P.mut2 > 0 ? '#ff1a1a' : P.mut > 0 ? '#ff3a3a' : '#8a2a30');
+  txt(P.mut2 > 0 ? '🩸 ЗВЕРЬ ' + P.mut.toFixed(1) + 'с'
+    : P.mut > 0 ? '🩸 ЕБАТНЯ ' + P.mut.toFixed(1) + 'с · R дальше'
+    : '🩸 ' + Math.round(P.mutGauge) + '/100 (R)',
+    mx + 2, 15, 8, P.mut2 > 0 ? '#fff0a8' : '#ffb0a8');
 
   // меч в руке. По коробке можно щёлкнуть — это тот же Q: в полном экране
   // кнопка «Сменить меч» под игрой не показывается, а меч меняют постоянно.
@@ -3477,12 +3545,14 @@ function drawHUD() {
     const x = slot[7].x, w = slot[7].w, y = by + 4, h = 30;
     const ready = P.mut > 0 || P.mutGauge >= 100;
     uiHit.push({ x, y, w, h, fn: () => toggleMutation() });
-    if (hov(x, y, w, h)) hint = '🩸 Кровавая ебатня — копится с убийств. Урон вдвое и чужая кровь лечит, но и по тебе бьёт больнее · клавиша R';
-    ctx.fillStyle = P.mut > 0 ? 'rgba(140,30,30,.6)' : ready ? 'rgba(110,40,40,.55)' : 'rgba(35,32,28,.9)';
+    if (hov(x, y, w, h)) hint = P.mut > 0 && P.mut2 <= 0
+      ? '🩸 СОРВАТЬСЯ ДАЛЬШЕ (R): урон втрое и кровь лечит вдвое, но знаки и зелья отрезаны, а отрава уйдёт на предел и осядет не скоро'
+      : '🩸 Кровавая ебатня — копится с убийств. Урон вдвое и чужая кровь лечит, но и по тебе бьёт больнее · клавиша R';
+    ctx.fillStyle = P.mut2 > 0 ? 'rgba(190,20,20,.75)' : P.mut > 0 ? 'rgba(140,30,30,.6)' : ready ? 'rgba(110,40,40,.55)' : 'rgba(35,32,28,.9)';
     ctx.fillRect(x, y, w, h);
     ctx.strokeStyle = ready ? '#ff6a5a' : 'rgba(255,255,255,.1)'; ctx.strokeRect(x + .5, y + .5, w - 1, h - 1);
     txt('🩸 R', x + 4, y + 10, 10, ready ? '#ffb0a8' : '#6c7683');
-    txt(clipText(P.mut > 0 ? P.mut.toFixed(1) + 'с' : Math.round(P.mutGauge) + '/100', w - 8, 8),
+    txt(clipText(P.mut2 > 0 ? 'ЗВЕРЬ ' + P.mut.toFixed(1) : P.mut > 0 ? P.mut.toFixed(1) + 'с · R!' : Math.round(P.mutGauge) + '/100', w - 8, 8),
         x + 4, y + 22, 8, ready ? '#ffb0a8' : '#98a2ae');
   }
   /* ЗЕЛЬЯ. Одним рядом: во второй ряд пояс не помещается. Клик — выбрать,
@@ -4196,7 +4266,7 @@ function render() {
 
   // краснота в мутации
   if (P.mut > 0) {
-    ctx.fillStyle = 'rgba(150,20,20,' + (0.10 + Math.sin(anim * 8) * 0.03).toFixed(3) + ')';
+    ctx.fillStyle = 'rgba(150,20,20,' + ((P.mut2 > 0 ? 0.20 : 0.10) + Math.sin(anim * 8) * 0.03).toFixed(3) + ')';
     ctx.fillRect(WX0, WY0, WW, WH);
   }
   if (P.biz > 0) {
@@ -4407,7 +4477,7 @@ if (typeof globalThis !== 'undefined') globalThis.__W = {
   carried, capacity, loadState, itemWeight, itemPrice, fullName, mkSword, mkArmor, mkXbow, mkStack, lootFrom,
   XBOW, BOLTS, BOLT_IDS, buyXbow, cycleBolt, boltHit, xbowDamage, randomGear,
   ARMOR_KEYS, buyArmor, schoolNote, schoolRange, schoolPow, schoolStep, wornSchool,
-  runeCost, runePower, armorDef, maxHP, mpRegen, moveSpeed,
+  runeCost, runePower, armorDef, maxHP, mpRegen, moveSpeed, MUT2_TIME, TOXLOCK_TIME,
   getBolt: () => P.boltSel, setBolt: v => { P.boltSel = v; },
   getP: () => P, getFoes: () => foes, setFoes: v => { foes = v; }, getInv: () => inv, setInv: v => { inv = v; },
   getGold: () => gold, setGold: v => { gold = v; }, getDrops: () => drops, getShots: () => shots,
