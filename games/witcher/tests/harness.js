@@ -28,11 +28,18 @@ const GAME = process.env.WITCHER_GAME || path.join(__dirname, '..', 'game.js');
 /* Всё, что игра НАПИСАЛА на экране за кадр. Подсказки, ценники и подписи —
    локальные переменные внутри отрисовки, наружу их не достать; а врут они
    не реже, чем считает бой. Подменяем fillText и собираем строки. */
-const drawn = [];
+/* Кроме самого текста запоминаем, ГДЕ он нарисован и какой выключкой: без
+   этого не проверить, влезает ли строка в отведённое место. На этом стенд
+   уже спотыкался — следил за длиной подписи, а срезало её положением. */
+const drawn = [], marks = [];
 function makeCtx() {
   return new Proxy({}, {
     get(t, k) {
-      if (k === 'fillText') return s => { drawn.push(String(s)); };
+      if (k === 'fillText') return (s, x, y) => {
+        drawn.push(String(s));
+        marks.push({ s: String(s), x, y, al: t.textAlign || 'left',
+                     size: parseFloat(t.font) || 10, w: String(s).length * 5 });
+      };
       if (k === 'measureText') return s => ({ width: String(s).length * 5 });
       if (k === 'createImageData') return (w, h) => ({ width: w, height: h, data: new Uint8ClampedArray(w * h * 4) });
       if (k === 'createRadialGradient' || k === 'createLinearGradient') return () => ({ addColorStop() {} });
@@ -124,9 +131,17 @@ function key(code, opt) {
 }
 // Кадр отрисовки + все строки, которые он написал.
 function frame() {
-  drawn.length = 0;
+  drawn.length = 0; marks.length = 0;
   sandbox.__W.render();
   return drawn.slice();
+}
+/* Те же строки, но с местом: {s, x, y, al, size, w}. Границы по горизонтали
+   считает span(): для выключки по центру и вправо начало отсчитывается от
+   ширины, как это делает сам холст. */
+function frameMarks() { frame(); return marks.slice(); }
+function span(m) {
+  const x0 = m.al === 'center' ? m.x - m.w / 2 : m.al === 'right' ? m.x - m.w : m.x;
+  return { x0, x1: x0 + m.w };
 }
 // Есть ли среди написанного строка с таким куском.
 function said(lines, part) { return lines.some(s => s.indexOf(part) >= 0); }
@@ -145,5 +160,5 @@ function tap(x, y) {
 }
 
 module.exports = { W: sandbox.__W, store, sandbox, ok, note, head, done, makeCanvas, GAME,
-                   key, frame, said, click, tap, buttons,
+                   key, frame, frameMarks, span, said, click, tap, buttons,
                    peek: name => vm.runInContext(name, sandbox) };

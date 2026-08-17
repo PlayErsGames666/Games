@@ -9,7 +9,7 @@
    (см. frame() в стенде), и нажатия, которые игра действительно разобрала.
    ======================================================================= */
 'use strict';
-const { W, ok, note, head, done, key, frame, said, peek, click, tap } = require('./harness.js');
+const { W, ok, note, head, done, key, frame, frameMarks, span, said, peek, click, tap } = require('./harness.js');
 
 /* ---------------------------------------------------------------- клавиши */
 head('E закрывает то, что E и открыло');
@@ -254,6 +254,75 @@ W.reset(); W.setPanel(null);
   const overflow = worst.filter(s => W.wrapText(s, WWl - 16, 10, 2).join('').length < s.length - 1);
   note('развязок всего ' + worst.length + ', не влезло в два ряда: ' + overflow.length);
   ok(!overflow.length, 'все четырнадцать развязок читаются целиком');
+}
+
+/* Подсказка в поясе — единственное место в игре, заведённое ради объяснений.
+   Восемь подсказок из семнадцати в одну строку не влезали, и обрезало у них
+   ровно хвост: то, ЧЕМ вещь берёт. */
+head('Подсказка в поясе влезает вся');
+W.reset(); W.setPanel(null);
+{
+  const p10 = W.getP();
+  p10.xbow = W.mkXbow('hunter', 4, 'greed');           // самое длинное имя, какое бывает
+  W.addStack('boltsil', 99);
+  const beltY = W.WY1 + 4;                             // пояс начинается сразу под полем
+  W.render();
+  const belt = W.getHits().filter(b => b.y >= beltY && b.y < beltY + 62);
+  const FIELD = 520 - 20;                              // поле под подсказку: от x=10 до края
+  let worst = 0, worstS = '', over = 0;
+  for (const b of belt) {
+    W.setMouse(b.x + 2, b.y + 2);
+    for (const l of frame()) {
+      // подсказка — то, что начинается со значка и длинное; прочее пропускаем
+      if (!/^[🔥💫🛡🧿🏹➶✧➹💥🧴🩸🧪⚗🍯💩]/.test(l) || l.length < 30) continue;
+      if (l.length > worst) { worst = l.length; worstS = l; }
+      if (l.length * 5 > FIELD) over++;
+    }
+  }
+  note('кнопок в поясе ' + belt.length + ', самая длинная строка ' + worst + ' знаков ≈ ' +
+       worst * 5 + ' px при поле ' + FIELD);
+  note('самая длинная: «' + worstS.slice(0, 70) + (worstS.length > 70 ? '…' : '') + '»');
+  ok(!over, 'ни одна нарисованная строка подсказки не длиннее поля' +
+     (over ? ' (длиннее: ' + over + ')' : ''));
+}
+{
+  // и сама разбивка: длинная подсказка обязана стать двумя строками
+  const long2 = '🏹 гроссмейстер охотничий арбалет (Мздоимец) — ПКМ по полю или эта кнопка · ' +
+                'урон 53, взвод 0.95 с · болт летит быстрее и вдвое дальше — лучника снимаешь раньше, чем он тебя';
+  const l2 = W.wrapText(long2, 520 - 20, 9, 2);
+  note('подсказка в ' + long2.length + ' знаков → строк ' + l2.length);
+  ok(l2.length === 2, 'длинная подсказка разбивается на две строки');
+  ok(long2.indexOf(l2[0]) === 0, 'первая — начало, а не середина');
+  ok(l2.join(' ').replace(/…$/, '').length > long2.length * 0.9, 'и почти всё уцелело');
+}
+
+/* Стрелка к цели ходит по кругу вокруг середины поля, и подпись под ней
+   рисуется ПО ЦЕНТРУ стрелки. У самого края круга подпись вылезала за холст —
+   на узком экране срезало до девяти пикселей, пару букв от названия места.
+   Смотрим не на длину строки, а на её НАСТОЯЩИЕ границы: ровно на этой
+   разнице проверка однажды и промахнулась. */
+head('Подпись стрелки не срезается краем поля');
+W.reset(); W.setPanel(null);
+{
+  const p11 = W.getP();
+  W.setPhase('CAMP');
+  const cut = [];
+  for (let i = 0; i < 24; i++) {
+    const a = i / 24 * 6.2832;
+    p11.x = Math.min(Math.max(W.WORLD_W / 2 + Math.cos(a) * 3200, 100), W.WORLD_W - 100);
+    p11.y = Math.min(Math.max(W.WORLD_H / 2 + Math.sin(a) * 3200, 100), W.WORLD_H - 100);
+    W.syncCam();
+    for (const m of frameMarks()) {
+      if (!/ · \d+ шагов$/.test(m.s)) continue;         // это подпись стрелки, и только она
+      const { x0, x1 } = span(m);
+      if (x0 < W.WX0 - 1 || x1 > W.WX1 + 1) {
+        cut.push(Math.round(a * 57) + '°: [' + Math.round(x0) + '…' + Math.round(x1) + '] при поле ' +
+                 W.WX0 + '…' + W.WX1);
+      }
+    }
+  }
+  note('направлений проверено: 24');
+  ok(!cut.length, 'подпись всюду внутри поля' + (cut.length ? ', срезает: ' + cut.slice(0, 3).join(' · ') : ''));
 }
 
 head('Приметное место не двоится с деревней');

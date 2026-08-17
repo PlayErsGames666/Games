@@ -34,6 +34,50 @@ note('заметил через ' + (ticks * 0.016).toFixed(2) + ' с (в спр
 ok(ticks > 5, 'между «увидел» и «пошёл бить» есть пауза — это твоя секунда');
 ok(wolf.mad, 'заметив, злая тварь идёт бить');
 
+/* САМЫЙ ДОРОГОЙ БАГ ЭТОЙ ЧАСТИ ИГРЫ. Повадка — правило ВОЛЬНОГО мира, а
+   контрактную цель зовут по имени: она обязана идти к ведьмаку, какой бы
+   смирной ни была её порода. Условие стояло «злой, если free=false И порода
+   wild», и работы по кабанам, псам и медведям ломались напрочь: цели
+   выходили из очереди и РАЗБРЕДАЛИСЬ. Очередь пустела, счёт оставался
+   нетронутым, и работа не закрывалась никогда.
+   Одиннадцать работ с доски из семидесяти двух. */
+head('Контрактную цель выпускают злой — любой породы');
+for (const t of ['boar', 'bruin', 'hound', 'drowner', 'archer', 'aurochs']) {
+  place('field'); W.setFoes([]);
+  const p = W.getP();
+  W.spawnFoe(t, p.x + 300, p.y, null, false);          // free=false, то есть по контракту
+  const f = W.getFoes()[0];
+  ok(f.mad, W.FOES[t].n + ' (повадка ' + W.FOES[t].mood + ') выпущен уже злым');
+  ok(f.seen, '   и не рисует «!», будто ещё присматривается');
+}
+{
+  place('field'); W.setFoes([]);
+  const p = W.getP();
+  W.spawnFoe('boar', p.x + 300, p.y, null, true);       // а вольный — по своей повадке
+  ok(!W.getFoes()[0].mad, 'а вольный кабан по-прежнему мирный, пока не тронешь');
+}
+
+head('И потому работа по мирному зверю закрывается');
+for (const name of ['Кабанья потрава', 'Псы потравили стадо', 'Медведь в дубраве']) {
+  W.reset(); W.setPanel(null);
+  const job = W.makeContract(W.JOBS.find(j => j.t === name), 3);
+  W.startContract(job);
+  const g = W.regionSpot(job.loc), P = W.getP();
+  P.x = g.mx; P.y = g.my; W.syncCam(); W.update(0.016);
+  let n = 0;
+  // стоим на месте и бьём тех, кто подошёл на выстрел: ходить по краю за
+  // разбежавшимися целями игра не обещает
+  while (W.getTaken().indexOf(job) >= 0 && n++ < 3000) {
+    P.hp = 1e9;
+    for (const f of W.getFoes().slice())
+      if (!f.dead && f.job === job && Math.hypot(f.x - P.x, f.y - P.y) < 350) W.hurtFoe(f, 1e9, 'sword');
+    W.update(0.05);
+  }
+  ok(W.getTaken().indexOf(job) < 0,
+     '«' + name + '» закрылась' + (n < 3000 ? ' за ' + (n * 0.05).toFixed(0) + ' с' :
+       ': НЕ ЗАКРЫЛАСЬ, осталось ' + job.left + '/' + job.n + ' при пустой очереди'));
+}
+
 head('Мирный злится от удара — и навсегда');
 place('grove'); W.setFoes([]);
 const P3 = W.getP();
