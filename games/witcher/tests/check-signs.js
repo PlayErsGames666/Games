@@ -332,7 +332,8 @@ head('По цвету глифа видно, какой знак пущен');
 {
   const cols = [];
   for (let r = 0; r < 4; r++) {
-    const g = cast(r, 0.4).x !== undefined ? W.getParts().filter(p => p.glyph) : [];
+    cast(r, 0.4);
+    const g = W.getParts().filter(p => p.glyph);
     ok(g.length === 1, 'знак ' + W.RUNES[r].n + ' зажёг ровно один глиф');
     cols.push({ n: W.RUNES[r].n, c: g.length ? g[0].c : null });
   }
