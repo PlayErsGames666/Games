@@ -2,7 +2,7 @@
    Пишется по частям вместе с задачами 2, 5 и 6 плана. */
 'use strict';
 const { W, store, ok, note, head, done, paints, paintsFull, spins, nans, traces, arcs,
-        frame, frameMarks, frameMarksAll, tap, peek } = require('./harness.js');
+        frame, frameMarks, frameMarksAll, tap, peek, key, keyDown } = require('./harness.js');
 
 head('Умолчание, когда записи нет');
 {
@@ -436,6 +436,115 @@ head('Зелье в силе видно ободком своего цвета')
   ok(seenRim > 0 && rimLoud < 0.5, 'ободок идёт вполсилы даже в самой яркой своей фазе: ' + rimLoud.toFixed(2));
   ok(seenFire > 0 && rimLoud < fireQuiet,
      'и тише горящего контура в любой фазе обоих — срыв важнее выпитого');
+}
+
+/* ====================  ТРИ СТРОКИ ТАБЛИЦЫ «ЧТО ПОКАЗЫВАЕТ СОСТОЯНИЕ»  ======
+   Их не стерёг никто, и это доказано подменами на копии: обнуление
+   покачивания (bob = 0), остановка превью (lookSpin += 0) и снятая
+   полупрозрачность уклонения не уронили ни одной мерки из ста шестидесяти
+   трёх. Все три — прямые обещания замысла, и все три ниже. */
+
+head('Ходьба покачивает фигуру, а стояние — нет');
+{
+  /* Покачивание — единственное, чем ходьба видна на фигуре. Обнулить его
+     значило не тронуть ни красок, ни поворотов, ни NaN: стенду было не за
+     что взяться. Берёмся за ТОЧКИ ПУТИ — покачивание живёт ровно в них. */
+  const yOf = w => traces(() => W.drawPawn(0, 0, 0, { armor: 'heavy', look: W.LOOK_DEF, walk: w }))
+                     .map(e => e.y);
+  const PERIOD = Math.PI * 2 / 9;                       // bob = sin(walk · 9)
+  const base = yOf(0), quarter = yOf(PERIOD / 4);       // четверть круга — от нуля до края
+  ok(base.length > 0 && base.length === quarter.length, 'фигура нарисована и в покое, и на ходу');
+  const moved = base.filter((y, i) => Math.abs(y - quarter[i]) > 1e-9).length;
+  note('точек фигуры сдвинулось: ' + moved + ' из ' + base.length);
+  ok(moved === base.length, 'на ходу сдвинулась ВСЯ фигура, а не часть её');
+  const dy = quarter[0] - base[0];
+  ok(base.every((y, i) => Math.abs((quarter[i] - y) - dy) < 1e-9),
+     'и ровно на одну и ту же величину — это качание, а не перекос');
+  note('размах покачивания: ' + dy.toFixed(2) + ' шага');
+  ok(Math.abs(dy) > 0.2, 'покачивание заметно глазу');
+  ok(Math.abs(dy) < 3, 'но фигуру не колотит');
+
+  let lo = Infinity, hi = -Infinity;
+  for (let i = 0; i <= 40; i++) {                       // полный круг покачивания
+    const d = yOf(i / 40 * PERIOD)[0] - base[0];
+    lo = Math.min(lo, d); hi = Math.max(hi, d);
+  }
+  note('за круг фигура ходит от ' + lo.toFixed(2) + ' до ' + hi.toFixed(2));
+  ok(lo < -0.2 && hi > 0.2, 'качает в ОБЕ стороны, а не сдвигает раз и навсегда');
+
+  /* И часы шага идут только на ходу: иначе пешка покачивалась бы стоя. */
+  W.reset(); W.setPhase('HUNT'); W.setPanel(null);
+  const w0 = W.pawnState().walk;
+  for (let i = 0; i < 10; i++) W.update(0.016);
+  ok(W.pawnState().walk === w0, 'стоя на месте часы шага не идут: ' + W.pawnState().walk);
+  keyDown('KeyD');                                      // зажали «вправо» и не отпустили
+  for (let i = 0; i < 10; i++) W.update(0.016);
+  const w1 = W.pawnState().walk;
+  key('KeyD');                                          // и отпустили, чтобы не тянуть в другие мерки
+  note('часы шага после десяти кадров ходьбы: ' + w1.toFixed(3));
+  ok(w1 > w0, 'а на ходу идут — покачивание подхватывается');
+}
+
+head('Ведьмак в зеркале поворачивается сам');
+{
+  /* Превью в зеркале крутится, чтобы было видно и лицо, и затылок с
+     причёской, и мечи за спиной. Остановить его значило показать одну
+     сторону — и ни одна мерка этого не замечала. Поворот виден в ctx.rotate:
+     первый из них у пешки и есть её разворот. */
+  W.reset(); W.setPhase('CAMP'); W.setLook(W.LOOK_DEF); W.setPanel('look');
+  const turn = () => spins(() => W.drawLook())[0];
+  const seen = [turn()];
+  for (let i = 0; i < 3; i++) { W.update(0.2); seen.push(turn()); }
+  note('поворот превью по кадрам: ' + seen.map(v => v.toFixed(3)).join(' → '));
+  ok(seen.every(v => typeof v === 'number' && isFinite(v)), 'поворот вообще снялся');
+  let same = 0;
+  for (let i = 1; i < seen.length; i++) if (seen[i] === seen[i - 1]) same++;
+  ok(same === 0, 'между кадрами поворот меняется каждый раз — фигура крутится, а не стоит');
+  const steps = seen.slice(1).map((v, i) => v - seen[i]);
+  ok(steps.every(s => s > 0), 'и крутится в одну сторону, а не дёргается: шаги ' +
+     steps.map(s => s.toFixed(3)).join(', '));
+  ok(steps.every(s => s < 2), 'и не мельтешит: самый большой шаг ' +
+     Math.max.apply(null, steps).toFixed(3) + ' рад');
+}
+
+head('Уклонение видно полупрозрачностью');
+{
+  /* «Уклонение — полупрозрачность, как сейчас» — строка замысла. Снять её
+     значило рисовать перекат так же, как ходьбу; ни одна мерка не падала.
+     Густоту снимаем с ГЛАЗ: кошачий жёлтый больше нигде в кадре не
+     встречается (это отдельно проверено в check-signs), и по нему видно
+     ровно ту фигуру, о которой речь. */
+  W.reset(); W.setPhase('HUNT'); W.setPanel(null); W.setLook(W.LOOK_DEF);
+  const P = W.getP();
+  const eye = W.EYES.cat.c;
+  const inkOf = () => paintsFull(() => W.render()).filter(m => m.c === eye).map(m => m.a);
+
+  const calm = inkOf();
+  ok(calm.length === 2, 'глаза пешки в кадре нашлись: мазков ' + calm.length);
+  ok(calm.every(a => a >= 0.999), 'в покое фигура непрозрачна: ' + calm.join(', '));
+
+  P.dodge = 0.2;
+  const roll = inkOf();
+  note('густота фигуры: в покое ' + calm.join('/') + ', в уклонении ' + roll.join('/'));
+  ok(roll.length === calm.length, 'в уклонении рисуется та же фигура, а не другая');
+  ok(roll.every(a => a < calm[0]), 'и рисуется СКВОЗЬ — густота упала');
+  ok(roll.every(a => a > 0.25), 'но не пропадает вовсе: в перекате себя видно');
+
+  /* Полупрозрачность взяла ФИГУРУ, а не весь кадр — и не залипла после неё.
+     Ставится она на холст целиком, поэтому забыть вернуть единицу значило бы
+     выцветить всё, что рисуется дальше: меч, частицы, тварей, пояс. По глазам
+     такое не увидеть — они рисуются раньше. Считаем, сколько мазков во всём
+     кадре идут ровно с той густотой, что у фигуры. */
+  const factor = roll[0];
+  const dimCount = () => paintsFull(() => W.render()).filter(m => Math.abs(m.a - factor) < 1e-9).length;
+  const nRoll = dimCount();
+  P.dodge = 0;
+  const nCalm = dimCount();
+  const total = paintsFull(() => W.render()).length;
+  note('мазков с густотой переката: в уклонении ' + nRoll + ', в покое ' + nCalm + ' (всего в кадре ' + total + ')');
+  ok(nRoll > 0 && nRoll < total / 2, 'сквозь рисуется фигура, а не весь кадр');
+  ok(nCalm === 0, 'а вне переката — ни одного: густота вернулась, а не залипла');
+  ok(inkOf().every(a => a >= 0.999), 'перекат кончился — фигура снова плотная');
 }
 
 head('Рисуется в любом состоянии');
