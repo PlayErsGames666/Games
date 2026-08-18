@@ -3336,9 +3336,9 @@ function drawPawn(x, y, a, st) {
   // мечи за спиной: в руке — только один, второй остаётся торчать
   const steel = st.steel && st.hand !== 'steel', silver = st.silver && st.hand !== 'silver';
   if (steel)  { ctx.strokeStyle = SWORD.steel.c;  ctx.lineWidth = 1.8;
-                ctx.beginPath(); ctx.moveTo(-4, -6 + bob); ctx.lineTo(-7, -14 + bob); ctx.stroke(); }
+                ctx.beginPath(); ctx.moveTo(-4, 6 + bob); ctx.lineTo(-7, 14 + bob); ctx.stroke(); }
   if (silver) { ctx.strokeStyle = SWORD.silver.c; ctx.lineWidth = 1.8;
-                ctx.beginPath(); ctx.moveTo(4, -6 + bob); ctx.lineTo(7, -14 + bob); ctx.stroke(); }
+                ctx.beginPath(); ctx.moveTo(4, 6 + bob); ctx.lineTo(7, 14 + bob); ctx.stroke(); }
 
   ctx.fillStyle = cloak;                                    // плащ
   rrect(-bw / 2, -4 + bob, bw, 17, 6); ctx.fill();
@@ -3372,7 +3372,10 @@ function drawPawn(x, y, a, st) {
     rrect(-5.2, -7 + bob, 1.8, 6, 0.9); ctx.fill();
     rrect(3.4, -7 + bob, 1.8, 6, 0.9); ctx.fill();
   } else if (L.hair === 'tail') {                           // хвост назад
-    rrect(-1.2, -13 + bob, 2.4, 5, 1.2); ctx.fill();
+    // «назад» — это +Y. Голова: центр -7, радиус 5.2, край сзади — -1.8;
+    // оттуда хвост и растёт (rrect кладёт от верхнего левого угла, не от
+    // середины) на свою высоту 5, до 3.2 — на воротник плаща, не глубже.
+    rrect(-1.2, -1.8 + bob, 2.4, 5, 1.2); ctx.fill();
   } else if (L.hair === 'braid') {                          // коса вбок
     rrect(3.6, -9 + bob, 1.8, 7, 0.9); ctx.fill();
   }

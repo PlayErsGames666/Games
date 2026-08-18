@@ -59,6 +59,12 @@ function nanArgs(k, a) {
   if (!nanw) return;
   for (const v of a) if (typeof v === 'number' && v !== v) { nanw.push(k); return; }
 }
+/* Куда легли точки пути — единственный след ГЕОМЕТРИИ, который холст готов
+   отдать: сама краска и поворот фигуры от неё не зависят. Копится только
+   moveTo/lineTo — их аргументы приходят как есть, локальный translate их
+   не трогает (сдвиг применяется холстом уже после). Включается на время
+   одного вызова, как paints(). */
+let trace = null;
 let tstack = [{ tx: 0, ty: 0, clipped: false }];
 const ttop = () => tstack[tstack.length - 1];
 function makeCtx() {
@@ -68,6 +74,7 @@ function makeCtx() {
       if (k === 'restore') return () => { if (tstack.length > 1) tstack.pop(); };
       if (k === 'translate') return (x, y) => { nanArgs(k, [x, y]); ttop().tx += x; ttop().ty += y; };
       if (k === 'rotate') return a => { nanArgs(k, [a]); if (spin) spin.push(a); };
+      if (k === 'moveTo' || k === 'lineTo') return (x, y) => { nanArgs(k, [x, y]); if (trace) trace.push({ k, x, y }); };
       if (k === 'clip') return () => { ttop().clipped = true; };
       if (k === 'setTransform') return () => { tstack = [{ tx: 0, ty: 0, clipped: false }]; };
       if (k === 'fillText') return (s, x, y) => {
@@ -212,6 +219,11 @@ function nans(fn) {
   nanw = [];
   try { fn(); return nanw; } finally { nanw = null; }
 }
+// Точки moveTo/lineTo внутри fn, как есть: [{k:'moveTo'|'lineTo', x, y}, ...].
+function traces(fn) {
+  trace = [];
+  try { fn(); return trace; } finally { trace = null; }
+}
 // Есть ли среди написанного строка с таким куском.
 function said(lines, part) { return lines.some(s => s.indexOf(part) >= 0); }
 // Нажать кнопку под игрой по её id из index.html.
@@ -230,5 +242,5 @@ function tap(x, y) {
 
 module.exports = { W: sandbox.__W, store, sandbox, ok, note, head, done, makeCanvas, GAME,
                    key, keyDown, winEvent, frame, frameMarks, frameMarksAll, span, said, click, tap, buttons,
-                   paints, spins, nans,
+                   paints, spins, nans, traces,
                    peek: name => vm.runInContext(name, sandbox) };

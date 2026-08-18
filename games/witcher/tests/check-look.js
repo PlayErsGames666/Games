@@ -1,7 +1,7 @@
 /* Облик ведьмака: таблицы, запись, зеркало, панель.
    Пишется по частям вместе с задачами 2, 5 и 6 плана. */
 'use strict';
-const { W, store, ok, note, head, done, paints, spins, nans } = require('./harness.js');
+const { W, store, ok, note, head, done, paints, spins, nans, traces } = require('./harness.js');
 
 head('Умолчание, когда записи нет');
 {
@@ -131,6 +131,41 @@ head('Мечи за спиной — из st, а не из игрока');
   const one = paints(() => W.drawPawn(0, 0, 0, { steel: true, silver: true, hand: 'silver' }));
   ok(one.indexOf(W.SWORD.steel.c) >= 0 && one.indexOf(W.SWORD.silver.c) < 0,
      'серебро в руке — за спиной только сталь');
+}
+
+/* Краской положение не поймать — оба меча стального цвета что спереди,
+   что сзади. Единственный след геометрии, который холст готов отдать, —
+   точки moveTo/lineTo самого пути. Местные оси: «вперёд» — это -Y (там
+   же голова, в y=-7), значит меч за спиной обязан идти в +Y. */
+head('Мечи за спиной идут в +Y, назад, а не на макушку');
+{
+  W.reset(); W.setPhase('HUNT'); W.setPanel(null);
+
+  const steelT = traces(() => W.drawPawn(0, 0, 0, { steel: true }));
+  const steelHilt = steelT.find(p => p.k === 'moveTo' && p.x === -4);
+  const steelTip  = steelT.find(p => p.k === 'lineTo' && p.x === -7);
+  ok(!!steelHilt && steelHilt.y === 6, 'сталь у плеча лежит на +6 — за спиной, не перед лицом');
+  ok(!!steelTip && steelTip.y === 14, 'остриё стали на +14 — дальше по спине, не выше макушки (-12.2)');
+
+  const silverT = traces(() => W.drawPawn(0, 0, 0, { silver: true }));
+  const silverHilt = silverT.find(p => p.k === 'moveTo' && p.x === 4);
+  const silverTip  = silverT.find(p => p.k === 'lineTo' && p.x === 7);
+  ok(!!silverHilt && silverHilt.y === 6, 'серебро у плеча лежит на +6 — за спиной');
+  ok(!!silverTip && silverTip.y === 14, 'остриё серебра на +14 — за спиной, не спереди');
+}
+
+/* Хвост-причёска — тот же трюк: голова круг радиусом 5.2 с серединой в -7,
+   её задний край — -1.8. Хвост обязан начинаться ровно там, а не торчать
+   у темени (было -13, это ближе к макушке, чем сама макушка -12.2). */
+head('Хвост-причёска растёт от заднего края головы, а не от макушки');
+{
+  const headBack = -7 + 5.2;
+  const L = Object.assign({}, W.LOOK_DEF, { hair: 'tail' });
+  const tailT = traces(() => W.drawPawn(0, 0, 0, { look: L }));
+  const tailStart = tailT.find(p => p.k === 'moveTo' && p.x === 0);
+  ok(!!tailStart, 'хвост нашёлся в пути отрисовки');
+  ok(!!tailStart && Math.abs(tailStart.y - headBack) < 1e-9,
+     'хвост начинается на y=' + headBack.toFixed(1) + ' — сразу за головой, не на макушке');
 }
 
 head('pawnState отдаёт мечи и облик игрока');
