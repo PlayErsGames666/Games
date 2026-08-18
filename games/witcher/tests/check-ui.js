@@ -409,6 +409,46 @@ head('Застава стоит на дороге, иначе она не зас
      (orphan.length ? ': ' + orphan.join(' · ') : ''));
 }
 
+/* Сюжетное дело помнит и МЕСТО, и КРАЙ. Место решает, где выходят твари и
+   где засчитывается приход; край — то, что написано на доске и куда показывает
+   стрелка, когда ты вышел за его пределы. Если они расходятся, стрелка во
+   время самой драки на месте тянет игрока прочь: у Брода на 446 шагов, у
+   Старой мельницы — на две с лишним тысячи. */
+head('Сюжетное место лежит в том краю, который записан в деле');
+{
+  const off = [];
+  for (const q of W.STORY) {
+    const sp = W.SPOTS[q.spot], here = W.locAt(sp.x, sp.y);
+    if (here !== q.loc) off.push(sp.n + ': дело «' + W.LOCS[q.loc].n + '», место в «' + W.LOCS[here].n + '»');
+  }
+  note('сюжетных дел ' + W.STORY.length + ', разошлось ' + off.length);
+  ok(!off.length, 'край дела и край места сходятся везде' + (off.length ? ': ' + off.join(' · ') : ''));
+}
+
+head('И потому стрелка не уводит с места драки');
+for (let i = 0; i < W.STORY.length; i++) {
+  W.reset(); W.setStory(i); W.setPanel(null);
+  const q = W.storyNow();
+  W.takeStory();
+  const job = W.getTaken().find(c => c.story);
+  const p = W.getP(), sp = W.SPOTS[q.spot];
+  p.x = sp.x; p.y = sp.y; W.syncCam(); W.update(0.016);
+  W.syncFocus();
+  const g = W.questGoal();
+  if (!ok(job && job.arrived && !g,
+          q.t + ': на месте стрелка молчит' +
+          (g ? ', а не ведёт на «' + g.n + '» за ' + Math.round(Math.hypot(g.mx - p.x, g.my - p.y)) + ' шагов' : ''))) break;
+}
+
+head('Брод стоит на воде и на переправе');
+{
+  W.reset();
+  const f = W.SPOTS.ford;
+  ok(W.locAt(f.x, f.y) === 'shore', 'брод на берегу, а не в чаще');
+  ok(W.onPath(f.x, f.y), 'и на дороге: брод — это место, где тракт входит в воду');
+  ok(!W.obstNear(f.x, f.y).some(o => Math.hypot(f.x - o.x, f.y - o.y) < o.r + 9), 'к нему можно подойти');
+}
+
 head('Карта и панели рисуются');
 let drew = true;
 try {
