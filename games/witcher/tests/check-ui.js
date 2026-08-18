@@ -9,7 +9,7 @@
    (см. frame() в стенде), и нажатия, которые игра действительно разобрала.
    ======================================================================= */
 'use strict';
-const { W, ok, note, head, done, key, frame, frameMarks, span, said, peek, click, tap } = require('./harness.js');
+const { W, ok, note, head, done, key, frame, frameMarks, span, said, peek, click, tap, sandbox } = require('./harness.js');
 
 /* ---------------------------------------------------------------- клавиши */
 head('E закрывает то, что E и открыло');
@@ -419,5 +419,65 @@ try {
   W.setPanel(null);
 } catch (e) { drew = false; note('падение: ' + e.message); }
 ok(drew, 'все панели переживают отрисовку');
+
+/* ------------------------------------------------------- полный экран */
+/* shared/fullscreen.js отдаёт игре весь экран и ставит css-размер холста
+   РАВНЫМ ЭКРАНУ, ничего не спрашивая назад. Значит логический размер, который
+   игра выбирает в __fsResize, обязан совпасть с пропорцией экрана — иначе
+   масштаб по X и по Y разъедется и картинку расплющит. Так и было: высота
+   стояла намертво 640, а ширина зажималась в 480…1800, и на телефоне в
+   портрете картинку сжимало вширь на 36%, на сверхшироком тянуло на 32%. */
+head('Полный экран не плющит картинку');
+{
+  const SCREENS = [
+    ['ноутбук 1366×768', 1366, 708], ['монитор 1920×1080', 1920, 1020],
+    ['ультраширокий 3440×1440', 3440, 1380], ['сверхширокий 5120×1440', 5120, 1380],
+    ['iPad 768×1024 портрет', 768, 964], ['планшет 1024×1366', 1024, 1306],
+    ['телефон 412×915 портрет', 412, 855], ['телефон 360×800 портрет', 360, 740],
+    ['телефон 915×412 альбом', 915, 352],
+  ];
+  const skew = [], narrow = [];
+  for (const [n, fw, fh] of SCREENS) {
+    sandbox.__fsResize(fw, fh);
+    // сразу после __fsResize размер холста — ЛОГИЧЕСКИЙ: syncRes перебьёт его
+    // на битмап только в первой же отрисовке
+    const cw = sandbox.__canvas.width, ch = sandbox.__canvas.height;
+    const k = (fw / cw) / (fh / ch);                   // во сколько раз X растянут против Y
+    note(n.padEnd(25) + '→ ' + cw + '×' + ch + '   перекос ' + k.toFixed(3));
+    if (Math.abs(k - 1) > 0.02) skew.push(n + ' (' + Math.round(Math.abs(k - 1) * 100) + '%)');
+    if (cw < 480 || cw > 1800) narrow.push(n + ' (' + cw + ')');
+  }
+  ok(!skew.length, 'ни на одном экране картинку не перекашивает' +
+     (skew.length ? ': ' + skew.join(', ') : ''));
+  ok(!narrow.length, 'ширина везде в своих пределах 480…1800' +
+     (narrow.length ? ': ' + narrow.join(', ') : ''));
+}
+
+head('И при непривычной высоте всё на местах');
+{
+  // 1800×485 (сверхширокий) и 480×996 (телефон) — высота уже не 640
+  const bad = [];
+  for (const [fw, fh] of [[5120, 1380], [412, 855], [360, 740]]) {
+    sandbox.__fsResize(fw, fh);
+    const cw = sandbox.__canvas.width, ch = sandbox.__canvas.height;
+    for (const pan of [null, 'bag', 'bench', 'board', 'map', 'skills', 'craft']) {
+      W.reset(); W.setPanel(pan); W.setMouse(50, 50);
+      W.update(0.016);
+      for (const m of frameMarks()) {
+        const { x0, x1 } = span(m);
+        if (m.y > ch + 2) { bad.push(cw + '×' + ch + '/' + pan + ': «' + m.s.slice(0, 24) + '» ниже холста'); break; }
+      }
+      for (const b of W.getHits())
+        if (b.x < -0.5 || b.y < -0.5 || b.x + b.w > cw + 0.5 || b.y + b.h > ch + 0.5) {
+          bad.push(cw + '×' + ch + '/' + pan + ': кнопка за краем'); break;
+        }
+    }
+  }
+  ok(!bad.length, 'кнопки и надписи держатся и на 1800×485, и на 480×996' +
+     (bad.length ? ': ' + [...new Set(bad)].slice(0, 3).join(' · ') : ''));
+  sandbox.__fsRestore();                               // вернуть оконный размер
+  ok(sandbox.__canvas.width === 520 && sandbox.__canvas.height === 640,
+     'выход из полного экрана возвращает 520×640');
+}
 
 done();

@@ -30,15 +30,28 @@ const GAME = process.env.WITCHER_GAME || path.join(__dirname, '..', 'game.js');
    не реже, чем считает бой. Подменяем fillText и собираем строки. */
 /* Кроме самого текста запоминаем, ГДЕ он нарисован и какой выключкой: без
    этого не проверить, влезает ли строка в отведённое место. На этом стенд
-   уже спотыкался — следил за длиной подписи, а срезало её положением. */
+   уже спотыкался — следил за длиной подписи, а срезало её положением.
+
+   И ведём сдвиг холста: мир рисуется под translate камеры и подрезан окном
+   (clip), поэтому мировые подписи — имена тварей, названия мест — меряются
+   в шагах мира, а не в пикселях экрана. Не различать их значит ловить
+   «костёр за краем холста» там, где костёр просто далеко. Помечаем world. */
 const drawn = [], marks = [];
+let tstack = [{ tx: 0, ty: 0, clipped: false }];
+const ttop = () => tstack[tstack.length - 1];
 function makeCtx() {
   return new Proxy({}, {
     get(t, k) {
+      if (k === 'save') return () => tstack.push(Object.assign({}, ttop()));
+      if (k === 'restore') return () => { if (tstack.length > 1) tstack.pop(); };
+      if (k === 'translate') return (x, y) => { ttop().tx += x; ttop().ty += y; };
+      if (k === 'clip') return () => { ttop().clipped = true; };
+      if (k === 'setTransform') return () => { tstack = [{ tx: 0, ty: 0, clipped: false }]; };
       if (k === 'fillText') return (s, x, y) => {
         drawn.push(String(s));
-        marks.push({ s: String(s), x, y, al: t.textAlign || 'left',
-                     size: parseFloat(t.font) || 10, w: String(s).length * 5 });
+        marks.push({ s: String(s), x: x + ttop().tx, y: y + ttop().ty, al: t.textAlign || 'left',
+                     size: parseFloat(t.font) || 10, w: String(s).length * 5,
+                     world: ttop().clipped });
       };
       if (k === 'measureText') return s => ({ width: String(s).length * 5 });
       if (k === 'createImageData') return (w, h) => ({ width: w, height: h, data: new Uint8ClampedArray(w * h * 4) });
@@ -138,7 +151,9 @@ function frame() {
 /* Те же строки, но с местом: {s, x, y, al, size, w}. Границы по горизонтали
    считает span(): для выключки по центру и вправо начало отсчитывается от
    ширины, как это делает сам холст. */
-function frameMarks() { frame(); return marks.slice(); }
+function frameMarks() { frame(); return marks.filter(m => !m.world); }
+// а если понадобятся и мировые — вот они целиком
+function frameMarksAll() { frame(); return marks.slice(); }
 function span(m) {
   const x0 = m.al === 'center' ? m.x - m.w / 2 : m.al === 'right' ? m.x - m.w : m.x;
   return { x0, x1: x0 + m.w };
@@ -160,5 +175,5 @@ function tap(x, y) {
 }
 
 module.exports = { W: sandbox.__W, store, sandbox, ok, note, head, done, makeCanvas, GAME,
-                   key, frame, frameMarks, span, said, click, tap, buttons,
+                   key, frame, frameMarks, frameMarksAll, span, said, click, tap, buttons,
                    peek: name => vm.runInContext(name, sandbox) };
