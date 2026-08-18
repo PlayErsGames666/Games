@@ -176,20 +176,26 @@ document.getElementById('resetBank').addEventListener('click', () => {
 });
 
 // клавиши-хоткеи
+/* Буквы кода комнаты (H, S, D среди них) не должны попадать в игру: поле
+   кода — обычный input, а preventDefault на «s» и вовсе не давал её ввести. */
+function typing(e) { return !!(e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')); }
+// в русской раскладке H/S/D — это р/ы/в: без них хоткеи там просто мертвы
+const kHit = ['h', 'H', 'р', 'Р'], kStand = ['s', 'S', 'ы', 'Ы'], kDouble = ['d', 'D', 'в', 'В'];
 document.addEventListener('keydown', (e) => {
+  if (typing(e)) return;
   if (isNet()) {                              // онлайн те же хоткеи, но через сеть
     if (!T) return;
     if (T.ph === 'PLAY' && T.turn === net.me) {
-      if (e.key === 'h' || e.key === 'H' || e.key === 'ArrowDown') netAct('hit');
-      else if (e.key === 's' || e.key === 'S' || e.key === 'ArrowUp' || e.key === ' ') { e.preventDefault(); netAct('stand'); }
-      else if (e.key === 'd' || e.key === 'D') netAct('double');
+      if (kHit.includes(e.key) || e.key === 'ArrowDown') netAct('hit');
+      else if (kStand.includes(e.key) || e.key === 'ArrowUp' || e.key === ' ') { e.preventDefault(); netAct('stand'); }
+      else if (kDouble.includes(e.key)) netAct('double');
     } else if (T.ph === 'BET' && e.key === 'Enter' && !myReady) netDeal();
     return;
   }
   if (state === 'PLAYER') {
-    if (e.key === 'h' || e.key === 'H' || e.key === 'ArrowDown') hit();
-    else if (e.key === 's' || e.key === 'S' || e.key === 'ArrowUp' || e.key === ' ') { e.preventDefault(); stand(); }
-    else if (e.key === 'd' || e.key === 'D') double();
+    if (kHit.includes(e.key) || e.key === 'ArrowDown') hit();
+    else if (kStand.includes(e.key) || e.key === 'ArrowUp' || e.key === ' ') { e.preventDefault(); stand(); }
+    else if (kDouble.includes(e.key)) double();
   } else if (state === 'BET' && e.key === 'Enter') deal();
   else if (state === 'OVER' && e.key === 'Enter') { state = 'BET'; message = 'Сделай ставку и раздай карты'; player = []; dealer = []; render(); }
 });
@@ -225,7 +231,10 @@ function hostUnseat(slot) {
   if (!T) return;
   T.seats = T.seats.filter(s => s.slot !== slot);
   if (!T.seats.length) return;
-  if (T.ph === 'PLAY') { advanceTurn(); return; }
+  /* Ход передаём дальше, ТОЛЬКО если ушёл тот, кого ждали. Раньше здесь
+     передавали всегда — и выход постороннего перескакивал через игрока,
+     который ещё не сходил: карты остаются как есть, ставка сгорает. */
+  if (T.ph === 'PLAY') { if (T.turn === slot) advanceTurn(); else pushTable(); return; }
   // ушёл тот, кого ждали со ставкой — иначе стол висел бы до следующего клика
   if (T.ph === 'BET' && T.seats.every(s => s.ready)) { dealRound(); return; }
   pushTable();
@@ -296,7 +305,14 @@ function netDeal() {
 }
 function netAct(a) {
   if (!T || T.ph !== 'PLAY' || T.turn !== net.me) return;
-  if (a === 'double') { if (balance < currentBet) return; balance -= currentBet; currentBet *= 2; saveBank(); }
+  /* Удвоить можно только на двух картах — ровно это проверяет и хост. Раньше
+     здесь стояло одно «хватит ли крон»: клавиша D после «взять» снимала
+     ставку, хост такой ход молча отклонял, и крона пропадала впустую. */
+  if (a === 'double') {
+    const s = mySeat();
+    if (!s || s.cards.length !== 2 || balance < currentBet) return;
+    balance -= currentBet; currentBet *= 2; saveBank();
+  }
   if (net.isHost()) hostAct(0, a); else net.send({ t: 'act', a: a });
 }
 // итог раунда каждый начисляет себе сам — ровно один раз за раздачу
