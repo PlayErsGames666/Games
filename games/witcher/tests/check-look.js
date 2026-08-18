@@ -1,7 +1,7 @@
 /* Облик ведьмака: таблицы, запись, зеркало, панель.
    Пишется по частям вместе с задачами 2, 5 и 6 плана. */
 'use strict';
-const { W, store, ok, note, head, done } = require('./harness.js');
+const { W, store, ok, note, head, done, paints } = require('./harness.js');
 
 head('Умолчание, когда записи нет');
 {
@@ -87,6 +87,61 @@ head('Пешка поворачивается на все стороны');
     try { W.render(); } catch (e) { fell = 'угол ' + i + ': ' + e.message; break; }
   }
   ok(!fell, fell || 'шестнадцать направлений — рисуется без падения');
+}
+
+/* Зеркало в лагере обязано показывать облик, который человек ЕЩЁ ЛИСТАЕТ, —
+   тот не принят и в глобальный ещё не лёг. Пока drawPawn читала глобальный
+   облик мимо своей же подписи, превью в зеркале показывало бы что угодно,
+   кроме нужного. Проверяем по краскам: другого следа от картинки нет. */
+head('Пешка слушается переданного облика, а не глобального');
+{
+  W.reset(); W.setPhase('HUNT'); W.setPanel(null);
+  W.setLook({ skin: 'dark', hair: 'mane', hairC: 'black', beard: 'stubble', scar: 'none', eye: 'grey' });
+  const mine = { skin: 'pale', hair: 'mane', hairC: 'red', beard: 'stubble', scar: 'none', eye: 'green' };
+  const used = paints(() => W.drawPawn(0, 0, 0, { look: mine }));
+  note('красок за один вызов: ' + used.length);
+
+  ok(used.indexOf(W.HAIR_C.red.c) >= 0, 'волосы взяты из переданного облика');
+  ok(used.indexOf(W.HAIR_C.black.c) < 0, 'глобальный цвет волос не просочился');
+  ok(used.indexOf(W.SKINS.pale.c) >= 0, 'кожа взята из переданного облика');
+  ok(used.indexOf(W.SKINS.dark.c) < 0, 'глобальная кожа не просочилась');
+  ok(used.indexOf(W.EYES.green.c) >= 0, 'глаза взяты из переданного облика');
+  ok(used.indexOf(W.EYES.grey.c) < 0, 'глобальные глаза не просочились');
+
+  // а вызов БЕЗ облика по-прежнему рисует текущего ведьмака: запасной путь цел
+  const cur = paints(() => W.drawPawn(0, 0, 0, {}));
+  ok(cur.indexOf(W.HAIR_C.black.c) >= 0 && cur.indexOf(W.HAIR_C.red.c) < 0,
+     'без облика в st берётся глобальный');
+}
+
+head('Мечи за спиной — из st, а не из игрока');
+{
+  W.reset(); W.setPhase('HUNT'); W.setPanel(null);
+  const P = W.getP();
+  P.steel = null; P.silver = null;                     // у игрока мечей нет вовсе
+  const two = paints(() => W.drawPawn(0, 0, 0, { steel: true, silver: true }));
+  ok(two.indexOf(W.SWORD.steel.c) >= 0 && two.indexOf(W.SWORD.silver.c) >= 0,
+     'оба меча нарисованы по st, хотя у игрока их нет');
+
+  const none = paints(() => W.drawPawn(0, 0, 0, {}));
+  ok(none.indexOf(W.SWORD.steel.c) < 0 && none.indexOf(W.SWORD.silver.c) < 0,
+     'без мечей в st за спиной пусто');
+
+  // тот, что в руке, за спиной не торчит
+  const one = paints(() => W.drawPawn(0, 0, 0, { steel: true, silver: true, hand: 'silver' }));
+  ok(one.indexOf(W.SWORD.steel.c) >= 0 && one.indexOf(W.SWORD.silver.c) < 0,
+     'серебро в руке — за спиной только сталь');
+}
+
+head('pawnState отдаёт мечи и облик игрока');
+{
+  W.reset();
+  const P = W.getP();
+  P.steel = W.mkSword('steel', 0); P.silver = null;
+  W.setLook({ skin: 'tan', hair: 'braid', hairC: 'ash', beard: 'full', scar: 'eye', eye: 'amber' });
+  const st = W.pawnState();
+  ok(st.steel === true && st.silver === false, 'мечи сведены к да/нет по тому, что надето');
+  ok(!!st.look && st.look.hairC === 'ash' && st.look.hair === 'braid', 'облик игрока вложен в st');
 }
 
 done();

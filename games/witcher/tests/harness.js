@@ -37,6 +37,14 @@ const GAME = process.env.WITCHER_GAME || path.join(__dirname, '..', 'game.js');
    в шагах мира, а не в пикселях экрана. Не различать их значит ловить
    «костёр за краем холста» там, где костёр просто далеко. Помечаем world. */
 const drawn = [], marks = [];
+/* Какими КРАСКАМИ рисовали. Ни одного пикселя стенд наружу не отдаёт, зато
+   fillStyle и strokeStyle перед заливкой — отдаёт. Только этим и проверяется
+   «взят ли цвет из переданного облика, а не из глобального»: краска — всё,
+   что от картинки вообще доступно проверке.
+
+   Включается ТОЛЬКО на время одного вызова (paints()): держи запись всегда —
+   и за прогон в ней осядут сотни тысяч строк ни для чего. */
+let paint = null;
 let tstack = [{ tx: 0, ty: 0, clipped: false }];
 const ttop = () => tstack[tstack.length - 1];
 function makeCtx() {
@@ -57,6 +65,8 @@ function makeCtx() {
       if (k === 'createImageData') return (w, h) => ({ width: w, height: h, data: new Uint8ClampedArray(w * h * 4) });
       if (k === 'createRadialGradient' || k === 'createLinearGradient') return () => ({ addColorStop() {} });
       if (k === 'getImageData') return () => ({ data: [] });
+      if (paint && (k === 'fill' || k === 'fillRect')) return () => { paint.push(String(t.fillStyle)); };
+      if (paint && (k === 'stroke' || k === 'strokeRect')) return () => { paint.push(String(t.strokeStyle)); };
       if (k in t) return t[k];
       return () => {};
     },
@@ -172,6 +182,11 @@ function span(m) {
   const x0 = m.al === 'center' ? m.x - m.w / 2 : m.al === 'right' ? m.x - m.w : m.x;
   return { x0, x1: x0 + m.w };
 }
+// Все краски, которыми рисовали внутри fn: paints(() => W.drawPawn(...)).
+function paints(fn) {
+  paint = [];
+  try { fn(); return paint; } finally { paint = null; }
+}
 // Есть ли среди написанного строка с таким куском.
 function said(lines, part) { return lines.some(s => s.indexOf(part) >= 0); }
 // Нажать кнопку под игрой по её id из index.html.
@@ -189,5 +204,5 @@ function tap(x, y) {
 }
 
 module.exports = { W: sandbox.__W, store, sandbox, ok, note, head, done, makeCanvas, GAME,
-                   key, keyDown, winEvent, frame, frameMarks, frameMarksAll, span, said, click, tap, buttons,
+                   key, keyDown, winEvent, frame, frameMarks, frameMarksAll, span, said, click, tap, buttons, paints,
                    peek: name => vm.runInContext(name, sandbox) };

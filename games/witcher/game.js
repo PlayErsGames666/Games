@@ -3305,10 +3305,15 @@ function pawnState() {
     hand: P.hand, mut: P.mut > 0, mut2: P.mut2 > 0,
     quen: P.quen > 0, dodge: P.dodge > 0, down: over,
     walk: P.walk || 0, xbow: !!P.xbow,
+    steel: !!P.steel, silver: !!P.silver, look: look,
   };
 }
 function drawPawn(x, y, a, st) {
   st = st || {};
+  /* Облик берём из ПЕРЕДАННОГО, а не из глобального: зеркало показывает то,
+     что человек сейчас листает, и оно ещё не принято. Глобальный — запасной
+     путь, чтобы вызов без облика по-прежнему рисовал текущего ведьмака. */
+  const L = st.look || look;
   const A = st.armor && ARMOR[st.armor] ? ARMOR[st.armor] : null;
   const cloak = st.mut2 ? '#5a2020' : (A ? A.c : '#6b6f78');
   // силуэт по ВЕСУ доспеха: лёгкий узкий, тяжёлый широкий с пластинами
@@ -3325,7 +3330,7 @@ function drawPawn(x, y, a, st) {
   ctx.beginPath(); ctx.ellipse(0, 2, bw * 0.42, 9, 0, 0, 6.3); ctx.fill();
 
   // мечи за спиной: в руке — только один, второй остаётся торчать
-  const steel = P.steel && st.hand !== 'steel', silver = P.silver && st.hand !== 'silver';
+  const steel = st.steel && st.hand !== 'steel', silver = st.silver && st.hand !== 'silver';
   if (steel)  { ctx.strokeStyle = SWORD.steel.c;  ctx.lineWidth = 1.8;
                 ctx.beginPath(); ctx.moveTo(-4, -6 + bob); ctx.lineTo(-7, -14 + bob); ctx.stroke(); }
   if (silver) { ctx.strokeStyle = SWORD.silver.c; ctx.lineWidth = 1.8;
@@ -3349,22 +3354,22 @@ function drawPawn(x, y, a, st) {
     ctx.beginPath(); ctx.moveTo(bw / 2 - 1, 8 + bob); ctx.lineTo(bw / 2 + 4, 10 + bob); ctx.stroke();
   }
 
-  const hc = (HAIR_C[look.hairC] || HAIR_C.white).c;
-  const sc = (SKINS[look.skin] || SKINS.fair).c;
-  const ec = (EYES[look.eye] || EYES.cat).c;
+  const hc = (HAIR_C[L.hairC] || HAIR_C.white).c;
+  const sc = (SKINS[L.skin] || SKINS.fair).c;
+  const ec = (EYES[L.eye] || EYES.cat).c;
   ctx.fillStyle = st.mut2 ? '#c98a7a' : sc;                 // голова
   ctx.beginPath(); ctx.arc(0, -7 + bob, 5.2, 0, 6.3); ctx.fill();
 
   ctx.fillStyle = hc;                                       // волосы
-  if (look.hair !== 'bald') {
+  if (L.hair !== 'bald') {
     ctx.beginPath(); ctx.arc(0, -7 + bob, 5.2, Math.PI, 0); ctx.fill();
   }
-  if (look.hair === 'mane') {                               // грива по бокам
+  if (L.hair === 'mane') {                                  // грива по бокам
     rrect(-5.2, -7 + bob, 1.8, 6, 0.9); ctx.fill();
     rrect(3.4, -7 + bob, 1.8, 6, 0.9); ctx.fill();
-  } else if (look.hair === 'tail') {                        // хвост назад
+  } else if (L.hair === 'tail') {                           // хвост назад
     rrect(-1.2, -13 + bob, 2.4, 5, 1.2); ctx.fill();
-  } else if (look.hair === 'braid') {                       // коса вбок
+  } else if (L.hair === 'braid') {                          // коса вбок
     rrect(3.6, -9 + bob, 1.8, 7, 0.9); ctx.fill();
   }
 
@@ -3372,15 +3377,15 @@ function drawPawn(x, y, a, st) {
   ctx.beginPath(); ctx.arc(-2, -6 + bob, 0.85, 0, 6.3); ctx.fill();
   ctx.beginPath(); ctx.arc(2, -6 + bob, 0.85, 0, 6.3); ctx.fill();
 
-  if (look.beard !== 'none') {                              // борода
-    ctx.fillStyle = look.beard === 'stubble' ? 'rgba(90,80,70,.55)' : hc;
-    const bh = look.beard === 'full' ? 4 : look.beard === 'short' ? 2.6 : 1.6;
+  if (L.beard !== 'none') {                                 // борода
+    ctx.fillStyle = L.beard === 'stubble' ? 'rgba(90,80,70,.55)' : hc;
+    const bh = L.beard === 'full' ? 4 : L.beard === 'short' ? 2.6 : 1.6;
     rrect(-3.2, -4.4 + bob, 6.4, bh, 1.4); ctx.fill();
   }
-  if (look.scar !== 'none') {                               // шрам
+  if (L.scar !== 'none') {                                  // шрам
     ctx.strokeStyle = 'rgba(150,90,80,.85)'; ctx.lineWidth = 0.8;
     ctx.beginPath();
-    if (look.scar === 'eye') { ctx.moveTo(-2.6, -9 + bob); ctx.lineTo(-1.4, -4 + bob); }
+    if (L.scar === 'eye') { ctx.moveTo(-2.6, -9 + bob); ctx.lineTo(-1.4, -4 + bob); }
     else { ctx.moveTo(2.2, -8 + bob); ctx.lineTo(3.4, -4.5 + bob); }
     ctx.stroke();
   }
