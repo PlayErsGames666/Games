@@ -45,6 +45,20 @@ const drawn = [], marks = [];
    Включается ТОЛЬКО на время одного вызова (paints()): держи запись всегда —
    и за прогон в ней осядут сотни тысяч строк ни для чего. */
 let paint = null;
+/* Поворот холста и координаты-пустышки — ещё два следа, по которым картинку
+   видно, не видя пикселей.
+
+   spin: лежачий ведьмак от стоячего отличается ТОЛЬКО доворотом холста —
+   ни краски, ни текста у него своих нет. Пишем углы ctx.rotate.
+
+   nanw: холст молча глотает путь с NaN в координатах — ни ошибки, ни следа,
+   просто пусто на экране. Проверка «не упало» такое пропускает целиком.
+   Записываем имя каждого вызова, которому дали не-число. */
+let spin = null, nanw = null;
+function nanArgs(k, a) {
+  if (!nanw) return;
+  for (const v of a) if (typeof v === 'number' && v !== v) { nanw.push(k); return; }
+}
 let tstack = [{ tx: 0, ty: 0, clipped: false }];
 const ttop = () => tstack[tstack.length - 1];
 function makeCtx() {
@@ -52,7 +66,8 @@ function makeCtx() {
     get(t, k) {
       if (k === 'save') return () => tstack.push(Object.assign({}, ttop()));
       if (k === 'restore') return () => { if (tstack.length > 1) tstack.pop(); };
-      if (k === 'translate') return (x, y) => { ttop().tx += x; ttop().ty += y; };
+      if (k === 'translate') return (x, y) => { nanArgs(k, [x, y]); ttop().tx += x; ttop().ty += y; };
+      if (k === 'rotate') return a => { nanArgs(k, [a]); if (spin) spin.push(a); };
       if (k === 'clip') return () => { ttop().clipped = true; };
       if (k === 'setTransform') return () => { tstack = [{ tx: 0, ty: 0, clipped: false }]; };
       if (k === 'fillText') return (s, x, y) => {
@@ -65,10 +80,10 @@ function makeCtx() {
       if (k === 'createImageData') return (w, h) => ({ width: w, height: h, data: new Uint8ClampedArray(w * h * 4) });
       if (k === 'createRadialGradient' || k === 'createLinearGradient') return () => ({ addColorStop() {} });
       if (k === 'getImageData') return () => ({ data: [] });
-      if (paint && (k === 'fill' || k === 'fillRect')) return () => { paint.push(String(t.fillStyle)); };
-      if (paint && (k === 'stroke' || k === 'strokeRect')) return () => { paint.push(String(t.strokeStyle)); };
+      if (k === 'fill' || k === 'fillRect') return (...a) => { nanArgs(k, a); if (paint) paint.push(String(t.fillStyle)); };
+      if (k === 'stroke' || k === 'strokeRect') return (...a) => { nanArgs(k, a); if (paint) paint.push(String(t.strokeStyle)); };
       if (k in t) return t[k];
-      return () => {};
+      return (...a) => { nanArgs(k, a); };
     },
     set(t, k, v) { t[k] = v; return true; },
   });
@@ -187,6 +202,16 @@ function paints(fn) {
   paint = [];
   try { fn(); return paint; } finally { paint = null; }
 }
+// Все повороты холста внутри fn, в радианах: spins(() => W.drawPawn(...)).
+function spins(fn) {
+  spin = [];
+  try { fn(); return spin; } finally { spin = null; }
+}
+// Имена вызовов холста, которым внутри fn дали NaN вместо числа.
+function nans(fn) {
+  nanw = [];
+  try { fn(); return nanw; } finally { nanw = null; }
+}
 // Есть ли среди написанного строка с таким куском.
 function said(lines, part) { return lines.some(s => s.indexOf(part) >= 0); }
 // Нажать кнопку под игрой по её id из index.html.
@@ -204,5 +229,6 @@ function tap(x, y) {
 }
 
 module.exports = { W: sandbox.__W, store, sandbox, ok, note, head, done, makeCanvas, GAME,
-                   key, keyDown, winEvent, frame, frameMarks, frameMarksAll, span, said, click, tap, buttons, paints,
+                   key, keyDown, winEvent, frame, frameMarks, frameMarksAll, span, said, click, tap, buttons,
+                   paints, spins, nans,
                    peek: name => vm.runInContext(name, sandbox) };

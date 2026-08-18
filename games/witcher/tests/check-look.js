@@ -1,7 +1,7 @@
 /* Облик ведьмака: таблицы, запись, зеркало, панель.
    Пишется по частям вместе с задачами 2, 5 и 6 плана. */
 'use strict';
-const { W, store, ok, note, head, done, paints } = require('./harness.js');
+const { W, store, ok, note, head, done, paints, spins, nans } = require('./harness.js');
 
 head('Умолчание, когда записи нет');
 {
@@ -142,6 +142,169 @@ head('pawnState отдаёт мечи и облик игрока');
   const st = W.pawnState();
   ok(st.steel === true && st.silver === false, 'мечи сведены к да/нет по тому, что надето');
   ok(!!st.look && st.look.hairC === 'ash' && st.look.hair === 'braid', 'облик игрока вложен в st');
+}
+
+/* =====================  СНАРЯЖЕНИЕ И СОСТОЯНИЕ НА ФИГУРЕ  =====================
+   Восемь доспехов, две руки, две ступени мутации, арбалет, Квен, уклонение,
+   падение. Проверка «не упало» тут самая слабая из возможных: она проходит и
+   тогда, когда рисовалка молча не нарисовала ничего. Поэтому всё, что вообще
+   оставляет след, проверяем по СЛЕДУ — по краске, по повороту, по NaN. */
+
+head('Рисуется в любом доспехе');
+{
+  /* equip() берёт вещь ТОЛЬКО из сумки: сделать mkArmor и сразу отдать его
+     equip — значит получить «Этого нет в сумке» и прогнать восемь кругов по
+     одному и тому же лёгкому доспеху. Кладём в сумку и сверяем, что надето. */
+  let fell = null, n = 0;
+  for (const k of W.ARMOR_KEYS) {
+    W.reset(); W.setPhase('HUNT'); W.setPanel(null);
+    const it = W.mkArmor(k, 0, null);
+    W.getInv().push(it); W.equip(it);
+    if (W.getP().armor !== it) { fell = k + ': доспех не надет, рисовать нечего'; break; }
+    if (W.pawnState().armor !== k) { fell = k + ': pawnState отдал доспех «' + W.pawnState().armor + '»'; break; }
+    try { W.render(); } catch (e) { fell = k + ': ' + e.message; break; }
+    n++;
+  }
+  note('доспехов надето и отрисовано: ' + n + ' из ' + W.ARMOR_KEYS.length);
+  ok(!fell, fell || 'все восемь доспехов надеваются и рисуются');
+}
+
+head('Плащ красится по надетому доспеху');
+{
+  let bad = null;
+  for (const k of W.ARMOR_KEYS) {
+    const used = paints(() => W.drawPawn(0, 0, 0, { armor: k }));
+    if (used.indexOf(W.ARMOR[k].c) < 0) { bad = k + ' (ждали ' + W.ARMOR[k].c + ')'; break; }
+  }
+  ok(!bad, bad ? ('плащ не покрашен цветом доспеха: ' + bad) : 'у всех восьми доспехов плащ своего цвета');
+
+  const bare = paints(() => W.drawPawn(0, 0, 0, { armor: null }));
+  ok(bare.indexOf('#6b6f78') >= 0 && bare.indexOf(W.ARMOR.light.c) < 0,
+     'без доспеха плащ серый, а не цвета лёгкого');
+
+  const junk = paints(() => W.drawPawn(0, 0, 0, { armor: 'доспех-которого-нет' }));
+  ok(junk.indexOf('#6b6f78') >= 0, 'незнакомый ключ доспеха не роняет и красит серым');
+}
+
+/* Пластины и наплечники — единственное, чем тяжёлый доспех отличается от
+   лёгкого на глаз. Ловим по краске: больше этих двух цветов в пешке никто не
+   берёт. Порог — ВЕС: тяжело от 20, средне от 12. */
+head('Тяжёлый доспех виден пластинами, средний — наплечниками');
+{
+  const PLATE = 'rgba(255,255,255,.16)', PAD = 'rgba(0,0,0,.3)';
+  const at = k => paints(() => W.drawPawn(0, 0, 0, { armor: k }));
+
+  ok(at('heavy').indexOf(PLATE) >= 0, 'у тяжёлого (вес 23) нарисованы пластины');
+  ok(at('bear').indexOf(PLATE) >= 0, 'у медвежьего (вес 26) тоже');
+  ok(at('medium').indexOf(PLATE) < 0 && at('wolf').indexOf(PLATE) < 0,
+     'у средних (13 и 15) пластин нет');
+  ok(at('light').indexOf(PLATE) < 0, 'у лёгкого пластин нет');
+
+  ok(at('heavy').indexOf(PAD) >= 0 && at('medium').indexOf(PAD) >= 0 && at('wolf').indexOf(PAD) >= 0,
+     'наплечники и у тяжёлого, и у средних');
+  let bare = null;
+  for (const k of ['light', 'cat', 'griffin', 'viper']) {          // вес 6, 5.5, 10, 11
+    const u = at(k);
+    if (u.indexOf(PAD) >= 0 || u.indexOf(PLATE) >= 0) { bare = k; break; }
+  }
+  ok(!bare, bare ? ('лёгкий «' + bare + '» отрисован как тяжёлый') : 'все четыре лёгких — без пластин и наплечников');
+}
+
+head('Мутация видна на фигуре');
+{
+  const VEIN1 = 'rgba(200,60,50,.6)', VEIN2 = 'rgba(255,60,40,.9)';
+  const CLAW = '#ffd0a0', RAGE = '#5a2020', FACE2 = '#c98a7a';
+  const L = W.LOOK_DEF;                                   // кожа fair, чтобы было с чем сравнивать
+  const calm = paints(() => W.drawPawn(0, 0, 0, { armor: 'heavy', look: L }));
+  const m1   = paints(() => W.drawPawn(0, 0, 0, { armor: 'heavy', look: L, mut: true }));
+  const m2   = paints(() => W.drawPawn(0, 0, 0, { armor: 'heavy', look: L, mut: true, mut2: true }));
+
+  ok(calm.indexOf(VEIN1) < 0 && calm.indexOf(VEIN2) < 0 && calm.indexOf(CLAW) < 0,
+     'без мутации ни жил, ни когтей');
+  ok(m1.indexOf(VEIN1) >= 0, 'первая ступень — жилы на лице');
+  ok(m1.indexOf(CLAW) < 0 && m1.indexOf(RAGE) < 0,
+     'на первой ступени когтей ещё нет и плащ не сорвало в красный');
+  ok(m1.indexOf(W.ARMOR.heavy.c) >= 0, 'на первой ступени плащ ещё цвета доспеха');
+
+  ok(m2.indexOf(VEIN2) >= 0 && m2.indexOf(VEIN1) < 0, 'на второй ступени жилы своей, яркой краской');
+  ok(m2.indexOf(CLAW) >= 0, 'на второй ступени вылезли когти');
+  ok(m2.indexOf(RAGE) >= 0 && m2.indexOf(W.ARMOR.heavy.c) < 0,
+     'на второй ступени плащ красный, цвета доспеха уже не видно');
+  ok(m2.indexOf(FACE2) >= 0 && m2.indexOf(W.SKINS.fair.c) < 0,
+     'и лицо на срыве налилось, а не осталось обычной кожей');
+}
+
+head('Арбалет на поясе виден только когда он есть');
+{
+  const on  = paints(() => W.drawPawn(0, 0, 0, { xbow: true }));
+  const off = paints(() => W.drawPawn(0, 0, 0, { xbow: false }));
+  ok(on.indexOf('#6b5a3a') >= 0, 'арбалет нарисован');
+  ok(off.indexOf('#6b5a3a') < 0, 'без арбалета на поясе пусто');
+}
+
+head('Рисуется в любом состоянии');
+{
+  const cases = [
+    ['голый',             P => { P.steel = null; P.silver = null; P.xbow = null; P.armor = null; }],
+    ['со сталью в руке',  P => { P.hand = 'steel'; }],
+    ['с серебром в руке', P => { P.hand = 'silver'; }],
+    ['под Квеном',        P => { P.quen = 50; P.quenT = 5; }],
+    ['в уклонении',       P => { P.dodge = 0.2; }],
+    ['мутация первая',    P => { P.mut = 5; }],
+    ['мутация вторая',    P => { P.mut = 5; P.mut2 = 5; }],
+    ['на ходу',           P => { P.walk = 3.7; }],
+  ];
+  let fell = null;
+  for (const [name, set] of cases) {
+    W.reset(); W.setPhase('HUNT'); W.setPanel(null);
+    set(W.getP());
+    try { W.render(); } catch (e) { fell = name + ': ' + e.message; break; }
+  }
+  ok(!fell, fell || 'все восемь состояний рисуются');
+}
+
+/* Холст МОЛЧА глотает путь, у которого в координатах NaN: ни ошибки, ни следа,
+   просто пусто на экране. Ровно так пешка и пропадала бы в зеркале — там
+   drawPawn зовут со своим st, где про шаг ничего не сказано. */
+head('Пешка не уходит в NaN, когда про шаг не сказано');
+{
+  const full = { armor: 'heavy', steel: true, silver: true, xbow: true, mut: true, mut2: true, look: W.LOOK_DEF };
+  const bad = nans(() => W.drawPawn(0, 0, 0, full));
+  ok(bad.length === 0, bad.length
+     ? ('в NaN ушли вызовы: ' + Array.from(new Set(bad)).join(', '))
+     : 'без st.walk все координаты остались числами');
+
+  const bad2 = nans(() => W.drawPawn(0, 0, 0, { walk: 1.4 }));
+  ok(bad2.length === 0, bad2.length ? ('с шагом в NaN ушли: ' + Array.from(new Set(bad2)).join(', ')) : 'и с шагом тоже');
+}
+
+head('Лежачий ведьмак тоже рисуется');
+{
+  W.reset(); W.setPhase('HUNT'); W.setPanel(null);
+  const P = W.getP();
+  P.inv = 0; P.dodge = 0;                       // иначе удар отбрасывается на первой же строке
+  W.hurtPlayer(999999, 'проверка');
+  ok(W.getOver(), 'ведьмак и правда упал');
+  ok(W.pawnState().down === true, 'pawnState это заметил');
+  let fell = null;
+  try { W.render(); } catch (e) { fell = e.message; }
+  ok(!fell, fell || 'лежачая фигура рисуется');
+}
+
+/* Лежачего от стоячего на стенде отличить нечем, кроме поворота холста: своих
+   красок у него нет, прозрачность наружу не выходит. Пишем углы. */
+head('Лежачий повёрнут иначе стоячего');
+{
+  const up   = spins(() => W.drawPawn(0, 0, 0, { down: false }));
+  const down = spins(() => W.drawPawn(0, 0, 0, { down: true }));
+  ok(up.length === 1 && Math.abs(up[0] - Math.PI / 2) < 1e-9,
+     'стоячий развёрнут ровно на четверть оборота: вперёд — это -Y');
+  ok(down.length === 1 && Math.abs(down[0] - (Math.PI / 2 + 1.3)) < 1e-9,
+     'лежачий довёрнут ещё на 1.3 радиана — фигура завалена набок');
+
+  const look = spins(() => W.drawPawn(0, 0, 1.0, {}));
+  ok(look.length === 1 && Math.abs(look[0] - (1.0 + Math.PI / 2)) < 1e-9,
+     'взгляд входит в поворот целиком: фигура смотрит туда же, куда ведьмак');
 }
 
 done();
