@@ -1926,20 +1926,22 @@ function castRune(i) {
   const a = faceAim();
   if (R.k === 'igni') {
     /* ЗОНА — одна на весь знак: и по ней бьёт, и её же рисует граница. Числа
-       ниже посчитаны так, чтобы НИ ОДНА искра и ни один язык не вылетели за
-       LEN — и без всякой подрезки, на ровных кадрах:
-         искра  12 + 98 · (1 + 0.016/0.3)  = 115.2, кружок 1.6  → 116.8
-         язык   10 + 96 · (1 + 0.016/0.28) = 111.5, кончик 4.5  → 116.0
+       ниже посчитаны так, чтобы за LEN не вылез ВИДИМЫЙ КРАЙ — не середина
+       частицы, а пятно, которое рисуют. На ровных кадрах, без всякой подрезки:
+         искра  12 + 98 · (1 + 0.016/0.3)  = 115.2, кружок 1.6 → 116.8
+         язык   10 + 92 · (1 + 0.016/0.28) = 107.3, кончик 4.5 → 111.8
        Множитель — за лишний шаг: частица успевает шагнуть на кадре, где её
-       срок уже вышел. Пламя обещает ровно то, что выполняет, иначе граница
-       врёт, и знак читать нельзя. */
+       срок уже вышел. А подрезка rmax считается от САМОГО ШИРОКОГО, чем род
+       вообще может нарисоваться (у языка это 9 в начале пути, а не 4.5 в
+       конце): тогда обещание держится, чем бы частицу ни разогнало.
+       Пламя обещает ровно то, что выполняет, иначе граница врёт. */
     const LEN = 120, HALF = 0.7;
     signCast(a, '#ffd06a');
     addPart({ scorch: true, x: P.x, y: P.y, a, w: HALF, len: LEN, c: '#0a0705', t: 0, life: 2 });
     for (let i = 0; i < 26; i++) {                     // языки пламени
       const an = a + (Math.random() - 0.5) * 1.28;     // отклонение ≤ 0.64 — внутри HALF
-      const d = 26 + rnd(70), dur = 0.28 + rnd(0.2), at = rnd(0.14);
-      addPart({ flame: true, a: an, sz: 0.5 + rnd(0.5), ox: P.x, oy: P.y, rmax: LEN - 5,
+      const d = 26 + rnd(66), dur = 0.28 + rnd(0.2), at = rnd(0.14);
+      addPart({ flame: true, a: an, sz: 0.5 + rnd(0.5), ox: P.x, oy: P.y, rmax: LEN - 9,
                 x: P.x + Math.cos(an) * 10, y: P.y + Math.sin(an) * 10,
                 vx: Math.cos(an) * (d / dur), vy: Math.sin(an) * (d / dur),
                 t: 0, life: at + dur, at });
@@ -3724,7 +3726,14 @@ function drawWorld() {
   /* ЧИТАЕМОСТЬ ВАЖНЕЕ КРАСОТЫ. Правило одно на все роды ниже: граница (edge)
      рисуется ярко, чётко и один раз, а стихия внутри неё — всегда сквозь
      полупрозрачность (не гуще 0.85). Иначе в третьем Игни подряд перестанет
-     быть видно, докуда знак достаёт, — и знак станет нечитаемым. */
+     быть видно, докуда знак достаёт, — и знак станет нечитаемым.
+
+     ВЫЛЕТ РИСУНКА (p.ext). Каждая ветка помечает, насколько её мазок уходит
+     от p.x/p.y: полурадиус кружка, полудлина языка, радиус дуги вместе с
+     половиной обводки. Обещает граница не серединам частиц, а тому, что
+     ВИДНО, — а видимый край снаружи иначе не измерить: в частице лежит
+     точка, на экране пятно. Число не пересказывает рисунок, а даётся ему:
+     ниже в ctx уходит ровно p.ext, так что разойтись им нечем. */
   for (const p of parts) {
     /* Прожитая доля считается от ВЫХОДА частицы, а не от рождения: у
        отложенных (p.at) иначе половина жизни ушла бы на невидимое ожидание,
@@ -3749,8 +3758,10 @@ function drawWorld() {
       }
       ctx.closePath(); ctx.stroke();
       ctx.globalAlpha = s * 0.45;
-      ctx.beginPath(); ctx.arc(0, 0, 3 + kk * 6, 0, 6.3); ctx.stroke();
+      const gr = 3 + kk * 6;
+      ctx.beginPath(); ctx.arc(0, 0, gr, 0, 6.3); ctx.stroke();
       ctx.restore();
+      p.ext = Math.max(6 + kk * 4, gr) + 0.7;          // треугольник, круг и полуобводка
     } else if (p.edge) {
       /* ГРАНИЦА ПОРАЖЕНИЯ. Не украшение, а обещание: досюда достанет. Держит
          полную яркость больше половины срока и только потом гаснет — мигающую
@@ -3758,6 +3769,7 @@ function drawWorld() {
          без неё жёлтое по выжженной земле и по песку сливается.
          Радиус и раствор берутся из p.len/p.w — тех самых, по которым бьёт. */
       const al = Math.min(1, (1 - kk) * 2.2);
+      p.ext = p.len + 2.25;                            // сама дуга и есть обещание
       ctx.beginPath(); ctx.arc(p.x, p.y, p.len, p.a - p.w, p.a + p.w);
       ctx.globalAlpha = al * 0.5; ctx.strokeStyle = '#0b0a08'; ctx.lineWidth = 4.5; ctx.stroke();
       ctx.globalAlpha = al; ctx.strokeStyle = p.c; ctx.lineWidth = 1.8; ctx.stroke();
@@ -3772,42 +3784,53 @@ function drawWorld() {
     } else if (p.scorch) {
       // выжженная земля: остаётся под ногами ещё две секунды после того, как погасло
       ctx.globalAlpha = (1 - kk) * 0.42; ctx.fillStyle = p.c;
+      p.ext = p.len;                                   // залито, без обводки — край ровно по len
       ctx.beginPath(); ctx.moveTo(p.x, p.y);
-      ctx.arc(p.x, p.y, p.len, p.a - p.w, p.a + p.w); ctx.closePath(); ctx.fill();
+      ctx.arc(p.x, p.y, p.ext, p.a - p.w, p.a + p.w); ctx.closePath(); ctx.fill();
     } else if (p.flame) {
       /* Язык пламени остывает по дороге: белый → жёлтый → оранжевый →
          тёмно-красный. Цвет берём от прожитой доли, а не от времени: так
          короткий и длинный языки остывают одинаково честно. И сам он к концу
          съёживается — огонь не расползается пятном, а именно догорает. */
       const rr = (1 - kk * 0.5) * p.sz;
+      p.ext = rr * 9;                                  // полудлина языка вдоль полёта
       ctx.globalAlpha = (1 - kk) * 0.8;
       ctx.fillStyle = kk < 0.22 ? '#fff6d0' : kk < 0.45 ? '#ffd25a' : kk < 0.72 ? '#ff8a2a' : '#c22c10';
-      ctx.beginPath(); ctx.ellipse(p.x, p.y, rr * 9, rr * 5.5, p.a, 0, 6.3); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(p.x, p.y, p.ext, rr * 5.5, p.a, 0, 6.3); ctx.fill();
     } else if (p.spark) {
       const al = clamp(1 - kk, 0, 1);
       ctx.strokeStyle = p.c; ctx.lineWidth = 1.2; ctx.globalAlpha = al * 0.7;
       ctx.beginPath();                                 // короткий хвост по ходу полёта
       ctx.moveTo(p.x - p.vx * 0.012, p.y - p.vy * 0.012); ctx.lineTo(p.x, p.y); ctx.stroke();
       ctx.globalAlpha = al * 0.85; ctx.fillStyle = p.c;
-      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 6.3); ctx.fill();
+      p.ext = p.r;                                     // хвост тянется НАЗАД, вперёд — только кружок
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.ext, 0, 6.3); ctx.fill();
     } else if (p.smoke) {
       // самое бледное, что есть на экране: дым не должен заслонять тварей
       ctx.globalAlpha = (1 - kk) * 0.24; ctx.fillStyle = '#4a423c';
-      ctx.beginPath(); ctx.arc(p.x, p.y, 7 + kk * 13, 0, 6.3); ctx.fill();
+      p.ext = 7 + kk * 13;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.ext, 0, 6.3); ctx.fill();
     } else if (p.wave) {
-      // волна приходит РОВНО на границу и там гаснет — это второе прочтение зоны
-      const rr = 14 + kk * (p.len - 14);
+      /* Волна приходит РОВНО на границу и там гаснет — это второе прочтение
+         зоны. Полуширину обводки вычитаем из хода: иначе внешний край мазка
+         вылезал бы за дугу на треть шага. Мелочь, но обещание — не мелочь. */
+      const lw = p.thick * (1 - kk * 0.55);
+      const rr = 14 + kk * (p.len - 14) - lw / 2;
+      p.ext = rr + lw / 2;
       ctx.globalAlpha = (1 - kk) * 0.85; ctx.strokeStyle = p.c;
-      ctx.lineWidth = p.thick * (1 - kk * 0.55);
+      ctx.lineWidth = lw;
       ctx.beginPath(); ctx.arc(p.x, p.y, rr, p.a - p.w, p.a + p.w); ctx.stroke();
     } else if (p.dust) {
       ctx.globalAlpha = clamp(1 - kk, 0, 1) * 0.5; ctx.fillStyle = '#9c9484';
-      ctx.beginPath(); ctx.arc(p.x, p.y, 2 + kk * 4, 0, 6.3); ctx.fill();
+      p.ext = 2 + kk * 4;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.ext, 0, 6.3); ctx.fill();
     } else if (p.ring) {
       ctx.strokeStyle = p.c; ctx.lineWidth = 2;
+      p.ext = p.r * (1 + kk) + 1;
       ctx.beginPath(); ctx.arc(p.x, p.y, p.r * (1 + kk), 0, 6.3); ctx.stroke();
     } else {
-      ctx.fillStyle = p.c; ctx.beginPath(); ctx.arc(p.x, p.y, p.r || 2, 0, 6.3); ctx.fill();
+      p.ext = p.r || 2;
+      ctx.fillStyle = p.c; ctx.beginPath(); ctx.arc(p.x, p.y, p.ext, 0, 6.3); ctx.fill();
     }
     ctx.globalAlpha = 1;
   }

@@ -75,6 +75,16 @@ function nanArgs(k, a) {
    фигура уедет в несколько раз дальше от угла вместо того, чтобы вырасти на
    месте. По одним лишь местным осям такую ошибку не поймать: они те же. */
 let trace = null, arcw = null;
+/* Путь, набранный со времени последнего beginPath. Нужен только затем, чтобы
+   отдать дугу вместе с той краской, какой её ДЕЙСТВИТЕЛЬНО провели. */
+let pathBuf = [];
+function flushPath(kind, col, t) {
+  for (const el of pathBuf) {
+    arcw.push(Object.assign({ k: kind, c: col,
+                              al: t.globalAlpha === undefined ? 1 : t.globalAlpha,
+                              w: t.lineWidth === undefined ? 1 : t.lineWidth }, el));
+  }
+}
 let tstack = [{ tx: 0, ty: 0, sx: 1, sy: 1, clipped: false }];
 const ttop = () => tstack[tstack.length - 1];
 // местные оси → холст: сперва растянуть, потом сдвинуть
@@ -101,12 +111,19 @@ function makeCtx() {
       /* Дуги — отдельным списком, а не вместе с moveTo/lineTo: у знаков вся
          граница нарисована одной дугой, и без её радиуса не проверить, не
          врёт ли обещанная дальность. В trace их подмешивать нельзя — там уже
-         считают «точки пути», и центр дуги за точку пути не сойдёт. */
-      if (k === 'arc') return (x, y, r, a0, a1) => {
+         считают «точки пути», и центр дуги за точку пути не сойдёт.
+
+         Дуга КЛАДЁТСЯ в путь, а записывается только когда её обвели или
+         залили — и стиль снимается в тот же миг. Раньше снимали в момент
+         ctx.arc, а холст так не работает: путь строят сперва, краску ставят
+         после (ровно так нарисована граница знака), и в записи оседал стиль
+         ПРЕДЫДУЩЕЙ фигуры. Одну дугу можно обвести дважды — двумя записями
+         она и выйдет, что честно: на экране два мазка. */
+      if (k === 'beginPath') return () => { pathBuf = []; };
+      if (k === 'arc') return (x, y, r, a0, a1, ccw) => {
         nanArgs(k, [x, y, r, a0, a1]);
-        if (arcw) arcw.push({ x, y, r, a0, a1, sx: scrX(x), sy: scrY(y), rs: r * ttop().sx,
-                              c: String(t.strokeStyle), f: String(t.fillStyle),
-                              al: t.globalAlpha === undefined ? 1 : t.globalAlpha });
+        if (ccw !== undefined && typeof ccw !== 'boolean') nanArgs(k, [ccw]);
+        pathBuf.push({ x, y, r, a0, a1, ccw: !!ccw, sx: scrX(x), sy: scrY(y), rs: r * ttop().sx });
       };
       if (k === 'clip') return () => { ttop().clipped = true; };
       if (k === 'setTransform') return () => { tstack = [{ tx: 0, ty: 0, sx: 1, sy: 1, clipped: false }]; };
@@ -125,6 +142,7 @@ function makeCtx() {
         if (paint) paint.push(String(t.fillStyle));
         if (inks) inks.push({ k: 'fill', c: String(t.fillStyle),
                               a: t.globalAlpha === undefined ? 1 : t.globalAlpha });
+        if (arcw && k === 'fill') flushPath('fill', String(t.fillStyle), t);
       };
       if (k === 'stroke' || k === 'strokeRect') return (...a) => {
         nanArgs(k, a);
@@ -132,6 +150,7 @@ function makeCtx() {
         if (inks) inks.push({ k: 'stroke', c: String(t.strokeStyle),
                               a: t.globalAlpha === undefined ? 1 : t.globalAlpha,
                               w: t.lineWidth === undefined ? 1 : t.lineWidth });
+        if (arcw && k === 'stroke') flushPath('stroke', String(t.strokeStyle), t);
       };
       if (k in t) return t[k];
       return (...a) => { nanArgs(k, a); };
@@ -258,10 +277,13 @@ function paintsFull(fn) {
   inks = [];
   try { fn(); return inks; } finally { inks = null; }
 }
-// Все дуги внутри fn: [{x, y, r, a0, a1, sx, sy, rs, c, f, al}, ...].
+/* Все дуги, которые внутри fn ОБВЕЛИ или ЗАЛИЛИ:
+   [{k:'stroke'|'fill', c, al, w, x, y, r, a0, a1, ccw, sx, sy, rs}, ...].
+   Дуга, построенная и брошенная без stroke/fill, сюда не попадёт — её и на
+   экране нет. Обведённая дважды даст две записи с разной краской. */
 function arcs(fn) {
-  arcw = [];
-  try { fn(); return arcw; } finally { arcw = null; }
+  arcw = []; pathBuf = [];
+  try { fn(); return arcw; } finally { arcw = null; pathBuf = []; }
 }
 // Все повороты холста внутри fn, в радианах: spins(() => W.drawPawn(...)).
 function spins(fn) {

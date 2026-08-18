@@ -5,7 +5,7 @@
    известное расстояние и смотрит, достало её или нет. Так она не зависит от
    того, как знак нарисован, и переживает любую переделку. */
 'use strict';
-const { W, ok, note, head, done, paints, paintsFull, traces, arcs } = require('./harness.js');
+const { W, ok, note, head, done, paints, paintsFull, traces, arcs, nans, sandbox } = require('./harness.js');
 
 /* Достаёт ли знак тварь, поставленную на расстоянии d под углом da от взгляда.
    Тварь ставим свежую и с запасом здоровья, чтобы «не достало» нельзя было
@@ -278,6 +278,12 @@ function onlyParts(keep, rec) {
   return { got: full.slice(i, full.length - j), base: base.length, full: full.length };
 }
 
+/* Допуск сравнения с замеренной зоной. Дальность нащупывается двоичным
+   поиском: 20 делений отрезка [12, 400] дают точность 0.0004 шага. Ровно на
+   границу ложатся выжиг и волна — им положено, — и без допуска они падали бы
+   на последнем знаке после запятой. Сотая шага в сотни раз меньше любого
+   вылета, который стоит ловить. */
+const EPS = 0.01;
 const KINDS = ['glyph', 'edge', 'scorch', 'flame', 'spark', 'smoke', 'wave', 'dust'];
 const kindOf = p => KINDS.find(k => p[k]) || 'прочее';
 function nrm(x) { while (x > Math.PI) x -= Math.PI * 2; while (x < -Math.PI) x += Math.PI * 2; return x; }
@@ -288,6 +294,25 @@ head('Кадр повторяем — иначе вырезать из него 
   const d = onlyParts([], paintsFull);
   ok(d.got.length === 0 && d.base === d.full,
      'два кадра с одними и теми же частицами дали ровно одно и то же (' + d.base + ' мазков)');
+}
+
+/* Сам стенд тоже надо проверять: мерки ниже читают у дуг краску и густоту, и
+   если обвязка отдаёт их неверно, врать будут именно мерки — молча и уверенно. */
+head('Обвязка отдаёт дугу честно');
+{
+  const c = sandbox.__canvas.getContext();
+  ok(nans(() => c.arc(1, 2, 3, 4, 5, NaN)).indexOf('arc') >= 0,
+     'чушь в шестом доводе arc (обход против часовой) замечена, а не пропущена');
+  const built = arcs(() => { c.beginPath(); c.arc(1, 2, 3, 0, 6.3); });
+  ok(built.length === 0, 'дуга, которую построили и бросили не обведя, на экран не попала');
+  const painted = arcs(() => {
+    c.beginPath(); c.arc(1, 2, 3, 0, 6.3);
+    c.strokeStyle = '#111111'; c.globalAlpha = 0.25; c.lineWidth = 7; c.stroke();
+  });
+  ok(painted.length === 1 && painted[0].c === '#111111' && painted[0].al === 0.25 && painted[0].w === 7,
+     'краска снята в момент обводки, а не построения пути: ' +
+     (painted[0] ? painted[0].c + ' при ' + painted[0].al + ' и ' + painted[0].w : 'ничего'));
+  c.globalAlpha = 1;
 }
 
 for (const S of [{ r: 0, n: 'Игни', key: 'hurt' }, { r: 1, n: 'Аард', key: 'pushed' }]) {
@@ -301,11 +326,31 @@ for (const S of [{ r: 0, n: 'Игни', key: 'hurt' }, { r: 1, n: 'Аард', ke
   const edges = ps.filter(p => p.edge);
   ok(edges.length === 1, 'граница ровно одна на знак, а не набор дуг: ' + edges.length);
 
-  // --- дуга ---
+  /* --- дуга ---
+     Дуга у границы ОДНА, но обведена дважды: тёмная подложка и светлая
+     линия поверх. Значит записей две, а геометрия у них обязана быть одна и
+     та же — по ней и меряем. */
   const arc = onlyParts(edges, arcs).got;
-  ok(arc.length === 1, 'граница рисуется одной дугой: дуг ' + arc.length);
-  if (arc.length === 1) {
+  const geom = new Set(arc.map(A => [A.x, A.y, A.r, A.a0, A.a1].join('|')));
+  ok(geom.size === 1, 'вся граница построена по одной дуге: разных дуг ' + geom.size);
+  ok(arc.length === 2 && arc.every(A => A.k === 'stroke'),
+     'её обводят дважды и не заливают: мазков ' + arc.length +
+     ' (' + arc.map(A => A.k).join(', ') + ')');
+  if (geom.size === 1) {
     const A = arc[0];
+    /* Заодно это единственная мерка, которая читает у дуги КРАСКУ. Холст
+       строит путь раньше, чем ставят стиль, и обвязка обязана снимать стиль
+       в момент stroke, а не arc, — иначе здесь окажется краска предыдущей
+       частицы, и «обод Ирдена фиолетовый» в следующей задаче будет враньём. */
+    const bright = arc.find(A2 => A2.c === edges[0].c);
+    const under = arc.find(A2 => A2 !== bright);
+    ok(!!bright && !!under, 'у дуги нашлись обе обводки: своя краска и подложка');
+    if (bright && under) {
+      note('светлая ' + bright.c + ' при густоте ' + bright.al.toFixed(2) + ' и толщине ' + bright.w +
+           ', подложка ' + under.c + ' при ' + under.al.toFixed(2) + ' и ' + under.w);
+      ok(under.w > bright.w, 'подложка шире светлой линии — иначе её не видно из-под неё');
+      ok(bright.al >= 0.95, 'светлая линия идёт в полную густоту');
+    }
     note('дуга: радиус ' + A.r.toFixed(2) + ', от ' + A.a0.toFixed(3) + ' до ' + A.a1.toFixed(3));
     ok(Math.abs(A.r - LEN) <= 0.5,
        'радиус дуги равен замеренной дальности: ' + A.r.toFixed(2) + ' против ' + LEN.toFixed(2));
@@ -328,32 +373,60 @@ for (const S of [{ r: 0, n: 'Игни', key: 'hurt' }, { r: 1, n: 'Аард', ke
 
   head(S.n + ': стихия живёт внутри границы и заполняет её');
   {
-    /* Гоняем знак в разные стороны: у частиц есть собственный снос (дым
-       всплывает), и по одному направлению боковой вылет не поймать. */
-    let worstD = 0, worstA = 0, wdK = '', waK = '', pinned = 0;
+    /* Меряем ВИДИМЫЙ КРАЙ, а не середину частицы. Обещает граница глазу, а
+       глаз видит пятно: у искры к её месту добавляется полурадиус кружка, у
+       языка — полудлина, у волны — её ход вместе с половиной обводки. Число
+       берём у самой рисовалки (p.ext, проставляется в момент рисования) —
+       поэтому кадр здесь и рисуется. Сравнивай мерка середины — можно было
+       бы раздуть искру до шести шагов, и она полезла бы за дугу молча.
+
+       Угол по-прежнему считаем по серединам, и намеренно: круглая частица у
+       самого края конуса всегда торчит наружу на свой радиус, это неизбежно
+       и невидимо. За раствор отвечает направление вылета, а не толщина.
+
+       Гоняем знак в разные стороны: у частиц свой снос, и по одному
+       направлению боковой вылет не поймать. */
+    let worstD = 0, worstA = 0, wdK = '', waK = '', pinned = 0, noExt = 0, waveMax = 0;
     const far = {};                                    // докуда дотягивается каждый род
     for (const AIM2 of [0, 0.9, 1.571, 2.4, 3.1, -0.9, -1.571, -2.4]) {
       const P2 = cast(S.r, AIM2);
       for (let i = 0; i < 150; i++) {                  // 2.4 с — дольше самой долгой частицы
         W.update(0.016);
+        W.render();                                    // рисовалка проставляет p.ext
         for (const p of W.getParts()) {
           if (p.t < (p.at || 0)) continue;             // ещё не вышла — её на экране нет
+          if (p.edge) continue;                        // сама граница и ЕСТЬ обещание
+          if (p.ext === undefined) { noExt++; continue; }
           const d = Math.hypot(p.x - P2.x, p.y - P2.y);
+          const vis = d + p.ext;                       // докуда достаёт рисунок
           const da = Math.abs(nrm(Math.atan2(p.y - P2.y, p.x - P2.x) - AIM2));
           const kd = kindOf(p);
-          if (d > worstD) { worstD = d; wdK = kd; }
-          if (d > (far[kd] || 0)) far[kd] = d;
+          if (vis > worstD) { worstD = vis; wdK = kd; }
+          if (vis > (far[kd] || 0)) far[kd] = vis;
+          if (p.wave && vis > waveMax) waveMax = vis;
           if (d > 1 && da > worstA) { worstA = da; waK = kd; }
           if (p.rmax && Math.abs(d - p.rmax) < 0.01) pinned++;
         }
       }
     }
-    note('дальше всех улетел ' + wdK + ': ' + worstD.toFixed(1) + ' при границе ' + LEN.toFixed(1));
+    /* Род без клейма прошёл бы мимо мерки с вылетом в ноль — то есть по
+       середине, ровно как раньше. Считаем таких и требуем ноль. */
+    ok(noExt === 0, 'у каждого нарисованного рода проставлен вылет рисунка: без клейма ' + noExt);
+    note('дальше всех видно ' + wdK + ': ' + worstD.toFixed(1) + ' при границе ' + LEN.toFixed(1));
     note('шире всех отклонился ' + waK + ': ' + worstA.toFixed(3) + ' при растворе ' + HALF.toFixed(3));
-    note('докуда дотянулся каждый род: ' +
-         Object.keys(far).map(k => k + ' ' + far[k].toFixed(0)).join(', '));
-    ok(worstD <= LEN, 'ни одна частица не вылетела за границу');
+    note('докуда видно каждый род: ' +
+         Object.keys(far).map(k => k + ' ' + far[k].toFixed(1)).join(', '));
+    ok(worstD <= LEN + EPS, 'ни одну частицу не видно за границей');
     ok(worstA <= HALF, 'ни одна частица не вышла за раствор');
+
+    if (waveMax > 0) {
+      /* Волна — второе прочтение зоны: уходит от ладони и гаснет РОВНО на
+         дуге. Не дойди она — толчок выглядел бы короче, чем бьёт, и от него
+         отступали бы на шаг там, где отступать не надо. Меряем внешний край
+         мазка: он и есть то, что видно. */
+      note('дальше всего волну видно на ' + waveMax.toFixed(2) + ' при границе ' + LEN.toFixed(1));
+      ok(waveMax >= LEN - 3, 'волна доходит до самой границы, а не гаснет на полпути');
+    }
 
     /* Каждый ЛЕТЯЩИЙ род поодиночке заполняет зону. Одной общей мерки на всех
        мало: искры одни дотягивались бы до дуги и за пламя, а пламя тем временем
@@ -380,15 +453,16 @@ for (const S of [{ r: 0, n: 'Игни', key: 'hurt' }, { r: 1, n: 'Аард', ke
       const P3 = cast(S.r, AIM3);
       for (let i = 0; i < 60; i++) {
         W.update(0.05);
+        W.render();
         for (const p of W.getParts()) {
-          if (p.t < (p.at || 0)) continue;
-          const d = Math.hypot(p.x - P3.x, p.y - P3.y);
-          if (d > lagD) { lagD = d; lagK = kindOf(p); }
+          if (p.t < (p.at || 0) || p.edge || p.ext === undefined) continue;
+          const vis = Math.hypot(p.x - P3.x, p.y - P3.y) + p.ext;
+          if (vis > lagD) { lagD = vis; lagK = kindOf(p); }
         }
       }
     }
-    note('на просевших кадрах (dt 0.05) дальше всех ' + lagK + ': ' + lagD.toFixed(1));
-    ok(lagD <= LEN, 'и на просадке кадра ничто не перелетает границу');
+    note('на просевших кадрах (dt 0.05) дальше всех видно ' + lagK + ': ' + lagD.toFixed(1));
+    ok(lagD <= LEN + EPS, 'и на просадке кадра ничто не перелетает границу');
 
     /* А теперь без всякого «повезёт — не повезёт»: разгоняем всё летящее
        ВТРОЕ и смотрим, держит ли граница. Просадка кадра — только один из
@@ -402,15 +476,16 @@ for (const S of [{ r: 0, n: 'Игни', key: 'hurt' }, { r: 1, n: 'Аард', ke
       for (const p of W.getParts()) { if (p.vx || p.vy) { p.vx *= 3; p.vy *= 3; } }
       for (let i = 0; i < 80; i++) {
         W.update(0.016);
+        W.render();
         for (const p of W.getParts()) {
-          if (p.t < (p.at || 0)) continue;
-          const d = Math.hypot(p.x - P4.x, p.y - P4.y);
-          if (d > fastD) { fastD = d; fastK = kindOf(p); }
+          if (p.t < (p.at || 0) || p.edge || p.ext === undefined) continue;
+          const vis = Math.hypot(p.x - P4.x, p.y - P4.y) + p.ext;
+          if (vis > fastD) { fastD = vis; fastK = kindOf(p); }
         }
       }
     }
     note('разогнанное втрое дальше всех унесло ' + fastK + ': ' + fastD.toFixed(1));
-    ok(fastD <= LEN, 'даже разогнанное втрое остаётся внутри границы — подрезка на месте');
+    ok(fastD <= LEN + EPS, 'даже разогнанное втрое остаётся внутри границы — подрезка на месте');
   }
 
   head(S.n + ': граница ярче стихии, стихия — всегда сквозь');
@@ -418,7 +493,7 @@ for (const S of [{ r: 0, n: 'Игни', key: 'hurt' }, { r: 1, n: 'Аард', ke
     /* Мазки делим не по цвету, а ПО ЧАСТИЦАМ: отдельно рисуем кадр с одной
        границей, отдельно — со всем прочим. Цвет знать не нужно вовсе. */
     cast(S.r, 0.4);
-    let edgeMax = 0, elemMax = 0, elemWorst = '', worstFrame = null, waveMax = 0, waveSeen = false;
+    let edgeMax = 0, elemMax = 0, elemWorst = "", worstFrame = null;
     for (let i = 0; i < 60; i++) {
       const cur = W.getParts();
       const e = cur.filter(p => p.edge), rest = cur.filter(p => !p.edge);
@@ -426,21 +501,7 @@ for (const S of [{ r: 0, n: 'Игни', key: 'hurt' }, { r: 1, n: 'Аард', ke
       for (const m of onlyParts(rest, paintsFull).got) {
         if (m.a > elemMax) { elemMax = m.a; worstFrame = rest.slice(); }
       }
-      // волна — единственное, что доходит до дуги само; её радиус берём из дуг
-      const wv = cur.filter(p => p.wave);
-      if (wv.length) {
-        waveSeen = true;
-        for (const A of onlyParts(wv, arcs).got) if (A.r > waveMax) waveMax = A.r;
-      }
       W.update(0.016);
-    }
-    if (waveSeen) {
-      /* Волна — второе прочтение зоны: она уходит от ладони и ГАСНЕТ РОВНО НА
-         ДУГЕ. Не дойди она — толчок выглядел бы короче, чем бьёт, и игрок
-         отступал бы на шаг там, где отступать не надо. */
-      note('дальше всего волна ушла на ' + waveMax.toFixed(1) + ' при границе ' + LEN.toFixed(1));
-      ok(waveMax <= LEN, 'волна не перехлёстывает границу');
-      ok(waveMax >= LEN - 3, 'волна доходит до самой границы, а не гаснет на полпути');
     }
     // кто именно оказался самым густым — доискиваемся только на том кадре, где это вышло
     if (worstFrame) {
