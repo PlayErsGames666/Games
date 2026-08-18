@@ -174,15 +174,27 @@
       });
     }
 
+    /* Не вышло войти — возвращаем панель в исходный вид. Без этого совет
+       «проверь код» выполнить нечем: поле кода уже отключено, кнопка
+       «Создать комнату» спрятана, и остаётся только перезагрузить страницу. */
+    function giveUp() {
+      if (S.online) return;                     // успели войти, ошибка опоздала
+      S.role = 'solo'; S.me = 0;
+      if (S.ui && S.ui.asIdle) S.ui.asIdle();
+    }
+
+    /* Отвечает, взялся ли за подключение: панель запирается ТОЛЬКО после
+       этого «да». Раньше она запиралась до проверки — и пустой код или
+       незагрузившийся PeerJS запирали её насовсем. */
     function join(code) {
       code = (code || '').trim().toUpperCase();
-      if (!code) { status('Введи код комнаты'); return; }
-      if (typeof global.Peer === 'undefined') { status('PeerJS не загрузился — нужен интернет'); return; }
+      if (!code) { status('Введи код комнаты'); return false; }
+      if (typeof global.Peer === 'undefined') { status('PeerJS не загрузился — нужен интернет'); return false; }
       reset();
       S.code = code; S.role = 'join'; S.me = 1;
       status('Подключаюсь к ' + code + '…');
       S.peer = new global.Peer(undefined, PEER_OPTS);
-      S.peer.on('error', e => status(errMsg(e.type)));
+      S.peer.on('error', e => { status(errMsg(e.type)); giveUp(); });
       S.peer.on('open', () => {
         S.conn = S.peer.connect(o.prefix + '-' + code, { reliable: true });
         S.conn.on('data', d => {
@@ -193,8 +205,11 @@
         S.conn.on('open', () => { S.online = true; status('✅ Подключено к ' + code); });
         S.conn.on('close', () => { S.online = false; status('Хост отключился'); try { o.onClose(); } catch (e) { } });
         S.conn.on('error', () => { S.online = false; status('Обрыв связи'); });
-        setTimeout(() => { if (!S.online) status('Не удалось подключиться к ' + code + ' — код, хост или NAT'); }, 15000);
+        setTimeout(() => {
+          if (!S.online) { status('Не удалось подключиться к ' + code + ' — код, хост или NAT'); giveUp(); }
+        }, 15000);
       });
+      return true;
     }
 
     function leave() { reset(); S.role = 'solo'; S.me = 0; S.code = ''; status('оффлайн (одиночная игра)'); }
@@ -239,10 +254,18 @@
       bHost.disabled = true; iJoin.hidden = true; bJoin.hidden = true;
     }
     function asGuest() { bHost.hidden = true; iJoin.disabled = true; bJoin.disabled = true; }
+    // обратно в «ещё ничего не выбрано»: сюда возвращает неудачный вход
+    function asIdle() {
+      bHost.hidden = false; bHost.disabled = false;
+      iJoin.hidden = false; iJoin.disabled = false;
+      bJoin.hidden = false; bJoin.disabled = false;
+      iCode.hidden = true; bCopy.hidden = true;
+    }
 
     bHost.addEventListener('click', () => { bHost.blur(); net.host(); });
-    bJoin.addEventListener('click', () => { bJoin.blur(); asGuest(); net.join(iJoin.value); });
-    iJoin.addEventListener('keydown', e => { if (e.code === 'Enter') { asGuest(); net.join(iJoin.value); } });
+    const tryJoin = () => { if (net.join(iJoin.value)) asGuest(); };
+    bJoin.addEventListener('click', () => { bJoin.blur(); tryJoin(); });
+    iJoin.addEventListener('keydown', e => { if (e.code === 'Enter') tryJoin(); });
     bCopy.addEventListener('click', async () => {
       bCopy.blur();
       const code = iCode.value; if (!code) return;
@@ -251,7 +274,7 @@
     });
     iCode.addEventListener('click', () => { iCode.focus(); iCode.select(); });
 
-    const api = { say: say, asHost: asHost, asGuest: asGuest, el: sEl };
+    const api = { say: say, asHost: asHost, asGuest: asGuest, asIdle: asIdle, el: sEl };
     if (net && net.attachUI) net.attachUI(api);
     return api;
   }
