@@ -5,7 +5,8 @@
    известное расстояние и смотрит, достало её или нет. Так она не зависит от
    того, как знак нарисован, и переживает любую переделку. */
 'use strict';
-const { W, ok, note, head, done, paints, paintsFull, traces, arcs, nans, sandbox } = require('./harness.js');
+const { W, ok, note, head, done, paints, paintsFull, traces, arcs, spins, nans,
+        frame, frameMarksAll, sandbox } = require('./harness.js');
 
 /* Достаёт ли знак тварь, поставленную на расстоянии d под углом da от взгляда.
    Тварь ставим свежую и с запасом здоровья, чтобы «не достало» нельзя было
@@ -524,7 +525,7 @@ for (const S of [{ r: 0, n: 'Игни', key: 'hurt' }, { r: 1, n: 'Аард', ke
 head('Глиф под ладонью — общая основа всех знаков');
 {
   const lives = [];
-  for (const r of [0, 1]) {
+  for (const r of [0, 1, 2, 3]) {                      // огонь, удар, щит и ловушка — все четыре
     const P = cast(r, 0.4);
     const g = W.getParts().filter(p => p.glyph);
     ok(g.length === 1, 'знак ' + r + ' зажёг ровно один глиф: ' + g.length);
@@ -535,8 +536,8 @@ head('Глиф под ладонью — общая основа всех зна
     ok(g[0].life > 0 && g[0].life <= 0.2, 'глиф гаснет за мгновение: ' + g[0].life);
     lives.push(g[0].life);
   }
-  ok(lives.length === 2 && lives[0] === lives[1],
-     'оба знака зажигают ОДИН И ТОТ ЖЕ глиф — есть на чём строить Квен и Ирден');
+  ok(lives.length === 4 && lives.every(v => v === lives[0]),
+     'все четыре знака зажигают ОДИН И ТОТ ЖЕ глиф: у ведьмака одна рука на все знаки');
 }
 
 head('Отложенная частица ждёт на месте, а не летит вслепую');
@@ -550,6 +551,360 @@ head('Отложенная частица ждёт на месте, а не ле
     ok(w.x === x0 && w.y === y0, 'пока ждёт — стоит: ' + w.t.toFixed(3) + ' с при отсрочке ' + w.at.toFixed(3));
     while (w.t < w.at + 0.1) W.update(0.016);
     ok(Math.hypot(w.x - x0, w.y - y0) > 1, 'дождалась своего часа — полетела');
+  }
+}
+
+/* =====================  КВЕН И ИРДЕН  =====================
+
+   Эти два знака рисуются НЕ частицами, а прямо от состояния: P.quen и
+   P.yrden. Ни одной частицы они не тратят (кроме общего глифа под ладонью),
+   значит потолка не касаются и вырезать их из кадра диффом не нужно —
+   обе рисовалки выставлены наружу, зовём поштучно.
+
+   Меряется здесь другое, чем у Игни с Аардом. У Квена зоны нет вовсе: он
+   про поглощение урона, и обещание у него одно — «по куполу видно, сколько
+   щит ещё держит, и купол не закрывает самого ведьмака». У Ирдена зона
+   настоящая (замедление), и её граница обязана совпасть с нарисованным
+   ободом — ровно как у конусов огня и удара. */
+
+/* Ближайшая к точке (0,0) точка ОТРЕЗКА. Мерить одни концы мало: грань
+   купола — это ХОРДА, и к середине она подходит своей серединой, а не
+   вершинами. Ровно на этом попалась предыдущая задача: запас до границы
+   считали по середине частицы, а съедал его нарисованный размер. */
+function segNear(ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+  let t = l2 ? -(ax * dx + ay * dy) / l2 : 0;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(ax + dx * t, ay + dy * t);
+}
+
+head('Квен копит трещины, но не бесконечно');
+{
+  const P = cast(2, 0.4);
+  ok(P.quen > 0, 'щит поставлен');
+  ok(Array.isArray(P.quenHits) && P.quenHits.length === 0, 'у свежего щита трещин нет');
+
+  /* hurtPlayer ПЕРВОЙ строкой отбрасывает удар, если ведьмак в неуязвимости
+     или в уклонении, а после попадания неуязвимость включается сама. Без
+     сброса двенадцать ударов стали бы одним, и мерка проверила бы пустоту. */
+  const seen = [];
+  let first = null;
+  for (let i = 0; i < 12; i++) {
+    P.quen = 500; P.inv = 0; P.dodge = 0;
+    W.hurtPlayer(5, null);
+    if (i === 0) first = P.quenHits[0];
+    seen.push(P.quenHits.length);
+  }
+  note('трещин после каждого из двенадцати ударов: ' + seen.join(' '));
+  ok(seen[0] === 1 && seen[1] === 2 && seen[2] === 3, 'каждый удар оставляет ровно одну трещину');
+  /* Потолок меряем ПОВЕДЕНИЕМ, а не сверкой с той же константой: счёт
+     перестал расти, хотя удары продолжались. «length <= QUEN_CRACKS» не
+     упало бы никогда, сколько бы трещин ни насыпали. */
+  ok(seen[11] === seen[10] && seen[11] < 12,
+     'счёт упёрся в потолок: ' + seen[11] + ' трещин при двенадцати ударах');
+  ok(seen[11] >= 3, 'но потолок не в одну-две: по трещинам должно быть видно, сколько щит уже съел');
+  ok(P.quenHits[0] === first, 'первая трещина никуда не делась — трещины копятся, а не сменяют друг друга');
+  ok(P.quenHits.every(h => h.a >= 0 && h.a < 6.284), 'у каждой трещины свой угол по ободу');
+  ok(new Set(P.quenHits.map(h => h.a)).size === P.quenHits.length, 'углы разные — трещины не в одной точке');
+
+  const n = P.quenHits.length;
+  P.quen = 0; P.inv = 0; P.dodge = 0;
+  W.hurtPlayer(5, null);
+  ok(P.quenHits.length === n, 'без щита удар трещин не оставляет — трещина значит «щит принял»');
+
+  P.mp = 999; P.runeCd = [0, 0, 0, 0];
+  W.castRune(2);
+  ok(P.quenHits.length === 0, 'новый щит — целое стекло');
+
+  P.quenHits = [{ a: 1 }, { a: 3 }];
+  let fell = null;
+  try { W.render(); } catch (e) { fell = e.message; }
+  ok(!fell, fell || 'треснувший щит рисуется');
+  ok(nans(() => W.drawQuenDome(0, 0)).length === 0, 'и ни одной координаты купола не ушло в NaN');
+}
+
+head('Купол Квена — гранёный, а не круг');
+{
+  const P = cast(2, 0.4);
+  P.quenHits = [];
+  const t = traces(() => W.drawQuenDome(0, 0));
+  const mv = t.filter(e => e.k === 'moveTo'), ln = t.filter(e => e.k === 'lineTo');
+  ok(mv.length === ln.length && mv.length + ln.length === t.length && mv.length >= 6,
+     'купол собран из отрезков: граней ' + mv.length);
+
+  const rs = t.map(e => Math.hypot(e.x, e.y));
+  const spread = Math.max.apply(null, rs) - Math.min.apply(null, rs);
+  note('обод купола: ' + Math.max.apply(null, rs).toFixed(2) + ' шага');
+  ok(spread < 0.01, 'все вершины лежат на одном ободе: разброс ' + spread.toFixed(4));
+
+  let gap = 0;                                         // грани обязаны сомкнуться
+  for (let i = 0; i < ln.length; i++) {
+    const nx = mv[(i + 1) % mv.length];
+    gap = Math.max(gap, Math.hypot(ln[i].x - nx.x, ln[i].y - nx.y));
+  }
+  ok(gap < 1e-9, 'грани смыкаются в замкнутый купол без щербин: наибольший разрыв ' + gap.toExponential(2));
+
+  const A = arcs(() => W.drawQuenDome(0, 0));
+  const round = A.filter(a => a.k === 'stroke');
+  ok(round.length === 0, 'обведённого круга у купола нет вовсе — обводок дугой ' + round.length);
+
+  /* Волна света по граням: у каждой свой сдвиг фазы. Постоянная краска
+     означала бы мёртвый купол — и это ровно то, что было у кольца. */
+  const cols = new Set(paints(() => W.drawQuenDome(0, 0)).filter(c => c.indexOf('rgba(150,225,255') === 0));
+  ok(cols.size >= 3, 'грани горят по-разному — по куполу бежит волна: разных красок ' + cols.size);
+}
+
+head('Купол вращается, а не стоит истуканом');
+{
+  cast(2, 0.4);
+  const a0 = traces(() => W.drawQuenDome(0, 0))[0];
+  const a0b = traces(() => W.drawQuenDome(0, 0))[0];
+  ok(Math.hypot(a0.x - a0b.x, a0.y - a0b.y) < 1e-9, 'в одном и том же кадре купол стоит смирно');
+  W.update(0.25);
+  const a1 = traces(() => W.drawQuenDome(0, 0))[0];
+  const turn = Math.abs(nrm(Math.atan2(a1.y, a1.x) - Math.atan2(a0.y, a0.x)));
+  note('за четверть секунды купол повернулся на ' + turn.toFixed(3) + ' рад');
+  ok(turn > 0.02, 'со временем купол поворачивается');
+}
+
+head('Купол не закрывает ведьмака');
+{
+  /* PAWN_R — это обещание игры о том, какой след занимает пешка: по нему
+     зеркало вписывает фигуру в рамку. Сперва убеждаемся, что обещание не
+     врёт, и только потом им меряем — иначе «купол снаружи PAWN_R» держалось
+     бы на числе, которого никто не проверял.
+
+     Меряем ВСЁ, что пешка рисует: точки пути, скруглённые углы плаща
+     (rrect → arcTo) и круги с овалами вместе с их радиусом. Обвязку ради
+     этого научили писать arcTo и ellipse — без них пешка мерилась бы без
+     плаща, тени и наплечников. */
+  let pawnMax = 0, worst = '';
+  const sts = [
+    {}, { walk: 1.4 },
+    { armor: 'heavy', steel: true, silver: true, xbow: true, mut: true, mut2: true, walk: 1.4, look: W.LOOK_DEF },
+    { armor: 'light', steel: true, silver: true, xbow: true, walk: 3.1, look: W.LOOK_DEF },
+  ];
+  for (const h in W.HAIRS) {
+    sts.push({ armor: 'heavy', walk: 1.4,
+               look: Object.assign({}, W.LOOK_DEF, { hair: h, beard: 'full', scar: 'eye' }) });
+  }
+  for (const st of sts) {
+    for (const e of traces(() => W.drawPawn(0, 0, 0, st))) {
+      const d = Math.hypot(e.x, e.y); if (d > pawnMax) { pawnMax = d; worst = e.k; }
+    }
+    for (const a of arcs(() => W.drawPawn(0, 0, 0, st))) {
+      const d = Math.hypot(a.x, a.y) + a.r; if (d > pawnMax) { pawnMax = d; worst = a.oval ? 'овал' : 'круг'; }
+    }
+  }
+  note('дальше всего пешка рисует в ' + pawnMax.toFixed(2) + ' шага (' + worst + ') при PAWN_R ' + W.PAWN_R);
+  ok(pawnMax > 0, 'след пешки вообще замерился — рисовалка что-то чертит');
+  ok(pawnMax <= W.PAWN_R, 'PAWN_R не врёт: вся пешка укладывается в свой след');
+
+  const P = cast(2, 0.4);
+  P.quenHits = [{ a: 0.3 }, { a: 2.0 }, { a: 3.14 }, { a: 4.4 }, { a: 5.9 }];
+  const t = traces(() => W.drawQuenDome(0, 0));
+  let near = Infinity, far = 0;
+  for (let i = 0; i + 1 < t.length; i += 2) {
+    near = Math.min(near, segNear(t[i].x, t[i].y, t[i + 1].x, t[i + 1].y));
+    far = Math.max(far, Math.hypot(t[i].x, t[i].y), Math.hypot(t[i + 1].x, t[i + 1].y));
+  }
+  note('купол занимает кольцо от ' + near.toFixed(2) + ' до ' + far.toFixed(2) + ' шага');
+  ok(near >= W.PAWN_R,
+     'ни один мазок купола — ни грань, ни трещина — не залезает на фигуру: ближе всего ' +
+     near.toFixed(2) + ' при следе пешки ' + W.PAWN_R);
+
+  // стекло внутри — сквозное, потому бой через щит и видно
+  const fills = arcs(() => W.drawQuenDome(0, 0)).filter(a => a.k === 'fill');
+  ok(fills.length === 1, 'стекло у купола одно: заливок ' + fills.length);
+  ok(fills[0] && fills[0].al <= 0.2, 'и оно почти прозрачно: густота ' + (fills[0] ? fills[0].al : '—'));
+
+  /* И самое прямое: в готовом кадре купол ложится РАНЬШЕ пешки — значит
+     физически не может её закрыть, чем бы его ни раздули. Пешку узнаём по
+     глазам: кошачий жёлтый больше нигде в кадре не встречается, и это
+     здесь же проверяется. */
+  cast(2, 0.4);
+  const seq = paints(() => W.render());
+  const eye = W.EYES.cat.c;
+  const eyes = [];
+  const dome = [];
+  seq.forEach((c, i) => {
+    if (c === eye) eyes.push(i);
+    if (c.indexOf('rgba(150,225,255') === 0) dome.push(i);
+  });
+  ok(eyes.length === 2, 'глаза пешки в кадре нашлись и только они: мазков цвета ' + eye + ' — ' + eyes.length);
+  ok(dome.length >= 6, 'грани купола в том же кадре нашлись: ' + dome.length);
+  ok(dome.length > 0 && eyes.length > 0 && Math.max.apply(null, dome) < Math.min.apply(null, eyes),
+     'купол нарисован ДО пешки: последняя грань мазком № ' + Math.max.apply(null, dome) +
+     ', глаза — № ' + Math.min.apply(null, eyes));
+}
+
+head('Трещины сидят там, куда прилетело');
+{
+  const P = cast(2, 0.4);
+  P.quenHits = [];
+  const clean = traces(() => W.drawQuenDome(0, 0));
+  const rimR = Math.hypot(clean[0].x, clean[0].y);     // обод меряем, а не спрашиваем
+
+  P.quenHits = [{ a: 1.0 }];
+  const one = traces(() => W.drawQuenDome(0, 0));
+  const rays = (one.length - clean.length) / 2;
+  ok(rays >= 3, 'трещина — веер, а не одна чёрточка: лучей ' + rays);
+
+  const starts = one.slice(clean.length).filter(e => e.k === 'moveTo');
+  let bad = 0;
+  for (const s of starts) {
+    if (Math.abs(nrm(Math.atan2(s.y, s.x) - 1.0)) > 0.01) bad++;
+    else if (Math.abs(Math.hypot(s.x, s.y) - rimR) > 0.01) bad++;
+  }
+  ok(starts.length === rays && bad === 0,
+     'все лучи выходят из одной точки обода — с того самого угла удара: не оттуда ' + bad);
+
+  const a = traces(() => W.drawQuenDome(0, 0)).slice(clean.length);
+  W.update(0.2);
+  const b = traces(() => W.drawQuenDome(0, 0)).slice(clean.length);
+  ok(JSON.stringify(a) === JSON.stringify(b),
+     'трещина стоит на месте и через кадр — это след удара, а не рябь');
+
+  P.quenHits = [{ a: 0.2 }, { a: 2.2 }, { a: 4.2 }];
+  const three = traces(() => W.drawQuenDome(0, 0));
+  ok(three.length - clean.length === rays * 2 * 3,
+     'сколько трещин в состоянии — столько и на куполе: лучей ' + ((three.length - clean.length) / 2));
+}
+
+/* ---- ИРДЕН ----------------------------------------------------------
+   Ловушку ставим сами и сами же меряем её зону поведением: тварь на
+   известном расстоянии от СЕРЕДИНЫ ПЕЧАТИ — вязнет или нет. Тварь
+   пришпиливаем оглушением: замедление от Ирдена считается в stepFoe ДО
+   строки «оглушённая — стоит и выходит», поэтому пришпиленная тварь
+   вязнет как обычная и при этом никуда не уползает. */
+function seal() {
+  W.reset(); W.setPhase('HUNT'); W.setPanel(null);
+  const P = W.getP();
+  P.x = 3000; P.y = 3000; P.face = 0; P.mp = 999; P.runeCd = [0, 0, 0, 0];
+  W.setMouse(-100, -100);                              // курсор вне поля: ловушка ляжет перед собой
+  W.syncCam(); W.setFoes([]);
+  W.render();                                          // прогрев: первый кадр печёт землю
+  W.castRune(3);
+  return P.yrden;
+}
+function caught(d) {
+  const Y = seal();
+  W.spawnFoe('drowner', Y.x + d, Y.y);
+  const f = W.getFoes()[0];
+  f.stun = 5; f.slow = 0; f.hp = 100000;
+  const real = Math.hypot(f.x - Y.x, f.y - Y.y);
+  if (Math.abs(real - d) > 1) note('тварь сдвинулась при рождении: заказано ' + d + ', вышло ' + real.toFixed(1));
+  W.update(0.016);
+  return { slowed: f.slow > 0, Y, f };
+}
+// Сколько разрядов бьёт из середины печати: у каждого свой moveTo в самой середине.
+function sparks(Y) {
+  return traces(() => W.drawYrdenSeal(Y))
+    .filter(e => e.k === 'moveTo' && Math.hypot(e.x - Y.x, e.y - Y.y) < 0.01).length;
+}
+
+head('Ирден: нарисованный обод и есть граница замедления');
+{
+  let lo = 5, hi = 300;                                // 5 — заведомо вяжет, 300 — заведомо нет
+  for (let i = 0; i < 20; i++) { const m = (lo + hi) / 2; if (caught(m).slowed) lo = m; else hi = m; }
+  const R = (lo + hi) / 2;
+  note('замерено поведением: печать вяжет тварь до ' + R.toFixed(3) + ' шага от своей середины');
+
+  const Y = seal();
+  const A = arcs(() => W.drawYrdenSeal(Y));
+  const strokes = A.filter(a => a.k === 'stroke');
+  const rim = strokes.slice().sort((x, y) => y.w - x.w)[0];
+  ok(!!rim, 'обод у печати вообще обведён');
+  note('обод: радиус ' + rim.r.toFixed(2) + ', толщина ' + rim.w + ', густота ' + rim.al.toFixed(2));
+  ok(Math.abs(rim.r - R) <= 0.5,
+     'обод нарисован ровно по границе: ' + rim.r.toFixed(2) + ' против замеренных ' + R.toFixed(2));
+  ok(Math.abs(rim.x - Y.x) < 0.01 && Math.abs(rim.y - Y.y) < 0.01,
+     'печать лежит там, где ловушка, а не под ведьмаком');
+
+  /* Обод — ГРАНИЦА, и это должно быть видно с одного взгляда: он самый
+     толстый мазок печати и единственный в полную густоту. */
+  const rest = strokes.filter(a => a !== rim);
+  ok(rest.every(a => a.w < rim.w), 'обод — самый толстый мазок печати');
+  ok(rim.al >= 0.99, 'обод идёт в полную густоту: ' + rim.al.toFixed(2));
+  ok(rest.every(a => a.al < rim.al), 'всё прочее внутри печати тусклее обода');
+  ok(strokes.filter(a => Math.abs(a.r - R) < 0.5).length === 1,
+     'по самой границе проведён ровно один мазок: обод один, двоиться ему нельзя');
+
+  // паутина внутри: заполняет печать, но обода не касается
+  let webMax = 0, webMin = Infinity;
+  for (const e of traces(() => W.drawYrdenSeal(Y))) {
+    const d = Math.hypot(e.x - Y.x, e.y - Y.y);
+    webMax = Math.max(webMax, d); webMin = Math.min(webMin, d);
+  }
+  note('паутина занимает от ' + webMin.toFixed(1) + ' до ' + webMax.toFixed(1) +
+       ' при границе ' + R.toFixed(1) + ', чистый поясок под ободом ' + (R - webMax).toFixed(1));
+  /* Между паутиной и ободом должен остаться ЧИСТЫЙ ПОЯСОК — иначе нити
+     упрутся в границу, и глаз перестанет отличать «край ловушки» от «ещё
+     одна нить». Мерить «webMax < R» мало: нить, дотянувшаяся ровно до
+     обода, прошла бы такую мерку на последнем знаке после запятой. */
+  ok(R - webMax >= R * 0.1, 'под ободом остаётся чистый поясок — граница не тонет в нитях');
+  ok(webMax > R * 0.6, 'но и не жмётся к середине: печать заполнена, а не пуста');
+
+  // волна: раз в секунду проходит от середины к ободу и за него не выходит
+  let pMax = 0, pMin = Infinity;
+  for (let i = 0; i < 90; i++) {                       // 1.44 с — дольше одного круга волны
+    W.update(0.016);
+    const p = arcs(() => W.drawYrdenSeal(Y)).find(x => x.k === 'stroke' && Math.abs(x.r - R) > 0.01);
+    if (p) { pMax = Math.max(pMax, p.r); pMin = Math.min(pMin, p.r); }
+  }
+  note('волна ходит от ' + pMin.toFixed(1) + ' до ' + pMax.toFixed(1) + ' при границе ' + R.toFixed(1));
+  ok(pMax <= R + 0.01, 'волна не выходит за обод');
+  ok(pMax > R * 0.8 && pMin < R * 0.25, 'волна проходит печать всю — от середины до края');
+}
+
+head('Руны едут по самому ободу печати');
+{
+  const Y = seal();
+  const said = frame();
+  let miss = 0;
+  for (const ch of W.YRDEN_RUNES) if (said.indexOf(ch) < 0) miss++;
+  ok(miss === 0, 'все ' + W.YRDEN_RUNES.length + ' рун написаны на печати: не нашлось ' + miss);
+
+  /* Обвязка не моделирует поворот холста, поэтому все руны ложатся у неё в
+     одну точку — ту, где руна стоит В СВОИХ осях. Ровно её и меряем:
+     насколько руна отстоит от середины печати. А что они разъезжаются по
+     кругу — видно по ctx.rotate: восемь разных углов плюс общий поворот. */
+  const cam = W.getCam();
+  const cx = W.WX0 - cam.x + Y.x, cy = W.WY0 - cam.y + Y.y;
+  const rm = frameMarksAll().filter(m => W.YRDEN_RUNES.indexOf(m.s) >= 0);
+  ok(rm.length === W.YRDEN_RUNES.length, 'рун на печати ' + rm.length);
+  const off = rm.map(m => Math.hypot(m.x - cx, m.y - cy));
+  const oMax = Math.max.apply(null, off), oMin = Math.min.apply(null, off);
+  note('руны стоят в ' + oMin.toFixed(1) + '–' + oMax.toFixed(1) + ' шага от середины при радиусе ' + Y.r);
+  ok(oMax <= Y.r && oMin >= Y.r * 0.75, 'руны сидят на самом ободе, а не гуляют по печати');
+
+  const turns = new Set(spins(() => W.drawYrdenSeal(Y)).map(a => a.toFixed(5)));
+  ok(turns.size >= W.YRDEN_RUNES.length,
+     'руны разведены по кругу, а не свалены в кучу: разных поворотов ' + turns.size);
+}
+
+head('Разряды идут только к тем, кого печать держит');
+{
+  const Y = seal();
+  W.setFoes([]);
+  ok(sparks(Y) === 0, 'без тварей от середины печати не идёт ни один разряд');
+
+  W.spawnFoe('drowner', Y.x + Y.r * 0.5, Y.y);
+  const n1 = sparks(Y);
+  ok(n1 > 0, 'к пойманной твари разряды идут: ' + n1);
+  ok(n1 <= 3, 'но не столько, чтобы печать превратилась в кашу из линий: ' + n1);
+
+  W.spawnFoe('drowner', Y.x + Y.r * 0.7, Y.y - Y.r * 0.3);
+  ok(sparks(Y) === n1 * 2, 'вторая пойманная — вдвое разрядов: ' + sparks(Y));
+
+  /* Главное: разряд и замедление обязаны совпадать ВПЛОТНУЮ к границе.
+     Иначе нашёлся бы поясок, где тварь вязнет без единого разряда или
+     искрит на воле, — и обод перестал бы значить то, что обещает. */
+  for (const k of [-3, 3]) {
+    const c = caught(58 + k);
+    const lit = sparks(c.Y) > 0;
+    ok(c.slowed === lit,
+       'на ' + (58 + k) + ' шага от середины: вязнет — ' + c.slowed + ', искрит — ' + lit + ' (одно и то же)');
   }
 }
 

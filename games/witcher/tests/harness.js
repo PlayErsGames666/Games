@@ -108,6 +108,20 @@ function makeCtx() {
         nanArgs(k, [x, y]);
         if (trace) trace.push({ k, x, y, sx: scrX(x), sy: scrY(y) });
       };
+      /* Скруглённый угол — тоже точка пути, и без неё измерить РАЗМЕР
+         рисунка нельзя: плащ пешки, её борода и грива нарисованы rrect, а
+         rrect кладёт один moveTo и четыре arcTo. Мерка «купол не залезает
+         на пешку» без этого мерила бы пешку без плаща.
+         Пишем ОБА довода как две точки: настоящая дуга проходит внутри
+         угла, значит по углам размер считается с запасом — в ту сторону,
+         в какую мерке ошибаться не страшно. */
+      if (k === 'arcTo') return (x1, y1, x2, y2) => {
+        nanArgs(k, [x1, y1, x2, y2]);
+        if (trace) {
+          trace.push({ k, x: x1, y: y1, sx: scrX(x1), sy: scrY(y1) });
+          trace.push({ k, x: x2, y: y2, sx: scrX(x2), sy: scrY(y2) });
+        }
+      };
       /* Дуги — отдельным списком, а не вместе с moveTo/lineTo: у знаков вся
          граница нарисована одной дугой, и без её радиуса не проверить, не
          врёт ли обещанная дальность. В trace их подмешивать нельзя — там уже
@@ -124,6 +138,16 @@ function makeCtx() {
         nanArgs(k, [x, y, r, a0, a1]);
         if (ccw !== undefined && typeof ccw !== 'boolean') nanArgs(k, [ccw]);
         pathBuf.push({ x, y, r, a0, a1, ccw: !!ccw, sx: scrX(x), sy: scrY(y), rs: r * ttop().sx });
+      };
+      /* Овал кладём в тот же путь, что и дугу, с радиусом по БОЛЬШЕЙ оси:
+         тень пешки и её наплечники нарисованы овалами, и мерке размера они
+         нужны наравне с кругами. Больший радиус — снова запас в безопасную
+         сторону. */
+      if (k === 'ellipse') return (x, y, rx, ry, tilt, a0, a1, ccw) => {
+        nanArgs(k, [x, y, rx, ry, tilt, a0, a1]);
+        const r = Math.max(rx, ry);
+        pathBuf.push({ x, y, r, a0, a1, ccw: !!ccw, oval: true,
+                       sx: scrX(x), sy: scrY(y), rs: r * ttop().sx });
       };
       if (k === 'clip') return () => { ttop().clipped = true; };
       if (k === 'setTransform') return () => { tstack = [{ tx: 0, ty: 0, sx: 1, sy: 1, clipped: false }]; };

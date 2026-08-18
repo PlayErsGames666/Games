@@ -1888,6 +1888,13 @@ function hurtPlayer(raw, from) {
     const eat = Math.min(P.quen, d);
     P.quen -= eat; d -= eat;
     addPart({ x: P.x, y: P.y, vx: 0, vy: 0, t: 0, life: 0.3, c: '#7fd6ff', r: 16, ring: true });
+    /* Трещина остаётся до конца щита: по ней видно, сколько он ещё держит.
+       Больше пяти не копим — иначе купол превращается в решето и перестаёт
+       читаться, а он должен читаться в первую очередь.
+       Ставим ДО сообщения о разбитом щите: последний удар тоже должен
+       оставить след, иначе о нём никто не узнает. */
+    if (!P.quenHits) P.quenHits = [];
+    if (P.quenHits.length < QUEN_CRACKS) P.quenHits.push({ a: rnd(6.283) });
     if (P.quen <= 0) message('🛡 Квен разбит');
   }
   if (d <= 0) return;
@@ -1991,9 +1998,12 @@ function castRune(i) {
       f.kx = Math.cos(d) * 260; f.ky = Math.sin(d) * 260; f.stun = Math.max(f.stun, 1.3);
     }
   } else if (R.k === 'quen') {
+    signCast(a, '#9fe6ff');
     P.quen = (60 + armorDef() * 1.2) * pow; P.quenT = 9;
+    P.quenHits = [];                                   // новый щит — целое стекло
     message('🛡 Квен держит ' + Math.round(P.quen));
   } else if (R.k === 'yrden') {
+    signCast(a, '#c496ff');
     /* Ловушка ложилась ровно под курсор — где бы тот ни был. Курсор на поясе
        (а он там и есть, если Ирден жмут кнопкой) — и 22 единицы энергии
        уходили за нижний край поля, в никуда. Теперь: не дальше 150 шагов,
@@ -2948,7 +2958,7 @@ function reset() {
     xbow: mkXbow('light', 0, null),   // арбалет теперь вещь, а не вечная кнопка
     boltSel: 'bolt',                  // какой болт в жёлобе — переключается на B
     atkCd: 0, boltCd: 0, dodge: 0, dodgeCd: 0, dx: 0, dy: 0, inv: 0, swing: null,
-    runeCd: [0, 0, 0, 0], quen: 0, quenT: 0, yrden: null, mut: 0, mut2: 0, mutGauge: 0,
+    runeCd: [0, 0, 0, 0], quen: 0, quenT: 0, quenHits: [], yrden: null, mut: 0, mut2: 0, mutGauge: 0,
     toxLock: 0,               // сколько ещё держится мутагенная отрава после срыва
     regen: 0, buffThunder: 0, biz: 0, slow: 0, shake: 0, face: -Math.PI / 2,
     potSel: 'swallow',        // после «Заново» выбор зелья не должен слетать в никуда
@@ -3003,7 +3013,7 @@ function rise() {
   P.x = FIRE.x; P.y = FIRE.y + 60;
   P.hp = maxHP() * 0.5; P.mp = maxMP() * 0.5;
   P.tox = 0; P.mut = 0; P.mut2 = 0; P.toxLock = 0; P.mutGauge = 0; P.regen = 0; P.buffThunder = 0; P.biz = 0;
-  P.quen = 0; P.quenT = 0; P.yrden = null; P.slow = 0; P.dodge = 0; P.inv = 1.5;
+  P.quen = 0; P.quenT = 0; P.quenHits = []; P.yrden = null; P.slow = 0; P.dodge = 0; P.inv = 1.5;
   curLoc = locAt(P.x, P.y); syncCam();
   message('🔥 Очнулся у костра. Работа сорвана, ' + downLost + ' крон ушло за лечение. Снаряжение и сюжет целы.');
   saveRun();
@@ -3528,6 +3538,120 @@ function drawPawn(x, y, a, st) {
   ctx.restore();
 }
 
+/* =====================  КУПОЛ КВЕНА  =====================
+   Раньше щит был пульсирующим кольцом: по нему нельзя было сказать ничего,
+   кроме «что-то включено». Теперь это гранёный купол — восемь плоскостей,
+   по которым бежит волна света, — и на нём остаются трещины от ударов.
+   Сколько трещин, столько раз щит уже приняли на себя.
+
+   ЧИСЛА. Купол не должен закрывать самого ведьмака: фигура и так рисуется
+   ПОВЕРХ него, но если мазки лягут на пешку, они прочтутся как часть
+   пешки — плащ в синих царапинах. Поэтому весь купол держим снаружи
+   PAWN_R (19) — того самого следа, по которому зеркало вписывает фигуру
+   в рамку. Обод в 22; трещины бегут ПО ОБОДУ и наружу, до 27, внутрь не
+   лезут вовсе. Ближе всего к середине оказывается СЕРЕДИНА ГРАНИ (грань —
+   хорда, а не дуга): 22 · cos(π/8) = 20.33 — и это по-прежнему снаружи.
+   Проверка меряет след пешки сама и сверяет с этим запасом. */
+const QUEN_R = 22;                                     // обод: вершины граней
+const QUEN_FACETS = 8;                                 // граней в куполе
+const QUEN_CRACKS = 5;                                 // больше — решето, а не щит
+const QUEN_CRACK_R = [24, 27];                         // докуда бьют лучи трещины
+function drawQuenDome(x, y) {
+  const rot = anim * 0.7;
+  /* Здесь круг делим на ПОЛНЫЕ 2π, а не на привычные игре 6.283: у ломаной
+     последняя грань обязана прийти ровно в первую вершину, и обрезанное
+     6.283 оставляло бы на куполе щербину в 0.004 шага. */
+  for (let i = 0; i < QUEN_FACETS; i++) {              // грани: хорды, не дуга
+    const a1 = rot + i / QUEN_FACETS * Math.PI * 2, a2 = rot + (i + 1) / QUEN_FACETS * Math.PI * 2;
+    /* Волна света бежит по граням: у каждой свой сдвиг фазы, поэтому в один
+       миг одни грани горят, другие едва тлеют — купол читается как живой. */
+    const sh = 0.35 + 0.65 * Math.max(0, Math.sin(anim * 3.4 - i * 0.7));
+    ctx.strokeStyle = 'rgba(150,225,255,' + (0.3 + sh * 0.55).toFixed(2) + ')';
+    ctx.lineWidth = 1 + sh * 1.4;
+    ctx.beginPath();
+    ctx.moveTo(x + Math.cos(a1) * QUEN_R, y + Math.sin(a1) * QUEN_R);
+    ctx.lineTo(x + Math.cos(a2) * QUEN_R, y + Math.sin(a2) * QUEN_R);
+    ctx.stroke();
+  }
+  // стекло внутри — еле заметное: сквозь щит должно быть видно бой
+  ctx.globalAlpha = 0.12; ctx.fillStyle = '#8ad8ff';
+  ctx.beginPath(); ctx.arc(x, y, QUEN_R, 0, 6.3); ctx.fill(); ctx.globalAlpha = 1;
+  /* Трещина — веер из четырёх лучей от места удара. Все они уходят ВБОК И
+     НАРУЖУ, а не внутрь: внутри стоит сам ведьмак. Угол трещины взят при
+     ударе и больше не меняется — иначе трещины мельтешили бы каждый кадр и
+     не значили ничего. */
+  for (const h of (P.quenHits || [])) {
+    const hx = x + Math.cos(h.a) * QUEN_R, hy = y + Math.sin(h.a) * QUEN_R;
+    ctx.strokeStyle = 'rgba(210,245,255,.85)'; ctx.lineWidth = 0.9;
+    for (let c = 0; c < 4; c++) {
+      const an = h.a + (c < 2 ? 1 : -1) * (0.18 + (c % 2) * 0.16);
+      const rr = QUEN_CRACK_R[c % 2];
+      ctx.beginPath();
+      ctx.moveTo(hx, hy);
+      ctx.lineTo(x + Math.cos(an) * rr, y + Math.sin(an) * rr);
+      ctx.stroke();
+    }
+  }
+}
+
+/* =====================  ПЕЧАТЬ ИРДЕНА  =====================
+   Обод печати — это ГРАНИЦА: внутри Ирден замедляет тварь, снаружи нет
+   (см. stepFoe: dist(f, P.yrden) < P.yrden.r). Поэтому обод рисуется САМЫМ
+   толстым и в полную густоту, а всё остальное — паутина, волна, руны —
+   лежит внутри и тусклее. Смотрящий должен с одного взгляда понимать, где
+   кончается ловушка.
+
+   Ни одного своего числа у печати нет: и обод, и паутина, и руны считаются
+   от Y.r — того самого радиуса, по которому идёт правило. Сдвинется правило —
+   поедет рисунок, и наоборот соврать он не сможет. */
+const YRDEN_RUNES = 'ᛟᚹᛉᛃᛈᚱᛗᛞ';
+function drawYrdenSeal(Y) {
+  if (!Y) return;
+  const rot = anim * 0.45, pu = anim % 1;
+  ctx.globalAlpha = 0.1; ctx.fillStyle = '#7a4fd0';
+  ctx.beginPath(); ctx.arc(Y.x, Y.y, Y.r, 0, 6.3); ctx.fill(); ctx.globalAlpha = 1;
+  for (let i = 0; i < 14; i++) {                       // паутина внутри печати
+    /* Углы разведены несоизмеримыми шагами (2.399 и 4.129 радиана), чтобы
+       нити не сложились в звезду с осевой симметрией — паутина должна
+       выглядеть плетёной, а не циркульной. Дальше 0.81 радиуса не уходят:
+       нить, легшая на сам обод, съела бы границу. */
+    const a1 = rot + (i * 2.399) % 6.283, a2 = rot + (i * 4.129) % 6.283;
+    const r1 = Y.r * (0.25 + (i % 5) * 0.14), r2 = Y.r * (0.25 + ((i + 3) % 5) * 0.14);
+    ctx.strokeStyle = 'rgba(196,150,255,' + (0.2 + 0.28 * Math.abs(Math.sin(anim * 3 + i))).toFixed(2) + ')';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(Y.x + Math.cos(a1) * r1, Y.y + Math.sin(a1) * r1);
+    ctx.lineTo(Y.x + Math.cos(a2) * r2, Y.y + Math.sin(a2) * r2);
+    ctx.stroke();
+  }
+  // раз в секунду от середины к ободу проходит волна — печать жива, а не нарисована
+  ctx.globalAlpha = (1 - pu) * 0.7; ctx.strokeStyle = '#d9b8ff'; ctx.lineWidth = 1.4;
+  ctx.beginPath(); ctx.arc(Y.x, Y.y, Y.r * pu, 0, 6.3); ctx.stroke(); ctx.globalAlpha = 1;
+  // обод — граница. Самый толстый мазок печати и единственный в полную густоту
+  ctx.strokeStyle = '#c496ff'; ctx.lineWidth = 1.8;
+  ctx.beginPath(); ctx.arc(Y.x, Y.y, Y.r, 0, 6.3); ctx.stroke();
+  ctx.save(); ctx.translate(Y.x, Y.y); ctx.rotate(rot);
+  for (let i = 0; i < YRDEN_RUNES.length; i++) {       // руны едут по самому ободу
+    ctx.save(); ctx.rotate(i / YRDEN_RUNES.length * 6.283);
+    txt(YRDEN_RUNES[i], 0, -Y.r + 8, 9, '#e0c8ff', 'center');
+    ctx.restore();
+  }
+  ctx.restore();
+  /* Разряды к пойманным. Условие ТО ЖЕ, что в правиле замедления, слово в
+     слово, — иначе нашёлся бы зазор, где тварь вязнет без единого разряда
+     или искрит на воле. По два разряда на тварь: с тремя пять утопцев
+     превращали печать в кашу из линий. */
+  for (const f of foes) {
+    if (!(Math.hypot(f.x - Y.x, f.y - Y.y) < Y.r)) continue;
+    ctx.strokeStyle = 'rgba(214,170,255,.8)'; ctx.lineWidth = 1;
+    for (let c = 0; c < 2; c++) {
+      const mx = (Y.x + f.x) / 2 + Math.sin(anim * 9 + c) * 12;
+      const my = (Y.y + f.y) / 2 + Math.cos(anim * 7 + c) * 12;
+      ctx.beginPath(); ctx.moveTo(Y.x, Y.y); ctx.quadraticCurveTo(mx, my, f.x, f.y); ctx.stroke();
+    }
+  }
+}
+
 function drawWorld() {
   /* Всё, что ниже, рисуется в МИРОВЫХ координатах: сдвигаем холст на
      камеру и подрезаем окном. Поэтому дальше можно писать o.x, f.y — как
@@ -3569,11 +3693,7 @@ function drawWorld() {
   }
 
   // ловушка Ирдена
-  if (P.yrden) {
-    ctx.strokeStyle = 'rgba(180,120,255,.7)'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(P.yrden.x, P.yrden.y, P.yrden.r, 0, 6.3); ctx.stroke();
-    ctx.fillStyle = 'rgba(140,90,220,.14)'; ctx.fill();
-  }
+  drawYrdenSeal(P.yrden);
 
   // лагерь: костёр, верстак, доска работ и зеркало стоят на своих местах в мире
   drawIco('🔥', 26, FIRE.x, FIRE.y + Math.sin(anim * 6) * 1.5);
@@ -3697,10 +3817,7 @@ function drawWorld() {
 
   // игрок
   const px = P.x, py = P.y;
-  if (P.quen > 0) {
-    ctx.strokeStyle = 'rgba(120,210,255,.75)'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(px, py, 16 + Math.sin(anim * 8) * 1.2, 0, 6.3); ctx.stroke();
-  }
+  if (P.quen > 0) drawQuenDome(px, py);
   if (P.dodge > 0) ctx.globalAlpha = 0.55;
   if (P.biz > 0) {
     drawIco('💼', 22, px, py);
@@ -5199,6 +5316,7 @@ if (typeof globalThis !== 'undefined') globalThis.__W = {
   drawLook, lookLayout, PAWN_R, PANEL_MAX,
   HAIRS, HAIR_C, BEARDS, SCARS, SKINS, EYES,
   drawPawn, pawnState, rrect,
+  drawQuenDome, drawYrdenSeal, QUEN_R, QUEN_FACETS, QUEN_CRACKS, QUEN_CRACK_R, YRDEN_RUNES,
   getP: () => P, getFoes: () => foes, setFoes: v => { foes = v; }, getInv: () => inv, setInv: v => { inv = v; },
   getGold: () => gold, setGold: v => { gold = v; }, getDrops: () => drops, getShots: () => shots,
   getParts: () => parts, PART_CAP,
