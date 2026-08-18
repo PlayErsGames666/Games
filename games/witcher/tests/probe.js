@@ -16,7 +16,7 @@ const path = require('path');
 const vm = require('vm');
 
 const GAME = process.env.WITCHER_GAME || path.join(__dirname, '..', 'game.js');
-const NOOP = ['beginPath', 'moveTo', 'lineTo', 'arc', 'ellipse', 'closePath', 'clip', 'rect',
+const NOOP = ['beginPath', 'moveTo', 'lineTo', 'arc', 'arcTo', 'ellipse', 'closePath', 'clip', 'rect',
   'save', 'restore', 'translate', 'rotate', 'scale', 'setTransform', 'setLineDash',
   'stroke', 'fillRect', 'strokeRect', 'fill', 'drawImage', 'fillText', 'strokeText', 'putImageData'];
 
@@ -67,6 +67,10 @@ function makeProbe() {
     devicePixelRatio: 1,
   };
   sandbox.window = sandbox; sandbox.globalThis = sandbox;
+  // window.addEventListener('blur', ...) в игре: без пустышки замер падал на
+  // загрузке игры и молчал об этом до самого запуска. Считать нечего, если
+  // игра не завелась.
+  sandbox.addEventListener = () => {};
   sandbox.__canvas = makeCanvas();
   vm.createContext(sandbox);
   vm.runInContext(fs.readFileSync(GAME, 'utf8'), sandbox, { filename: GAME });
