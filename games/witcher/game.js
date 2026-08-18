@@ -2965,6 +2965,11 @@ function update(dt) {
     const l = Math.hypot(mx, my), s = moveSpeed();
     P.x += mx / l * s * dt; P.y += my / l * s * dt;
   }
+  /* Часы шага копятся ТОЛЬКО пока ведьмак идёт, а не по общему времени:
+     иначе пешка покачивалась бы стоя на месте. Часы не сбрасываем — покачивание
+     подхватывается с той же фазы, на которой остановились, без рывка. */
+  const moving = mx !== 0 || my !== 0;
+  P.walk = (P.walk || 0) + (moving ? dt : 0);
   P.x = clamp(P.x, 9, WORLD_W - 9); P.y = clamp(P.y, 9, WORLD_H - 9);
   // препятствия (перебираем только те, что рядом: их на весь мир под сотню)
   for (const o of obstNear(P.x, P.y)) {
@@ -3275,6 +3280,126 @@ function bakeCompass(w, h) {
   compassScale = icoScale;
 }
 
+/* =====================  ПЕШКА  =====================
+   Ведьмак рисуется как пешка в RimWorld: вид сверху с наклоном, видно плечи,
+   макушку и лицо. Фигура поворачивается ЦЕЛИКОМ по взгляду.
+
+   Эта функция ничего не считает и ни на что не влияет: правила боя её не
+   видят. Радиус столкновений остаётся девяткой, зоны знаков — своими. Видимый
+   след пешки (около 20×26) чуть выше и уже прежнего круга, и это единственное,
+   что меняется, — картинка.
+
+   Местные оси: «вперёд» — это -Y, поэтому поворот на a + PI/2. */
+function rrect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y,     x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x,     y + h, r);
+  ctx.arcTo(x,     y + h, x,     y,     r);
+  ctx.arcTo(x,     y,     x + w, y,     r);
+  ctx.closePath();
+}
+function pawnState() {
+  return {
+    armor: P.armor ? P.armor.type : null,
+    hand: P.hand, mut: P.mut > 0, mut2: P.mut2 > 0,
+    quen: P.quen > 0, dodge: P.dodge > 0, down: over,
+    walk: P.walk || 0, xbow: !!P.xbow,
+  };
+}
+function drawPawn(x, y, a, st) {
+  st = st || {};
+  const A = st.armor && ARMOR[st.armor] ? ARMOR[st.armor] : null;
+  const cloak = st.mut2 ? '#5a2020' : (A ? A.c : '#6b6f78');
+  // силуэт по ВЕСУ доспеха: лёгкий узкий, тяжёлый широкий с пластинами
+  const heavy = A ? A.w >= 20 : false, mid = A ? A.w >= 12 && A.w < 20 : false;
+  const bw = heavy ? 16 : mid ? 15 : 13;
+  const bob = Math.sin(st.walk * 9) * 0.8;
+
+  ctx.save();
+  ctx.translate(x, y);
+  if (st.down) { ctx.rotate(a + Math.PI / 2 + 1.3); ctx.globalAlpha = 0.8; }
+  else ctx.rotate(a + Math.PI / 2);
+
+  ctx.fillStyle = 'rgba(0,0,0,.35)';                       // тень
+  ctx.beginPath(); ctx.ellipse(0, 2, bw * 0.42, 9, 0, 0, 6.3); ctx.fill();
+
+  // мечи за спиной: в руке — только один, второй остаётся торчать
+  const steel = P.steel && st.hand !== 'steel', silver = P.silver && st.hand !== 'silver';
+  if (steel)  { ctx.strokeStyle = SWORD.steel.c;  ctx.lineWidth = 1.8;
+                ctx.beginPath(); ctx.moveTo(-4, -6 + bob); ctx.lineTo(-7, -14 + bob); ctx.stroke(); }
+  if (silver) { ctx.strokeStyle = SWORD.silver.c; ctx.lineWidth = 1.8;
+                ctx.beginPath(); ctx.moveTo(4, -6 + bob); ctx.lineTo(7, -14 + bob); ctx.stroke(); }
+
+  ctx.fillStyle = cloak;                                    // плащ
+  rrect(-bw / 2, -4 + bob, bw, 17, 6); ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = 1; ctx.stroke();
+  if (heavy) {                                              // пластины
+    ctx.strokeStyle = 'rgba(255,255,255,.16)';
+    ctx.beginPath(); ctx.moveTo(-bw / 2 + 1, 2 + bob); ctx.lineTo(bw / 2 - 1, 2 + bob);
+    ctx.moveTo(-bw / 2 + 1, 7 + bob); ctx.lineTo(bw / 2 - 1, 7 + bob); ctx.stroke();
+  }
+  if (heavy || mid) {                                       // наплечники
+    ctx.fillStyle = 'rgba(0,0,0,.3)';
+    ctx.beginPath(); ctx.ellipse(-bw / 2, -1 + bob, 2.6, 4, 0, 0, 6.3); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(bw / 2, -1 + bob, 2.6, 4, 0, 0, 6.3); ctx.fill();
+  }
+  if (st.xbow) {                                            // арбалет на поясе
+    ctx.strokeStyle = '#6b5a3a'; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(bw / 2 - 1, 8 + bob); ctx.lineTo(bw / 2 + 4, 10 + bob); ctx.stroke();
+  }
+
+  const hc = (HAIR_C[look.hairC] || HAIR_C.white).c;
+  const sc = (SKINS[look.skin] || SKINS.fair).c;
+  const ec = (EYES[look.eye] || EYES.cat).c;
+  ctx.fillStyle = st.mut2 ? '#c98a7a' : sc;                 // голова
+  ctx.beginPath(); ctx.arc(0, -7 + bob, 5.2, 0, 6.3); ctx.fill();
+
+  ctx.fillStyle = hc;                                       // волосы
+  if (look.hair !== 'bald') {
+    ctx.beginPath(); ctx.arc(0, -7 + bob, 5.2, Math.PI, 0); ctx.fill();
+  }
+  if (look.hair === 'mane') {                               // грива по бокам
+    rrect(-5.2, -7 + bob, 1.8, 6, 0.9); ctx.fill();
+    rrect(3.4, -7 + bob, 1.8, 6, 0.9); ctx.fill();
+  } else if (look.hair === 'tail') {                        // хвост назад
+    rrect(-1.2, -13 + bob, 2.4, 5, 1.2); ctx.fill();
+  } else if (look.hair === 'braid') {                       // коса вбок
+    rrect(3.6, -9 + bob, 1.8, 7, 0.9); ctx.fill();
+  }
+
+  ctx.fillStyle = ec;                                       // глаза
+  ctx.beginPath(); ctx.arc(-2, -6 + bob, 0.85, 0, 6.3); ctx.fill();
+  ctx.beginPath(); ctx.arc(2, -6 + bob, 0.85, 0, 6.3); ctx.fill();
+
+  if (look.beard !== 'none') {                              // борода
+    ctx.fillStyle = look.beard === 'stubble' ? 'rgba(90,80,70,.55)' : hc;
+    const bh = look.beard === 'full' ? 4 : look.beard === 'short' ? 2.6 : 1.6;
+    rrect(-3.2, -4.4 + bob, 6.4, bh, 1.4); ctx.fill();
+  }
+  if (look.scar !== 'none') {                               // шрам
+    ctx.strokeStyle = 'rgba(150,90,80,.85)'; ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    if (look.scar === 'eye') { ctx.moveTo(-2.6, -9 + bob); ctx.lineTo(-1.4, -4 + bob); }
+    else { ctx.moveTo(2.2, -8 + bob); ctx.lineTo(3.4, -4.5 + bob); }
+    ctx.stroke();
+  }
+  if (st.mut || st.mut2) {                                  // жилы мутации
+    ctx.strokeStyle = st.mut2 ? 'rgba(255,60,40,.9)' : 'rgba(200,60,50,.6)';
+    ctx.lineWidth = st.mut2 ? 1.4 : 0.9;
+    ctx.beginPath(); ctx.moveTo(-4, -9 + bob); ctx.lineTo(-2, -5 + bob);
+    ctx.moveTo(4, -9 + bob); ctx.lineTo(2, -5 + bob); ctx.stroke();
+  }
+  if (st.mut2) {                                            // когти
+    ctx.strokeStyle = '#ffd0a0'; ctx.lineWidth = 1.2;
+    for (let i = -1; i <= 1; i++) {
+      ctx.beginPath(); ctx.moveTo(bw / 2 - 1, 4 + i * 2.5 + bob);
+      ctx.lineTo(bw / 2 + 4, 3 + i * 3 + bob); ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
 function drawWorld() {
   /* Всё, что ниже, рисуется в МИРОВЫХ координатах: сдвигаем холст на
      камеру и подрезаем окном. Поэтому дальше можно писать o.x, f.y — как
@@ -3450,12 +3575,7 @@ function drawWorld() {
   if (P.biz > 0) {
     drawIco('💼', 22, px, py);
   } else {
-    ctx.fillStyle = P.mut2 > 0 ? '#ff2a2a' : P.mut > 0 ? '#c0303a' : '#2b2f38';
-    ctx.beginPath(); ctx.arc(px, py, 9, 0, 6.3); ctx.fill();
-    ctx.strokeStyle = P.mut2 > 0 ? '#ffd0a0' : P.mut > 0 ? '#ff6a5a' : '#8a8f96';
-    ctx.lineWidth = P.mut2 > 0 ? 3 : 2; ctx.stroke();
-    ctx.fillStyle = '#e8d9a8';                                  // белая грива
-    ctx.beginPath(); ctx.arc(px, py - 2, 5, 0, 6.3); ctx.fill();
+    drawPawn(px, py, P.face, pawnState());
   }
   ctx.globalAlpha = 1;
   // меч в руке
@@ -4769,6 +4889,7 @@ if (typeof globalThis !== 'undefined') globalThis.__W = {
   getLook: () => look, setLook: v => { look = Object.assign({}, LOOK_DEF, v); },
   loadLook, saveLook, randomLook, LOOK_FIELDS, LOOK_DEF,
   HAIRS, HAIR_C, BEARDS, SCARS, SKINS, EYES,
+  drawPawn, pawnState, rrect,
   getP: () => P, getFoes: () => foes, setFoes: v => { foes = v; }, getInv: () => inv, setInv: v => { inv = v; },
   getGold: () => gold, setGold: v => { gold = v; }, getDrops: () => drops, getShots: () => shots,
   getParts: () => parts,

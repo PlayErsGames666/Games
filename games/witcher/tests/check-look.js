@@ -60,4 +60,33 @@ head('Наугад даёт только знакомые ключи');
   ok(true, 'сорок бросков подряд — все ключи из таблиц');
 }
 
+head('Рисуется любой облик из таблиц');
+{
+  W.reset(); W.setPhase('HUNT'); W.setPanel(null);
+  let fell = null, n = 0;
+  for (const F of W.LOOK_FIELDS) {
+    for (const k of Object.keys(F.tab)) {
+      const L = Object.assign({}, W.LOOK_DEF); L[F.k] = k;
+      W.setLook(L);
+      n++;
+      try { W.render(); } catch (e) { fell = F.k + '=' + k + ': ' + e.message; break; }
+    }
+    if (fell) break;
+  }
+  note('обликов отрисовано: ' + n);
+  ok(!fell, fell ? ('падение на ' + fell) : 'все значения всех шести таблиц рисуются');
+}
+
+head('Пешка поворачивается на все стороны');
+{
+  W.reset(); W.setPhase('HUNT'); W.setPanel(null);
+  const P = W.getP();
+  let fell = null;
+  for (let i = 0; i < 16; i++) {
+    P.face = i / 16 * Math.PI * 2;
+    try { W.render(); } catch (e) { fell = 'угол ' + i + ': ' + e.message; break; }
+  }
+  ok(!fell, fell || 'шестнадцать направлений — рисуется без падения');
+}
+
 done();
