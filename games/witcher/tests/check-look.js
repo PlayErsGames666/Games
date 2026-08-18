@@ -1,7 +1,7 @@
 /* Облик ведьмака: таблицы, запись, зеркало, панель.
    Пишется по частям вместе с задачами 2, 5 и 6 плана. */
 'use strict';
-const { W, store, ok, note, head, done, paints, spins, nans, traces,
+const { W, store, ok, note, head, done, paints, paintsFull, spins, nans, traces, arcs,
         frame, frameMarks, frameMarksAll, tap, peek } = require('./harness.js');
 
 head('Умолчание, когда записи нет');
@@ -270,12 +270,172 @@ head('Мутация видна на фигуре');
      'и лицо на срыве налилось, а не осталось обычной кожей');
 }
 
+/* Замысел обещает второй ступенью не «жилы поярче», а СРЫВ: «фигура горбится,
+   когти, горящий контур». Когти были, горба и контура не было — обещание
+   стерегло только слово в замысле, а слово ничего не стережёт. */
+head('Зверь горбится и горит контуром');
+{
+  const L = W.LOOK_DEF;
+  const base = { armor: 'heavy', look: L, mut: true };
+  const beast = { armor: 'heavy', look: L, mut: true, mut2: true };
+  const FIRE = 'rgba(255,120,36,';
+
+  const calm = paints(() => W.drawPawn(0, 0, 0, base));
+  const hot  = paints(() => W.drawPawn(0, 0, 0, beast));
+  ok(!calm.some(c => c.indexOf(FIRE) === 0), 'на первой ступени контур не горит');
+  ok(hot.some(c => c.indexOf(FIRE) === 0), 'на второй — силуэт обведён горящим контуром');
+
+  /* ГОРБ меряем по голове: она рисуется одним кругом, и у зверя он и мельче
+     (фигура сжата), и подан ВПЕРЁД (вперёд — это −Y). Круг узнаём по краске
+     лица: на срыве она своя, и больше нигде на пешке не встречается.
+     Смотрим sx/sy — место НА ХОЛСТЕ: сжатие и сдвиг живут в них, в местных
+     осях фигуры их не видно вовсе. */
+  const headOf = (st, col) => arcs(() => W.drawPawn(0, 0, 0, st))
+    .find(a => a.k === 'fill' && a.c === col && !a.oval);
+  const h1 = headOf(base, W.SKINS.fair.c), h2 = headOf(beast, '#c98a7a');
+  ok(!!h1 && !!h2, 'голова нашлась в обеих отрисовках');
+  note('голова: обычная r=' + (h1 ? h1.rs.toFixed(2) : '—') + ' на y=' + (h1 ? h1.sy.toFixed(2) : '—') +
+       ', у зверя r=' + (h2 ? h2.rs.toFixed(2) : '—') + ' на y=' + (h2 ? h2.sy.toFixed(2) : '—'));
+  ok(!!h1 && !!h2 && h2.rs < h1.rs, 'фигура зверя сжата: она мельче своей же обычной');
+  ok(!!h1 && !!h2 && h2.sy < h1.sy, 'и подана вперёд — это и есть горб');
+  /* Но не в кляксу: ведьмак обязан остаться ведьмаком. Больше чем на четверть
+     сжиматься нечему, иначе рядом с тварями это уже не фигура, а комок. */
+  ok(!!h1 && !!h2 && h2.rs > h1.rs * 0.75, 'и сжата умеренно: ' + (h2 && h1 ? (h2.rs / h1.rs).toFixed(2) : '—') + ' от обычной');
+}
+
 head('Арбалет на поясе виден только когда он есть');
 {
   const on  = paints(() => W.drawPawn(0, 0, 0, { xbow: true }));
   const off = paints(() => W.drawPawn(0, 0, 0, { xbow: false }));
   ok(on.indexOf('#6b5a3a') >= 0, 'арбалет нарисован');
   ok(off.indexOf('#6b5a3a') < 0, 'без арбалета на поясе пусто');
+}
+
+/* «Арбалет: на поясе, ПОКА НЕ СТРЕЛЯЕТ» — строка замысла. Взвод (P.boltCd) и
+   есть те секунды, когда он снят с пояса; раньше он висел на боку даже в тот
+   миг, когда из него бьют. */
+head('Арбалет уходит с пояса на время выстрела');
+{
+  const XB = '#6b5a3a';
+  const idle = paints(() => W.drawPawn(0, 0, 0, { xbow: true, shooting: false }));
+  const shot = paints(() => W.drawPawn(0, 0, 0, { xbow: true, shooting: true }));
+  ok(idle.indexOf(XB) >= 0, 'пока не стреляет — висит на поясе');
+  ok(shot.indexOf(XB) < 0, 'пока стреляет — с пояса пропал');
+
+  // и это не выдумка стенда: признак берётся от настоящего взвода
+  W.reset(); W.setPhase('HUNT'); W.setPanel(null);
+  const P = W.getP();
+  ok(W.pawnState().shooting === false, 'в покое взвода нет');
+  W.shootBolt();
+  note('взвод после выстрела: ' + P.boltCd.toFixed(2) + ' с');
+  ok(P.boltCd > 0 && W.pawnState().shooting === true, 'выстрелил — пешка про это знает');
+  ok(paints(() => W.drawPawn(0, 0, 0, W.pawnState())).indexOf(XB) < 0,
+     'и на фигуре арбалета в этот миг нет');
+  for (let i = 0; i < 200 && P.boltCd > 0; i++) W.update(0.016);
+  ok(W.pawnState().shooting === false, 'взвод кончился — признак снялся');
+  ok(paints(() => W.drawPawn(0, 0, 0, W.pawnState())).indexOf(XB) >= 0, 'и арбалет вернулся на пояс');
+}
+
+/* «Замах: плечи доворачиваются; меч рисуется прежним кодом» — строка замысла.
+   P.swing не доходил до pawnState вовсе, то есть фигура о замахе не знала. */
+head('Замах доворачивает плечи');
+{
+  W.reset(); W.setPhase('HUNT'); W.setPanel(null);
+  const P = W.getP();
+  ok(W.pawnState().swing === 0, 'в покое доворота нет');
+  W.swing();
+  const phase = [W.pawnState().swing];
+  for (let i = 0; i < 3; i++) { W.update(0.11); phase.push(W.pawnState().swing); }
+  note('доворот по ходу замаха: ' + phase.map(v => v.toFixed(2)).join(' → '));
+  ok(phase[0] <= -0.99, 'замах начинается с одного края');
+  ok(phase[1] > phase[0] && phase[2] > phase[1], 'и идёт к другому, не дёргаясь назад');
+  ok(phase[3] === 0, 'кончился замах — плечи вернулись');
+
+  /* Доворачиваются именно ПЛЕЧИ, а не вся пешка: у фигуры появляется ВТОРОЙ
+     поворот холста, вложенный в общий. Один общий был и остаётся — по нему
+     фигура смотрит туда, куда смотрит ведьмак, и замах его не трогает. */
+  const rest = spins(() => W.drawPawn(0, 0, 0, { swing: 0 }));
+  const beg  = spins(() => W.drawPawn(0, 0, 0, { swing: -1 }));
+  const end  = spins(() => W.drawPawn(0, 0, 0, { swing: 1 }));
+  ok(rest.length === 1, 'в покое поворот один — общий, по взгляду');
+  ok(beg.length === 2 && end.length === 2, 'на замахе добавился ровно один поворот — плечевой');
+  ok(beg[0] === rest[0] && end[0] === rest[0], 'общий поворот замах не тронул: фигура смотрит туда же');
+  const b = beg[1], e = end[1];
+  note('плечи доворачиваются от ' + b.toFixed(3) + ' до ' + e.toFixed(3) + ' рад');
+  ok(b < 0 && e > 0, 'плечи уходят вслед за клинком: в начале в одну сторону, в конце в другую');
+  ok(Math.abs(b + e) < 1e-9, 'и ровно на столько же — замах не косой');
+  ok(Math.abs(e) > 0.05, 'доворот заметен глазу');
+  ok(Math.abs(e) < 0.6, 'но фигуру боком не ставит — это отклик, а не анимация удара');
+}
+
+/* «Зелье в силе → цветной ободок и редкие искры цвета зелья» — строка
+   замысла, которой в коде не было вовсе: pawnState о зельях не отдавал
+   ничего, drawPawn о них не знал. */
+head('Зелье в силе видно ободком своего цвета');
+{
+  W.reset(); W.setPhase('HUNT'); W.setPanel(null);
+  const P = W.getP();
+  ok(W.pawnState().potion === null, 'без зелья ободка нет');
+
+  W.addStack('swallow', 1); W.drink('swallow');
+  ok(P.regen > 0, 'Ласточка пошла');
+  ok(W.pawnState().potion === W.POTIONS.swallow.c,
+     'ободок взял цвет самой Ласточки: ' + W.pawnState().potion);
+
+  P.regen = 0; P.tox = 0;
+  W.addStack('thunder', 1); W.drink('thunder');
+  ok(P.buffThunder > 0 && W.pawnState().potion === W.POTIONS.thunder.c,
+     'у Грома свой цвет: ' + W.pawnState().potion);
+
+  /* Белый мёд не длится ни секунды — он срабатывает разом. Показывать нечего,
+     и ободка от него быть не должно. */
+  P.buffThunder = 0; P.tox = 60;
+  W.addStack('honey', 1); W.drink('honey');
+  ok(W.pawnState().potion === null, 'от Белого мёда ободка нет — он не длится');
+
+  const c = W.POTIONS.swallow.c;
+  const off = paints(() => W.drawPawn(0, 0, 0, { armor: 'heavy' }));
+  const on  = paints(() => W.drawPawn(0, 0, 0, { armor: 'heavy', potion: c }));
+  ok(off.indexOf(c) < 0, 'без зелья цвета зелья на фигуре нет');
+  ok(on.indexOf(c) >= 0, 'с зельем — есть');
+  const rimArcs = arcs(() => W.drawPawn(0, 0, 0, { armor: 'heavy', potion: c }))
+    .filter(a => a.c === c);
+  const rim = rimArcs.filter(a => a.k === 'stroke'), sparks = rimArcs.filter(a => a.k === 'fill');
+  ok(rim.length === 1, 'ободок один, а не венок: ' + rim.length);
+  ok(sparks.length >= 2 && sparks.length <= 5,
+     'искры РЕДКИЕ — их горсть, а не сыпь: ' + sparks.length);
+
+  /* Подсказка, а не украшение: спорить ободок не должен ни с горящим
+     контуром зверя, ни с чем бы то ни было ещё на фигуре.
+
+     Густота живёт в ДВУХ местах: у ободка в globalAlpha, у контура вписана
+     прямо в краску. Спрашивать одно globalAlpha значило бы считать контур
+     в полную силу, а он в половину, — мерка называлась бы громче, чем
+     меряет. Перемножаем (тот же приём, что у печати в check-signs).
+
+     И оба дышат по часам игры, поэтому берём НЕ один кадр, а полный круг
+     обоих колебаний: иначе мерка держалась бы на том, в какой фазе её
+     застали, и мигала бы через раз. */
+  const ink = m => {
+    const g = m.a === undefined ? 1 : m.a;
+    const rgba = /^rgba?\(([^)]*)\)/.exec(String(m.c));
+    if (!rgba) return g;
+    const p = rgba[1].split(',');
+    return g * (p.length > 3 ? parseFloat(p[3]) : 1);
+  };
+  let rimLoud = 0, fireQuiet = Infinity, seenRim = 0, seenFire = 0;
+  for (let i = 0; i < 130; i++) {                        // 2.08 с — дольше обоих колебаний
+    W.update(0.016);
+    for (const m of paintsFull(() => W.drawPawn(0, 0, 0, { armor: 'heavy', potion: c, mut: true, mut2: true }))) {
+      if (m.c === c) { seenRim++; rimLoud = Math.max(rimLoud, ink(m)); }
+      if (String(m.c).indexOf('rgba(255,120,36,') === 0) { seenFire++; fireQuiet = Math.min(fireQuiet, ink(m)); }
+    }
+  }
+  note('за круг колебаний: самый густой мазок ободка ' + rimLoud.toFixed(2) +
+       ', самый тусклый мазок контура ' + fireQuiet.toFixed(2));
+  ok(seenRim > 0 && rimLoud < 0.5, 'ободок идёт вполсилы даже в самой яркой своей фазе: ' + rimLoud.toFixed(2));
+  ok(seenFire > 0 && rimLoud < fireQuiet,
+     'и тише горящего контура в любой фазе обоих — срыв важнее выпитого');
 }
 
 head('Рисуется в любом состоянии');

@@ -692,10 +692,18 @@ head('Купол не закрывает ведьмака');
      этого научили писать arcTo и ellipse — без них пешка мерилась бы без
      плаща, тени и наплечников. */
   let pawnMax = 0, worst = '';
+  /* Состояния берём с ЗАПАСОМ на всё, что фигура вообще умеет показать:
+     доспех, мутацию обеих ступеней, замах в обе стороны и ободок зелья.
+     Каждое из них добавляет свои мазки, и любой из них может однажды
+     вылезти за след — а купол стоит вплотную к нему. */
   const sts = [
     {}, { walk: 1.4 },
     { armor: 'heavy', steel: true, silver: true, xbow: true, mut: true, mut2: true, walk: 1.4, look: W.LOOK_DEF },
     { armor: 'light', steel: true, silver: true, xbow: true, walk: 3.1, look: W.LOOK_DEF },
+    { armor: 'bear', steel: true, silver: true, swing: -1, walk: 1.4, look: W.LOOK_DEF },
+    { armor: 'bear', steel: true, silver: true, swing: 1, walk: 1.4, look: W.LOOK_DEF },
+    { armor: 'bear', potion: W.POTIONS.swallow.c, walk: 1.4, look: W.LOOK_DEF },
+    { armor: 'bear', potion: W.POTIONS.thunder.c, mut: true, mut2: true, walk: 1.4, look: W.LOOK_DEF },
   ];
   for (const h in W.HAIRS) {
     sts.push({ armor: 'heavy', walk: 1.4,

@@ -1751,6 +1751,12 @@ function drink(id) {
 function mouseInWorld() { return mouse.x > WX0 && mouse.x < WX1 && mouse.y > WY0 && mouse.y < WY1; }
 function faceAim() { return P.face; }
 
+/* Сколько живёт ВИДИМЫЙ замах. Не путать с окном попадания (0.14 с, см.
+   update): по этому сроку идёт только дуга клинка на экране и доворот плеч
+   у пешки. Держим одним именем, потому что мест теперь три — конец замаха,
+   угол клинка и отклик фигуры, — и разъехаться им нельзя: плечи, доведённые
+   до конца после того, как меч уже убран, читались бы отдельной поломкой. */
+const SWING_SHOW = 0.3;
 function swing() {
   if (P.atkCd > 0 || P.dodge > 0) return;
   // бизнесмэн не машет железом — он заключает договоры
@@ -3139,7 +3145,7 @@ function update(dt) {
         if (sw && sw.oil > 0 && --sw.oil <= 0) message('🧴 Масло сошло с клинка');
       }
     }
-    if (P.swing.t > 0.3) P.swing = null;
+    if (P.swing.t > SWING_SHOW) P.swing = null;
   }
 
   if (mouse.down) swing();
@@ -3435,12 +3441,33 @@ function rrect(x, y, w, h, r) {
   ctx.arcTo(x,     y,     x + w, y,     r);
   ctx.closePath();
 }
+/* ЗЕЛЬЕ В СИЛЕ — какого оно цвета на фигуре.
+
+   Признак берём от того самого поля, по которому зелье и РАБОТАЕТ, а цвет —
+   прямо из POTIONS: своих чисел у ободка нет, и соврать он не сможет.
+   Белого мёда в списке нет намеренно — он не длится, а срабатывает разом:
+   показывать нечего.
+   Порядок в списке значащий: если в силе сразу два зелья, показываем первое.
+   Ободок на фигуре может быть только один — два цвета внахлёст не читаются
+   вовсе, а подсказка обязана читаться. */
+const POTION_SHOWN = [['regen', 'swallow'], ['buffThunder', 'thunder'], ['biz', 'shit']];
+function potionTint() {
+  for (const [k, id] of POTION_SHOWN) if (P[k] > 0) return POTIONS[id].c;
+  return null;
+}
 function pawnState() {
   return {
     armor: P.armor ? P.armor.type : null,
     hand: P.hand, mut: P.mut > 0, mut2: P.mut2 > 0,
     quen: P.quen > 0, dodge: P.dodge > 0, down: over,
     walk: P.walk || 0, xbow: !!P.xbow,
+    /* Арбалет виден на поясе, пока НЕ стреляет: взвод (boltCd) — это те
+       секунды, когда он в руках, а не на боку. */
+    shooting: P.boltCd > 0,
+    /* Замах — от −1 до +1: ровно та доля, на которую ушёл клинок. Меч рисует
+       прежний код, здесь только отклик фигуры. */
+    swing: P.swing ? clamp(P.swing.t / SWING_SHOW, 0, 1) * 2 - 1 : 0,
+    potion: potionTint(),
     steel: !!P.steel, silver: !!P.silver, look: look,
   };
 }
@@ -3460,14 +3487,34 @@ function drawPawn(x, y, a, st) {
      путь с NaN в координатах глотает МОЛЧА: ни ошибки, ни следа, просто пустое
      место вместо ведьмака. Поэтому ноль подставляем здесь, а не надеемся. */
   const bob = Math.sin((st.walk || 0) * 9) * 0.8;
+  /* ЗАМАХ. Плечи доворачиваются вслед за клинком, но лишь на четверть его
+     хода: уйди они целиком — пешка встала бы боком и перестала читаться, а
+     замах должен быть ВИДЕН, а не разыгран. Сам меч рисует прежний код,
+     здесь только отклик фигуры. */
+  const sway = (st.swing || 0) * 0.28;
 
   ctx.save();
   ctx.translate(x, y);
   if (st.down) { ctx.rotate(a + Math.PI / 2 + 1.3); ctx.globalAlpha = 0.8; }
   else ctx.rotate(a + Math.PI / 2);
+  if (st.mut2) {
+    /* ЗВЕРЬ ГОРБИТСЯ. Вторая ступень — не улучшение, а срыв, и по фигуре это
+       обязано быть видно с первого взгляда, до всяких жил и когтей: она
+       сжимается вдоль собственной оси и подаётся ВПЕРЁД (вперёд — это −Y).
+       Не сильнее: ведьмак должен остаться ведьмаком, а не сделаться кляксой,
+       поэтому сжатие в десятую с небольшим, а не вдвое. */
+    ctx.translate(0, -1.8); ctx.scale(0.93, 0.86);
+  }
 
   ctx.fillStyle = 'rgba(0,0,0,.35)';                       // тень
   ctx.beginPath(); ctx.ellipse(0, 2, bw * 0.42, 9, 0, 0, 6.3); ctx.fill();
+
+  /* Всё, что ниже и до восстановления, — ПЛЕЧЕВОЙ ПОЯС: он и доворачивается
+     на замахе. Голова, лицо и волосы остаются на месте — ведьмак смотрит
+     туда же, куда смотрел. Поворот ставим только когда он есть: лишний
+     ctx.rotate(0) ничего не рисует, а след в кадре оставляет. */
+  ctx.save();
+  if (sway) ctx.rotate(sway);
 
   // мечи за спиной: в руке — только один, второй остаётся торчать
   const steel = st.steel && st.hand !== 'steel', silver = st.silver && st.hand !== 'silver';
@@ -3479,6 +3526,16 @@ function drawPawn(x, y, a, st) {
   ctx.fillStyle = cloak;                                    // плащ
   rrect(-bw / 2, -4 + bob, bw, 17, 6); ctx.fill();
   ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = 1; ctx.stroke();
+  if (st.mut2) {
+    /* ГОРЯЩИЙ КОНТУР зверя. Обводим силуэт плаща — по нему фигуру и узнают
+       издали — и обводим ЖИВЫМ огнём: густота дышит по часам игры, поэтому
+       контур виден и на стоящем на месте. Он самый заметный мазок на пешке,
+       и так и должно быть: срыв — самое важное, что о ней сейчас можно
+       сказать. Ободок зелья рядом идёт нарочно вполсилы и с ним не спорит. */
+    ctx.strokeStyle = 'rgba(255,120,36,' + (0.45 + 0.3 * Math.abs(Math.sin(anim * 5.5))).toFixed(2) + ')';
+    ctx.lineWidth = 2.2;
+    rrect(-bw / 2 - 1.2, -5.2 + bob, bw + 2.4, 19.4, 7); ctx.stroke();
+  }
   if (heavy) {                                              // пластины
     ctx.strokeStyle = 'rgba(255,255,255,.16)';
     ctx.beginPath(); ctx.moveTo(-bw / 2 + 1, 2 + bob); ctx.lineTo(bw / 2 - 1, 2 + bob);
@@ -3489,10 +3546,15 @@ function drawPawn(x, y, a, st) {
     ctx.beginPath(); ctx.ellipse(-bw / 2, -1 + bob, 2.6, 4, 0, 0, 6.3); ctx.fill();
     ctx.beginPath(); ctx.ellipse(bw / 2, -1 + bob, 2.6, 4, 0, 0, 6.3); ctx.fill();
   }
-  if (st.xbow) {                                            // арбалет на поясе
+  /* Арбалет — НА ПОЯСЕ, ПОКА НЕ СТРЕЛЯЕТ. Взвод (st.shooting) — это ровно те
+     секунды, когда он снят с пояса и в руках; висеть на боку он в это время
+     не может. Раньше рисовался всегда, и на поясе он был даже в тот миг,
+     когда из него бьют. */
+  if (st.xbow && !st.shooting) {                            // арбалет на поясе
     ctx.strokeStyle = '#6b5a3a'; ctx.lineWidth = 1.6;
     ctx.beginPath(); ctx.moveTo(bw / 2 - 1, 8 + bob); ctx.lineTo(bw / 2 + 4, 10 + bob); ctx.stroke();
   }
+  ctx.restore();                                            // конец плечевого пояса
 
   const hc = (HAIR_C[L.hairC] || HAIR_C.white).c;
   const sc = (SKINS[L.skin] || SKINS.fair).c;
@@ -3544,6 +3606,32 @@ function drawPawn(x, y, a, st) {
       ctx.beginPath(); ctx.moveTo(bw / 2 - 1, 4 + i * 2.5 + bob);
       ctx.lineTo(bw / 2 + 4, 3 + i * 3 + bob); ctx.stroke();
     }
+  }
+  if (st.potion) {
+    /* ЗЕЛЬЕ В СИЛЕ — цветной ободок и редкие искры цвета зелья.
+
+       Это ПОДСКАЗКА, а не украшение, и густота у неё нарочно самая низкая на
+       всей фигуре: и купол Квена, и горящий контур зверя говорят о вещах
+       опаснее, спорить с ними ободку нельзя. Отсюда же и «редкие» искры —
+       три штуки, каждая вспыхивает и гаснет в свой черёд, а не сыплются
+       горстью.
+
+       Ободок обводит фигуру снаружи, но целиком остаётся внутри PAWN_R: он
+       обводка пешки, а не новый её край. Дышит по часам игры (anim), поэтому
+       виден и на стоящем на месте. */
+    ctx.strokeStyle = st.potion; ctx.lineWidth = 1.2;
+    ctx.globalAlpha = 0.18 + 0.1 * Math.sin(anim * 4);
+    ctx.beginPath(); ctx.ellipse(0, 1 + bob, bw / 2 + 2.4, 13, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = st.potion;
+    for (let i = 0; i < 3; i++) {
+      const ph = (anim * 0.6 + i / 3) % 1;                   // своя треть оборота у каждой
+      ctx.globalAlpha = Math.sin(ph * Math.PI) * 0.3;        // вспыхнула и погасла в ноль
+      const an = ph * Math.PI * 2 + i * 2.1;
+      ctx.beginPath();
+      ctx.arc(Math.cos(an) * (bw / 2 + 3), 1 + bob + Math.sin(an) * 11, 0.9, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = st.down ? 0.8 : 1;                     // лежачий рисуется сквозь
   }
   ctx.restore();
 }
@@ -3844,7 +3932,7 @@ function drawWorld() {
   // меч в руке
   const sw = activeSword();
   if (sw && P.biz <= 0) {
-    const a = P.swing ? P.swing.a - 1.1 + (P.swing.t / 0.3) * 2.2 : P.face;
+    const a = P.swing ? P.swing.a - 1.1 + (P.swing.t / SWING_SHOW) * 2.2 : P.face;
     ctx.strokeStyle = SWORD[sw.metal].c; ctx.lineWidth = P.swing ? 3.5 : 2.5;
     ctx.beginPath(); ctx.moveTo(px + Math.cos(a) * 8, py + Math.sin(a) * 8);
     ctx.lineTo(px + Math.cos(a) * (P.swing ? 34 : 24), py + Math.sin(a) * (P.swing ? 34 : 24));
