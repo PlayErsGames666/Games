@@ -208,13 +208,19 @@ function saveLook() {
 /* Читаем ровно так же осторожно, как запись похода: сперва кладём умолчание,
    потом берём из записи ТОЛЬКО те ключи, которые есть в таблицах. Чужой ключ,
    число вместо строки, обрывок json — всё это молча заменяется умолчанием, а
-   не роняет игру. Запись лежит в localStorage, туда лазают руками. */
+   не роняет игру. Запись лежит в localStorage, туда лазают руками.
+
+   Принадлежность спрашиваем через hasOwnProperty, а не просто F.tab[ключ]:
+   у любого объекта есть прототип, и F.tab['__proto__'] или F.tab['toString']
+   — истина, хотя таких причёсок в таблице нет. С простой проверкой такая
+   запись просочилась бы в облик, а рисовалка потом взяла бы у неё цвет
+   и получила undefined. */
 function loadLook() {
   let s = null;
   try { s = JSON.parse(localStorage.getItem(LOOK_KEY) || 'null'); } catch (e) { s = null; }
   look = Object.assign({}, LOOK_DEF);
   if (s && typeof s === 'object') {
-    for (const F of LOOK_FIELDS) if (F.tab[s[F.k]]) look[F.k] = s[F.k];
+    for (const F of LOOK_FIELDS) if (Object.prototype.hasOwnProperty.call(F.tab, s[F.k])) look[F.k] = s[F.k];
   }
   return look;
 }

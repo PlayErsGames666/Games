@@ -299,7 +299,11 @@ function loadLook() {
   try { s = JSON.parse(localStorage.getItem(LOOK_KEY) || 'null'); } catch (e) { s = null; }
   look = Object.assign({}, LOOK_DEF);
   if (s && typeof s === 'object') {
-    for (const F of LOOK_FIELDS) if (F.tab[s[F.k]]) look[F.k] = s[F.k];
+    /* Принадлежность спрашиваем через hasOwnProperty, а не просто F.tab[ключ]:
+       у любого объекта есть прототип, и F.tab['__proto__'] или F.tab['toString']
+       — истина, хотя таких ключей в таблице нет. Простая проверка пропустила бы
+       такую запись в облик, а рисовалка взяла бы у неё цвет и получила undefined. */
+    for (const F of LOOK_FIELDS) if (Object.prototype.hasOwnProperty.call(F.tab, s[F.k])) look[F.k] = s[F.k];
   }
   return look;
 }
@@ -337,7 +341,7 @@ function randomLook() {
 ```js
 head('Запись облика — такая же битая, такая же безопасная');
 {
-  store['witcher_look'] = ' {{{';
+  store['witcher_look'] = ' {{{';
   let fell = false;
   try { W.loadLook(); } catch (e) { fell = true; }
   ok(!fell, 'мусор в записи облика не роняет игру');
