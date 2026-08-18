@@ -289,6 +289,35 @@ const KINDS = ['glyph', 'edge', 'scorch', 'flame', 'spark', 'smoke', 'wave', 'du
 const kindOf = p => KINDS.find(k => p[k]) || 'прочее';
 function nrm(x) { while (x > Math.PI) x -= Math.PI * 2; while (x < -Math.PI) x += Math.PI * 2; return x; }
 
+/* ГЛИФ — единственный признак, КАКОЙ знак пущен, первые 0.14 с: до того, как
+   развернётся стихия, отличить их больше нечем. Значит четыре его цвета
+   обязаны различаться глазом, а не только в записи. У Аарда стоял #9fd8ff, у
+   Квена #9fe6ff — разница в один канал из 255, то есть никакая. */
+head('По цвету глифа видно, какой знак пущен');
+{
+  const cols = [];
+  for (let r = 0; r < 4; r++) {
+    const g = cast(r, 0.4).x !== undefined ? W.getParts().filter(p => p.glyph) : [];
+    ok(g.length === 1, 'знак ' + W.RUNES[r].n + ' зажёг ровно один глиф');
+    cols.push({ n: W.RUNES[r].n, c: g.length ? g[0].c : null });
+  }
+  note('цвета глифов: ' + cols.map(x => x.n + ' ' + x.c).join(', '));
+  const rgb = c => [1, 3, 5].map(i => parseInt(String(c).slice(i, i + 2), 16));
+  let worst = Infinity, pair = '';
+  for (let i = 0; i < cols.length; i++) {
+    for (let j = i + 1; j < cols.length; j++) {
+      const a = rgb(cols[i].c), b = rgb(cols[j].c);
+      const d = Math.max(Math.abs(a[0] - b[0]), Math.abs(a[1] - b[1]), Math.abs(a[2] - b[2]));
+      if (d < worst) { worst = d; pair = cols[i].n + ' и ' + cols[j].n; }
+    }
+  }
+  note('ближе всех друг к другу ' + pair + ': ' + worst + ' из 255 по самому дальнему каналу');
+  /* Порог не с потолка: 14 из 255 — то, что было, и оно на глаз не читалось
+     вовсе. Сорок — заметная разница оттенка даже в мельканье боя. */
+  ok(worst >= 40, 'самая близкая пара глифов всё равно различима: ' + worst + ' из 255');
+  ok(cols.every(x => x.c), 'у каждого знака глиф своего цвета');
+}
+
 head('Кадр повторяем — иначе вырезать из него знак нельзя');
 {
   cast(0, 0.4);
@@ -619,6 +648,38 @@ head('Квен копит трещины, но не бесконечно');
   ok(P.quenHits[0] === first, 'первая трещина никуда не делась — трещины копятся, а не сменяют друг друга');
   ok(P.quenHits.every(h => h.a >= 0 && h.a < 6.284), 'у каждой трещины свой угол по ободу');
   ok(new Set(P.quenHits.map(h => h.a)).size === P.quenHits.length, 'углы разные — трещины не в одной точке');
+
+  /* ВСПЫШКА ПОГЛОЩЁННОГО УДАРА. Она про ЭТОТ щит, а не про абстрактное
+     колечко: пока купол был кольцом 16, вспышка совпадала с ним и читалась
+     как «щит зазвенел». Купол вырос до QUEN_R, вспышка осталась на 16 —
+     и стала рождаться внутри фигуры (след пешки 19), пересекая по дороге
+     собственный купол. Спрашиваем у самой ручки, а не у вбитого числа. */
+  {
+    W.getParts().length = 0;
+    P.quen = 500; P.inv = 0; P.dodge = 0;
+    W.hurtPlayer(5, null);
+    const rings = W.getParts().filter(p => p.ring);
+    ok(rings.length === 1, 'поглощённый удар оставил ровно одну вспышку: ' + rings.length);
+    note('вспышка рождается радиусом ' + (rings[0] ? rings[0].r : '—') +
+         ' при куполе ' + W.QUEN_R + ' и следе пешки ' + W.PAWN_R);
+    ok(rings.length === 1 && rings[0].r === W.QUEN_R,
+       'и рождается ровно на ободе купола, а не своим числом');
+    ok(rings.length === 1 && rings[0].r >= W.PAWN_R,
+       'то есть снаружи фигуры: из-под плаща вспышка не вылезает');
+    /* И РАСТЁТ ТОЛЬКО НАРУЖУ. Гоняем её весь срок и смотрим на нарисованное:
+       ни в один миг она не заходит внутрь купола. Именно поэтому её и
+       оставили среди частиц, поверх пешки, а не переложили под неё. */
+    let least = Infinity;
+    for (let i = 0; i < 30; i++) {
+      for (const a of arcs(() => W.render())) {
+        if (a.k === 'stroke' && a.c === '#7fd6ff') least = Math.min(least, a.r);
+      }
+      W.update(0.016);
+    }
+    note('меньше всего вспышку видно радиусом ' + (least === Infinity ? '—' : least.toFixed(2)));
+    ok(least !== Infinity && least >= W.QUEN_R,
+       'за весь свой срок вспышка не заходит внутрь купола — только наружу');
+  }
 
   const n = P.quenHits.length;
   P.quen = 0; P.inv = 0; P.dodge = 0;
