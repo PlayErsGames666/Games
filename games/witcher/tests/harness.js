@@ -153,6 +153,12 @@ function makeCtx() {
       if (k === 'setTransform') return () => { tstack = [{ tx: 0, ty: 0, sx: 1, sy: 1, clipped: false }]; };
       if (k === 'fillText') return (s, x, y) => {
         drawn.push(String(s));
+        /* Написанное — тоже МАЗОК, и в споре «что на печати ярче» оно
+           участвует наравне с дугами. Пока fillText сюда не попадал,
+           мерка «обод — единственный в полную густоту» перебирала одни
+           дуги и не замечала восьми светлых рун поверх них. */
+        if (inks) inks.push({ k: 'text', c: String(t.fillStyle), s: String(s),
+                              a: t.globalAlpha === undefined ? 1 : t.globalAlpha });
         marks.push({ s: String(s), x: scrX(x), y: scrY(y), al: t.textAlign || 'left',
                      size: parseFloat(t.font) || 10, w: String(s).length * 5,
                      world: ttop().clipped });
