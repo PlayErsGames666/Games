@@ -4705,6 +4705,7 @@ if (typeof globalThis !== 'undefined') globalThis.__W = {
   getBolt: () => P.boltSel, setBolt: v => { P.boltSel = v; },
   getP: () => P, getFoes: () => foes, setFoes: v => { foes = v; }, getInv: () => inv, setInv: v => { inv = v; },
   getGold: () => gold, setGold: v => { gold = v; }, getDrops: () => drops, getShots: () => shots,
+  getParts: () => parts,
   getPhase: () => phase, setPhase: v => { phase = v; }, getOver: () => over, getCi: () => ci, setCi: v => { ci = v; },
   getKillsLeft: () => killsLeft, getTaken: () => taken, MAX_JOBS, focusJob, syncFocus, setPanel: v => { panel = v; }, setMouse: (x, y) => { mouse.x = x; mouse.y = y; },
   swing, shootBolt, applyOil, swapHand, saveRun, loadRun, clearRun, freeSpot,
