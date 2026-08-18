@@ -296,16 +296,21 @@ function frame(now) {
 }
 
 // --- управление ---
+// W в русской раскладке — Ц. Пауза ниже кириллицу уже понимала, тяга — нет.
+const kThrust = [' ', 'ArrowUp', 'w', 'W', 'ц', 'Ц'];
 document.addEventListener('keydown', (e) => {
+  if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
   if (e.key === 'Enter' && over) { reset(); e.preventDefault(); return; }
-  if (e.key === ' ' || e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') { press(); e.preventDefault(); }
+  if (kThrust.includes(e.key)) { press(); e.preventDefault(); }
   if (e.key === 'p' || e.key === 'P' || e.key === 'з' || e.key === 'З' || e.key === 'Escape') {
     if (!over) { paused = !paused; updatePauseBtn(); } e.preventDefault();
   }
 });
 document.addEventListener('keyup', (e) => {
-  if (e.key === ' ' || e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') release();
+  if (kThrust.includes(e.key)) release();
 });
+// ушли с вкладки с зажатой тягой — keyup уже не придёт, ракета уйдёт в потолок
+window.addEventListener('blur', release);
 canvas.addEventListener('mousedown', press);
 canvas.addEventListener('mouseup', release);
 canvas.addEventListener('mouseleave', release);

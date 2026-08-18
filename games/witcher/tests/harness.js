@@ -77,6 +77,11 @@ function makeCanvas(w, h) {
 
 const store = {};
 const docHandlers = {};
+/* События ОКНА, а не документа: 'blur' приходит только сюда. Пока стенд их
+   не знал, window.addEventListener в игре просто ронял загрузку — а заодно
+   ничем не проверялось, отпускает ли игра зажатые клавиши при уходе со
+   вкладки. Ровно там и жило «ведьмак идёт сам после Alt-Tab». */
+const winHandlers = {};
 /* Кнопки под игрой (⚔ сменить меч, 🎒 инвентарь, 🩸 мутация, ⏸ пауза…).
    Раньше getElementById отвечал на них null, onBtn молча ничего не вешал —
    и весь этот ряд не проверялся ничем. Ровно там и жило «мутацию можно
@@ -111,6 +116,8 @@ const sandbox = {
 };
 sandbox.window = sandbox;
 sandbox.globalThis = sandbox;
+sandbox.addEventListener = (type, fn) => { (winHandlers[type] || (winHandlers[type] = [])).push(fn); };
+sandbox.removeEventListener = () => {};
 sandbox.__canvas = makeCanvas();
 vm.createContext(sandbox);
 vm.runInContext(fs.readFileSync(GAME, 'utf8'), sandbox, { filename: GAME });
@@ -136,6 +143,13 @@ function done() {
 }
 
 /* ---- клавиатура и то, что вышло на экран ---------------------------- */
+// Событие окна: winEvent('blur') — ушли со вкладки.
+function winEvent(type, ev) { for (const fn of winHandlers[type] || []) fn(ev || { type }); }
+// Зажать клавишу и НЕ отпускать: keydown без парного keyup.
+function keyDown(code, opt) {
+  const e = Object.assign({ code, repeat: false, target: null, preventDefault() {} }, opt || {});
+  for (const fn of docHandlers.keydown || []) fn(e);
+}
 // Нажатие. code — как в браузере: 'KeyE', 'Digit1', 'Escape'.
 function key(code, opt) {
   const e = Object.assign({ code, repeat: false, target: null, preventDefault() {} }, opt || {});
@@ -175,5 +189,5 @@ function tap(x, y) {
 }
 
 module.exports = { W: sandbox.__W, store, sandbox, ok, note, head, done, makeCanvas, GAME,
-                   key, frame, frameMarks, frameMarksAll, span, said, click, tap, buttons,
+                   key, keyDown, winEvent, frame, frameMarks, frameMarksAll, span, said, click, tap, buttons,
                    peek: name => vm.runInContext(name, sandbox) };

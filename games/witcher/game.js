@@ -4657,6 +4657,9 @@ document.addEventListener('keydown', e => {
   }
 });
 document.addEventListener('keyup', e => { keys[e.code] = false; });
+/* Ушли с вкладки с зажатым «вперёд» — keyup браузер уже не пришлёт, и по
+   возвращении ведьмак продолжает идти сам, пока клавишу не нажмёшь заново. */
+window.addEventListener('blur', () => { keys = {}; });
 
 function swapHand() {
   P.hand = P.hand === 'steel' ? 'silver' : 'steel';

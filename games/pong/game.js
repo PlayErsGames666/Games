@@ -71,8 +71,15 @@ canvas.addEventListener('touchmove', (e) => {
 }, { passive: false });
 
 const keys = {};
+/* W/S в русской раскладке — это Ц/Ы. Без них клавиатура в игре мертва у
+   всех, кто не переключился на латиницу, а справочник обещает W/S. */
+const kUp = ['ArrowUp', 'w', 'W', 'ц', 'Ц'], kDown = ['ArrowDown', 's', 'S', 'ы', 'Ы'];
+/* Поле кода комнаты — обычный input, и preventDefault на «w»/«s» съедал эти
+   буквы прямо при наборе: код с ними набрать было нельзя вовсе. */
+function typing(e) { return !!(e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')); }
 document.addEventListener('keydown', (e) => {
-  if (['ArrowUp','ArrowDown','w','s','W','S'].includes(e.key)) { keys[e.key] = true; mouseControl = false; e.preventDefault(); }
+  if (typing(e)) return;
+  if (kUp.includes(e.key) || kDown.includes(e.key)) { keys[e.key] = true; mouseControl = false; e.preventDefault(); }
   if (e.key === ' ' || e.code === 'Space') {
     e.preventDefault();
     if (gameOver) return;
@@ -81,12 +88,19 @@ document.addEventListener('keydown', (e) => {
     paused = !paused; syncNow();
   }
 });
-document.addEventListener('keyup', (e) => { keys[e.key] = false; });
+/* Shift меняет e.key на лету («s» → «S»), и keyup приходит уже другой буквой —
+   отпускаем оба написания, иначе ракетка едет сама. */
+document.addEventListener('keyup', (e) => {
+  keys[e.key] = false;
+  if (e.key.length === 1) { keys[e.key.toLowerCase()] = false; keys[e.key.toUpperCase()] = false; }
+});
+// ушли с вкладки с зажатой клавишей — браузер keyup уже не пришлёт
+window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 
 function movePlayerByKeys() {
   const step = 7, p = myPad();
-  if (keys['ArrowUp'] || keys['w'] || keys['W']) p.y -= step;
-  if (keys['ArrowDown'] || keys['s'] || keys['S']) p.y += step;
+  if (kUp.some(k => keys[k])) p.y -= step;
+  if (kDown.some(k => keys[k])) p.y += step;
 }
 
 function clampPaddles() {

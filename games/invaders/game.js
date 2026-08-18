@@ -665,7 +665,14 @@ document.addEventListener('keydown', (e) => {
   }
   if (e.key === 'Enter' && state === STATE.OVER) reset();
 });
-document.addEventListener('keyup', (e) => { keys[e.key] = false; });
+/* Shift меняет e.key на лету («a» → «A»), и keyup приходит уже другой буквой —
+   отпускаем оба написания, иначе клавиша залипает и герой едет сам. */
+document.addEventListener('keyup', (e) => {
+  keys[e.key] = false;
+  if (e.key.length === 1) { keys[e.key.toLowerCase()] = false; keys[e.key.toUpperCase()] = false; }
+});
+// ушли с вкладки с зажатой клавишей — браузер keyup уже не пришлёт
+window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 
 function touchX(e) { const r = canvas.getBoundingClientRect(); return (e.touches[0].clientX - r.left) * (W / r.width); }
 canvas.addEventListener('touchstart', (e) => {

@@ -1,7 +1,7 @@
-/* Четыре починки, каждая — с настоящим багом за спиной.
+/* Пять починок, каждая — с настоящим багом за спиной.
    Проверки написаны так, чтобы падать, если баг вернётся. */
 'use strict';
-const { W, store, ok, note, head, done } = require('./harness.js');
+const { W, store, ok, note, head, done, keyDown, winEvent } = require('./harness.js');
 
 head('Выброс вещей');
 W.reset(); W.setPanel(null);
@@ -94,5 +94,18 @@ W.reset(); W.setPhase('CAMP');
 for (let i = 0; i < 2; i++) W.startContract(W.makeContract(W.JOBS[i], 0));
 W.takeStory();
 ok(W.getTaken().some(c => c.story), 'с двумя работами сюжетное дело берётся');
+
+head('Уход со вкладки отпускает зажатое');
+W.reset(); W.setPanel(null); W.setPhase('HUNT'); W.setFoes([]);
+const Pw = W.getP();
+keyDown('KeyD');                                   // зажали «вправо» и не отпустили
+const x0 = Pw.x;
+for (let i = 0; i < 30; i++) W.update(0.016);
+ok(Pw.x > x0, 'с зажатой клавишей ведьмак идёт');
+winEvent('blur');                                  // ушли на другую вкладку
+const x1 = Pw.x;
+for (let i = 0; i < 30; i++) W.update(0.016);
+note('прошёл до ухода ' + (x1 - x0).toFixed(0) + ' шагов, после ухода ' + (Pw.x - x1).toFixed(0));
+ok(Math.abs(Pw.x - x1) < 0.01, 'после ухода со вкладки клавиша отпущена, а не залипла');
 
 done();
