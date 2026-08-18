@@ -171,6 +171,62 @@ const ARMOR = {
 };
 const ARMOR_KEYS = Object.keys(ARMOR);
 
+/* =====================  ОБЛИК ВЕДЬМАКА  =====================
+   Шесть полей, шесть таблиц. Таблицы держим тут, рядом с ARMOR и LOCS:
+   их читают глазом и правят, не заглядывая в рисовалку.
+
+   Облик лежит в СВОЁМ ключе, а не в записи похода. «Заново» стирает поход,
+   но не лицо: собирать себе ведьмака заново после каждой новой игры —
+   раздражение на ровном месте. */
+const HAIRS  = { mane:{n:'Грива'}, tail:{n:'Хвост'}, braid:{n:'Коса'}, crop:{n:'Ёжик'}, bald:{n:'Лысина'} };
+const HAIR_C = { white:{n:'Седой',c:'#e8dcc0'}, ash:{n:'Пепельный',c:'#b9b3a4'},
+                 black:{n:'Чёрный',c:'#33302e'}, brown:{n:'Каштановый',c:'#5a3b25'},
+                 red:{n:'Рыжий',c:'#8f4322'} };
+const BEARDS = { none:{n:'Нет'}, stubble:{n:'Щетина'}, short:{n:'Короткая'}, full:{n:'Окладистая'} };
+const SCARS  = { none:{n:'Нет'}, eye:{n:'Через глаз'}, cheek:{n:'Через щёку'} };
+const SKINS  = { pale:{n:'Бледная',c:'#e0bd9a'}, fair:{n:'Светлая',c:'#d9b48c'},
+                 tan:{n:'Смуглая',c:'#bb8f66'}, olive:{n:'Оливковая',c:'#a9825c'},
+                 dark:{n:'Тёмная',c:'#7d5a3c'} };
+const EYES   = { cat:{n:'Кошачий жёлтый',c:'#c8b400'}, amber:{n:'Янтарный',c:'#d08a2a'},
+                 grey:{n:'Серый',c:'#9aa6ad'}, green:{n:'Зелёный',c:'#6fa257'} };
+
+const LOOK_FIELDS = [
+  { k:'skin',  n:'Кожа',       tab:SKINS  },
+  { k:'hair',  n:'Причёска',   tab:HAIRS  },
+  { k:'hairC', n:'Цвет волос', tab:HAIR_C },
+  { k:'beard', n:'Борода',     tab:BEARDS },
+  { k:'scar',  n:'Шрам',       tab:SCARS  },
+  { k:'eye',   n:'Глаза',      tab:EYES   },
+];
+const LOOK_DEF = { skin:'fair', hair:'mane', hairC:'white', beard:'stubble', scar:'none', eye:'cat' };
+const LOOK_KEY = 'witcher_look';
+let look = Object.assign({}, LOOK_DEF);
+
+function saveLook() {
+  try { localStorage.setItem(LOOK_KEY, JSON.stringify(Object.assign({ v:1 }, look))); } catch (e) {}
+}
+/* Читаем ровно так же осторожно, как запись похода: сперва кладём умолчание,
+   потом берём из записи ТОЛЬКО те ключи, которые есть в таблицах. Чужой ключ,
+   число вместо строки, обрывок json — всё это молча заменяется умолчанием, а
+   не роняет игру. Запись лежит в localStorage, туда лазают руками. */
+function loadLook() {
+  let s = null;
+  try { s = JSON.parse(localStorage.getItem(LOOK_KEY) || 'null'); } catch (e) { s = null; }
+  look = Object.assign({}, LOOK_DEF);
+  if (s && typeof s === 'object') {
+    for (const F of LOOK_FIELDS) if (F.tab[s[F.k]]) look[F.k] = s[F.k];
+  }
+  return look;
+}
+function randomLook() {
+  for (const F of LOOK_FIELDS) {
+    const ks = Object.keys(F.tab);
+    look[F.k] = ks[Math.floor(rnd(ks.length))];
+  }
+  saveLook();
+  return look;
+}
+
 /* Насколько сильна школа НА ЭТОЙ СТУПЕНИ. Обычный — 1 шаг, гроссмейстер — 5:
    ровно то, ради чего доспех и тащат на верстак. */
 function schoolStep(it) { return it ? (it.tier | 0) + 1 : 0; }
@@ -4691,6 +4747,7 @@ function updateButtons() {
 window.__fsFail = function (why) { message('⛶ Полный экран не открылся: ' + why); };
 
 reset();
+loadLook();
 if (loadRun()) message('📜 Поход продолжен: впереди контракт ' + (ci + 1) + '. «Заново» — начать сначала.');
 requestAnimationFrame(frame);
 
@@ -4703,6 +4760,9 @@ if (typeof globalThis !== 'undefined') globalThis.__W = {
   ARMOR_KEYS, buyArmor, schoolNote, schoolRange, schoolPow, schoolStep, wornSchool,
   runeCost, runePower, armorDef, maxHP, mpRegen, moveSpeed, MUT2_TIME, TOXLOCK_TIME,
   getBolt: () => P.boltSel, setBolt: v => { P.boltSel = v; },
+  getLook: () => look, setLook: v => { look = Object.assign({}, LOOK_DEF, v); },
+  loadLook, saveLook, randomLook, LOOK_FIELDS, LOOK_DEF,
+  HAIRS, HAIR_C, BEARDS, SCARS, SKINS, EYES,
   getP: () => P, getFoes: () => foes, setFoes: v => { foes = v; }, getInv: () => inv, setInv: v => { inv = v; },
   getGold: () => gold, setGold: v => { gold = v; }, getDrops: () => drops, getShots: () => shots,
   getParts: () => parts,

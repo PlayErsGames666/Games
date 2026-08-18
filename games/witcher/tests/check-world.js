@@ -74,4 +74,13 @@ ok(W.getInv().length === 0, 'чужие вещи из неё отсеяны');
 ok(W.getGold() === 0 && W.getP().lvl === 1, 'чушь в числах приведена к разумному');
 ok(W.getPower().size === 1 && W.getPower().has('woods'), 'из камней силы взяты только знакомые ключи');
 
+head('Запись облика — такая же битая, такая же безопасная');
+{
+  store['witcher_look'] = ' {{{';
+  let fell = false;
+  try { W.loadLook(); } catch (e) { fell = true; }
+  ok(!fell, 'мусор в записи облика не роняет игру');
+  ok(W.getLook().hair === 'mane', 'взято умолчание');
+}
+
 done();
