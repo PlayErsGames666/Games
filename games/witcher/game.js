@@ -1452,13 +1452,26 @@ const PART_CAP = 320;
    на то и потолок, чтобы кадр не лёг. */
 function addPart(p) {
   if (parts.length >= PART_CAP) {
-    let need = parts.length - PART_CAP + 1;
-    const kept = parts.filter(q => {
-      if (need > 0 && !q.edge && !q.scorch) { need--; return false; }
-      return true;
-    });
-    if (need > 0) kept.splice(0, need);                // одни защищённые — тогда по возрасту
-    parts.splice(0, parts.length, ...kept);            // на месте: ссылку менять нельзя
+    const need = parts.length - PART_CAP + 1;
+    /* Быстрый путь — он же обычный: под нож идут первые need штук, и почти
+       всегда среди них ни границы, ни выжига. Тогда режем ровно как резали,
+       одним splice. Перебирать весь массив нужно, только когда защищённое
+       и правда попало под нож, а это редкость — оттого проверка и стоит
+       впереди: на полном потолке добавлялку зовут десятками раз за кадр. */
+    let armored = 0;
+    for (let i = 0; i < need; i++) if (parts[i].edge || parts[i].scorch) armored++;
+    if (!armored) parts.splice(0, need);
+    else {
+      // сжимаем НА МЕСТЕ, одним проходом: читаем из i, пишем в w
+      let left = need, w = 0;
+      for (let i = 0; i < parts.length; i++) {
+        const q = parts[i];
+        if (left > 0 && !q.edge && !q.scorch) { left--; continue; }
+        parts[w++] = q;
+      }
+      parts.length = w;
+      if (left > 0) parts.splice(0, left);             // одни защищённые — тогда по возрасту
+    }
   }
   parts.push(p);
   return p;
