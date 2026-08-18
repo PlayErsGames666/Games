@@ -19,7 +19,7 @@ const pb = [];
 for (const p of W.POWER)
   for (const o of W.obstNear(p.x, p.y)) if (Math.hypot(o.x - p.x, o.y - p.y) < o.r + 12) pb.push(p.n);
 ok(pb.length === 0, 'все камни силы свободны' + (pb.length ? ': ' + pb.join(', ') : ''));
-for (const [n, pt] of [['костёр', W.FIRE], ['верстак', W.BENCH], ['доска работ', W.BOARD]]) {
+for (const [n, pt] of [['костёр', W.FIRE], ['верстак', W.BENCH], ['доска работ', W.BOARD], ['зеркало', W.MIRROR]]) {
   let hit = 0;
   for (const o of W.obstNear(pt.x, pt.y)) if (Math.hypot(o.x - pt.x, o.y - pt.y) < o.r + 12) hit++;
   ok(hit === 0, n + ' не зарос');

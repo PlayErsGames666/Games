@@ -1,7 +1,7 @@
 /* Облик ведьмака: таблицы, запись, зеркало, панель.
    Пишется по частям вместе с задачами 2, 5 и 6 плана. */
 'use strict';
-const { W, store, ok, note, head, done, paints, spins, nans, traces } = require('./harness.js');
+const { W, store, ok, note, head, done, paints, spins, nans, traces, frameMarksAll } = require('./harness.js');
 
 head('Умолчание, когда записи нет');
 {
@@ -340,6 +340,59 @@ head('Лежачий повёрнут иначе стоячего');
   const look = spins(() => W.drawPawn(0, 0, 1.0, {}));
   ok(look.length === 1 && Math.abs(look[0] - (1.0 + Math.PI / 2)) < 1e-9,
      'взгляд входит в поворот целиком: фигура смотрит туда же, куда ведьмак');
+}
+
+head('Зеркало стоит в лагере и к нему можно подойти');
+{
+  const M = W.MIRROR, F = W.FIRE;
+  ok(!!M, 'зеркало заведено');
+  const d = Math.hypot(M.x - F.x, M.y - F.y);
+  note('от костра до зеркала: ' + Math.round(d) + ' шагов');
+  ok(d < 170, 'внутри чистого круга у костра — не зарастёт кустами');
+  ok(d > 40, 'и не вплотную к костру');
+  ok(Math.hypot(M.x - W.BENCH.x, M.y - W.BENCH.y) > 40, 'не налезает на верстак');
+  ok(Math.hypot(M.x - W.BOARD.x, M.y - W.BOARD.y) > 40, 'не налезает на доску');
+  /* obstNear отдаёт всё из соседних клеток сетки, а не «накрыло ли точку», —
+     потому меряем сами и той же меркой, что аудит: r + 12, чтобы у зеркала
+     было где встать, а не только куда воткнуть значок. */
+  const near = W.obstNear(M.x, M.y);
+  const hit = near.filter(o => Math.hypot(o.x - M.x, o.y - M.y) < o.r + 12);
+  const gap = near.length ? Math.min.apply(null, near.map(o => Math.hypot(o.x - M.x, o.y - M.y) - o.r)) : Infinity;
+  note('преград рядом: ' + near.length + ', до ближайшей ' +
+       (gap === Infinity ? 'ни одной' : Math.round(gap) + ' шагов'));
+  ok(hit.length === 0, 'на самом зеркале нет преграды');
+}
+
+/* Мало, чтобы зеркало было заведено, — его должны РИСОВАТЬ. Подпись ищем в
+   следе кадра и сверяем не с числом на экране (его двигает камера), а с
+   подписью костра: разность их мест обязана совпасть с разностью мест
+   в мире. Так проверка переживёт любой сдвиг лагеря. */
+head('Зеркало и его подпись правда рисуются');
+{
+  W.reset(); W.setPhase('CAMP'); W.setPanel(null);
+  const P = W.getP();
+  P.x = W.MIRROR.x; P.y = W.MIRROR.y + 20; W.syncCam();
+  const ms = frameMarksAll();
+  const m = ms.find(t => t.s === 'E — облик'), f = ms.find(t => t.s === 'костёр');
+  ok(!!m, m ? 'подпись «E — облик» написана' : 'подписи «E — облик» в кадре нет');
+  ok(!!f, 'подпись костра на месте — есть с чем сверять');
+  if (m && f) {
+    ok(Math.abs((m.x - f.x) - (W.MIRROR.x - W.FIRE.x)) < 1e-6 &&
+       Math.abs((m.y - f.y) - (W.MIRROR.y - W.FIRE.y)) < 1e-6,
+       'и стоит она относительно костра ровно там, где стоит само зеркало');
+    ok(m.al === 'center', 'выключена по середине значка, как и остальные подписи лагеря');
+  }
+}
+
+head('E у зеркала открывает и закрывает облик');
+{
+  W.reset(); W.setPhase('CAMP'); W.setPanel(null);
+  const P = W.getP();
+  P.x = W.MIRROR.x; P.y = W.MIRROR.y + 20; W.syncCam();
+  W.interact();
+  ok(W.getPanel && W.getPanel() === 'look', 'подошёл, нажал E — открылся облик');
+  W.interact();
+  ok(W.getPanel() === null, 'ещё раз E — закрылся');
 }
 
 done();

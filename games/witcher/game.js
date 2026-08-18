@@ -1002,6 +1002,13 @@ function npcTalk(p) {
 const FIRE = { x: SPOTS.camp.x, y: SPOTS.camp.y + 30 };
 const BENCH = { x: SPOTS.camp.x - 96, y: SPOTS.camp.y + 30 };
 const BOARD = { x: SPOTS.camp.x + 96, y: SPOTS.camp.y + 30 };
+/* Зеркало — четвёртое место лагеря, к северу от костра. Отступ выбран не на
+   глаз: гуща и камни расставляются в обход круга радиусом 170 ВОКРУГ КОСТРА
+   (см. «у костра чисто» в buildWorld), а отсюда до костра ровно 90 шагов —
+   значит зеркало не зарастёт и к нему всегда можно подойти. Вбок не сдвигаем:
+   на 96 влево стоит верстак, на 96 вправо — доска, а так до каждого из них
+   131 шаг, и подписи под ними не наезжают друг на друга. */
+const MIRROR = { x: SPOTS.camp.x, y: SPOTS.camp.y - 60 };
 const CAMP_R = 300;                                  // круг лагеря: сюда нечисть не заходит
 
 /* Карта краёв считается один раз в клетки по 24 пикселя — дальше поиск
@@ -3459,13 +3466,15 @@ function drawWorld() {
     ctx.fillStyle = 'rgba(140,90,220,.14)'; ctx.fill();
   }
 
-  // лагерь: костёр, верстак и доска работ стоят на своих местах в мире
+  // лагерь: костёр, верстак, доска работ и зеркало стоят на своих местах в мире
   drawIco('🔥', 26, FIRE.x, FIRE.y + Math.sin(anim * 6) * 1.5);
   drawIco('⚒', 26, BENCH.x, BENCH.y);
   drawIco('📜', 26, BOARD.x, BOARD.y);
+  drawIco('🪞', 26, MIRROR.x, MIRROR.y);
   txt('костёр', FIRE.x, FIRE.y + 24, 9, '#98a2ae', 'center');
   txt('U — верстак', BENCH.x, BENCH.y + 24, 10, '#98a2ae', 'center');
   txt('E — доска работ', BOARD.x, BOARD.y + 24, 10, '#c9a227', 'center');
+  txt('E — облик', MIRROR.x, MIRROR.y + 24, 10, '#c9a0ff', 'center');
 
   /* Поселения: колодец, площадь и название. Дворы стоят отдельно (они же
      преграды и рисуются вместе с камнями) — здесь только то, что делает из
@@ -4747,6 +4756,11 @@ canvas.addEventListener('contextmenu', e => e.preventDefault());
 
 function interact() {
   if (panel === 'board') { panel = null; return; }      // E у доски — и закрыть тоже
+  /* Зеркало закрывается тем же E, что и открыло, — как доска. Ветка стоит
+     ЗДЕСЬ, а не рядом с самим зеркалом ниже: строкой ниже «if (panel) return»
+     обрывает всё, пока открыта хоть какая-то панель, и внизу до неё уже не
+     дойдёт — вышло бы зеркало, которое открывается и не закрывается. */
+  if (panel === 'look') { panel = null; return; }
   if (panel === 'vendor') { panel = null; vendorNpc = null; return; }
   if (panel) return;
   /* Люди в деревне. Торговец открывает свой прилавок и торгует по ценам
@@ -4774,6 +4788,8 @@ function interact() {
     if (taken.length >= MAX_JOBS) message('Работ на руках три — прочитать можно, взять некуда');
     panel = 'board'; return;
   }
+  // зеркало: подошёл на 46 шагов — E открывает облик
+  if (Math.hypot(P.x - MIRROR.x, P.y - MIRROR.y) < 46) { panel = 'look'; return; }
   if (Math.hypot(P.x - BENCH.x, P.y - BENCH.y) < 46) { panel = 'bench'; return; }
   if (P.potSel) drink(P.potSel);
   else message('Выбери зелье в поясе внизу');
@@ -4908,7 +4924,8 @@ if (typeof globalThis !== 'undefined') globalThis.__W = {
   getPhase: () => phase, setPhase: v => { phase = v; }, getOver: () => over, getCi: () => ci, setCi: v => { ci = v; },
   getKillsLeft: () => killsLeft, getTaken: () => taken, MAX_JOBS, focusJob, syncFocus, setPanel: v => { panel = v; }, setMouse: (x, y) => { mouse.x = x; mouse.y = y; },
   swing, shootBolt, applyOil, swapHand, saveRun, loadRun, clearRun, freeSpot,
-  LOCS, JOBS, STORY, SPOTS, SEEDS, PATHS, WORLD_W, WORLD_H, FIRE, BENCH, BOARD, CAMP_R,
+  LOCS, JOBS, STORY, SPOTS, SEEDS, PATHS, WORLD_W, WORLD_H, FIRE, BENCH, BOARD, MIRROR, CAMP_R,
+  getPanel: () => panel,
   TOWNS, townAt, obstNear, obstInView, buildObstGrid, buildPaths, TILE, TW, TH,
   buildWorld, buildRegions, locAt, regionSpot, onPath, inCamp, questGoal, takeStory, storyNow,
   compareNote, rollBoard, makeContract, jobFam, syncCam,
