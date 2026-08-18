@@ -5,7 +5,7 @@
    известное расстояние и смотрит, достало её или нет. Так она не зависит от
    того, как знак нарисован, и переживает любую переделку. */
 'use strict';
-const { W, ok, note, head, done, paints } = require('./harness.js');
+const { W, ok, note, head, done, paints, paintsFull, traces, arcs } = require('./harness.js');
 
 /* Достаёт ли знак тварь, поставленную на расстоянии d под углом da от взгляда.
    Тварь ставим свежую и с запасом здоровья, чтобы «не достало» нельзя было
@@ -206,6 +206,290 @@ head('Потолок частиц');
   // и потолок продолжает держать уже ПОСЛЕ подмены, а не только на свежем массиве
   for (let i = 0; i < HITS; i++) W.hurtFoe(f, 1, 'sword');
   ok(W.getParts().length === W.PART_CAP, 'потолок держит и после того, как массив пережил кадры');
+}
+
+/* ==================  ГРАНИЦА, КОТОРАЯ НЕ ВРЁТ  ==================
+
+   Знаки стали зрелищными, и вся новая опасность — в том, что зрелище начнёт
+   обещать не то, что делает: пламя улетит дальше, чем бьёт, или дуга ляжет
+   не там, где зона. Читаемость важнее красоты, а «читаемость» здесь значит
+   ровно три вещи, и каждая меряется отдельно:
+
+     · нарисованная граница совпадает с ЗАМЕРЕННОЙ поведением зоной;
+     · ни одна частица знака не вылетает за эту границу…
+     · …но и не жмётся к ведьмаку: зона должна быть заполнена, иначе
+       «внутри границы» выполнялось бы пустым знаком.
+
+   Ни одно число зоны здесь не берётся из игры: длина и раствор нащупываются
+   двоичным поиском по тому, кого знак ДОСТАЛ. Сдвинь зону — поедет мерка;
+   сдвинь рисунок — мерка упрётся в замер и упадёт. */
+
+// Двоичный поиск дальности по попаданию: где перестаёт доставать.
+function measureLen(rune, key) {
+  let lo = 12, hi = 400;                               // 12 — заведомо достаёт, 400 — заведомо нет
+  for (let i = 0; i < 20; i++) {
+    const m = (lo + hi) / 2;
+    if (reach(rune, m, 0)[key]) lo = m; else hi = m;
+  }
+  return (lo + hi) / 2 - FR;                           // радиус твари шёл в зачёт — снимаем
+}
+// Тот же поиск по раствору: докуда вбок ещё берёт. Расстояние далеко от
+// границы по длине, чтобы одно не мешало другому.
+function measureHalf(rune, key) {
+  let lo = 0, hi = 1.5;
+  for (let i = 0; i < 20; i++) {
+    const m = (lo + hi) / 2;
+    if (reach(rune, 60, m)[key]) lo = m; else hi = m;
+  }
+  return (lo + hi) / 2;
+}
+
+// Чистое поле и один знак: всё, что окажется в частицах, — от него одного.
+function cast(rune, a) {
+  W.reset(); W.setPhase('HUNT'); W.setPanel(null);
+  const P = W.getP();
+  P.x = 3000; P.y = 3000; P.face = a; P.mp = 999; P.runeCd = [0, 0, 0, 0];
+  W.syncCam(); W.setFoes([]);
+  W.render();                                          // прогрев: первый кадр печёт землю
+  W.getParts().length = 0;
+  W.castRune(rune);
+  return P;
+}
+
+/* Что именно добавили к кадру ВОТ ЭТИ частицы. Кадр рисуется целиком — землёй,
+   пешкой, поясом, — и мазки знака в нём тонут; отличать их по цвету значило бы
+   заранее знать цвет, то есть переспрашивать саму игру. Поэтому рисуем кадр
+   дважды: пустым и с нужными частицами, и берём кусок, которого в пустом не
+   было. Общие начало и хвост совпадают до мазка — кадр от вызова к вызову
+   одинаков (и это здесь же проверяется). Массив правим НА МЕСТЕ: игра держит
+   ту же ссылку, пока её не заменит фильтр в update. */
+function onlyParts(keep, rec) {
+  const ps = W.getParts();
+  const all = ps.slice();
+  const put = list => { ps.length = 0; for (const p of list) ps.push(p); };
+  put([]);
+  const base = rec(() => W.render());
+  put(keep);
+  const full = rec(() => W.render());
+  put(all);
+  const same = (x, y) => x !== undefined && y !== undefined && JSON.stringify(x) === JSON.stringify(y);
+  let i = 0; while (i < base.length && same(base[i], full[i])) i++;
+  let j = 0; while (j < base.length - i && same(base[base.length - 1 - j], full[full.length - 1 - j])) j++;
+  return { got: full.slice(i, full.length - j), base: base.length, full: full.length };
+}
+
+const KINDS = ['glyph', 'edge', 'scorch', 'flame', 'spark', 'smoke', 'wave', 'dust'];
+const kindOf = p => KINDS.find(k => p[k]) || 'прочее';
+function nrm(x) { while (x > Math.PI) x -= Math.PI * 2; while (x < -Math.PI) x += Math.PI * 2; return x; }
+
+head('Кадр повторяем — иначе вырезать из него знак нельзя');
+{
+  cast(0, 0.4);
+  const d = onlyParts([], paintsFull);
+  ok(d.got.length === 0 && d.base === d.full,
+     'два кадра с одними и теми же частицами дали ровно одно и то же (' + d.base + ' мазков)');
+}
+
+for (const S of [{ r: 0, n: 'Игни', key: 'hurt' }, { r: 1, n: 'Аард', key: 'pushed' }]) {
+  head(S.n + ': нарисованная граница совпадает с замеренной зоной');
+  const LEN = measureLen(S.r, S.key), HALF = measureHalf(S.r, S.key);
+  note('замерено поведением: дальность ' + LEN.toFixed(2) + ', раствор ' + HALF.toFixed(3));
+
+  const AIM = 0.4;                                     // не по осям — чтобы косые ошибки не прятались
+  const P = cast(S.r, AIM);
+  const ps = W.getParts();
+  const edges = ps.filter(p => p.edge);
+  ok(edges.length === 1, 'граница ровно одна на знак, а не набор дуг: ' + edges.length);
+
+  // --- дуга ---
+  const arc = onlyParts(edges, arcs).got;
+  ok(arc.length === 1, 'граница рисуется одной дугой: дуг ' + arc.length);
+  if (arc.length === 1) {
+    const A = arc[0];
+    note('дуга: радиус ' + A.r.toFixed(2) + ', от ' + A.a0.toFixed(3) + ' до ' + A.a1.toFixed(3));
+    ok(Math.abs(A.r - LEN) <= 0.5,
+       'радиус дуги равен замеренной дальности: ' + A.r.toFixed(2) + ' против ' + LEN.toFixed(2));
+    ok(Math.abs(nrm((A.a0 + A.a1) / 2 - AIM)) <= 0.01, 'дуга смотрит туда же, куда ведьмак');
+    ok(Math.abs((A.a1 - A.a0) / 2 - HALF) <= 0.02,
+       'полураствор дуги равен замеренному: ' + ((A.a1 - A.a0) / 2).toFixed(3) + ' против ' + HALF.toFixed(3));
+    ok(Math.hypot(A.x - P.x, A.y - P.y) < 0.01, 'дуга построена от ведьмака, а не от произвольной точки');
+  }
+
+  // --- рёбра: два луча к концам дуги ---
+  const rays = onlyParts(edges, traces).got;
+  const tips = rays.filter(t => t.k === 'lineTo');
+  ok(rays.length === 4 && tips.length === 2,
+     'у границы два ребра (moveTo+lineTo дважды): точек пути ' + rays.length);
+  for (const t of tips) {
+    const d = Math.hypot(t.x - P.x, t.y - P.y), da = nrm(Math.atan2(t.y - P.y, t.x - P.x) - AIM);
+    ok(Math.abs(d - LEN) <= 0.5 && Math.abs(Math.abs(da) - HALF) <= 0.01,
+       'ребро упирается ровно в угол зоны: ' + d.toFixed(1) + ' шагов под ' + da.toFixed(3) + ' рад');
+  }
+
+  head(S.n + ': стихия живёт внутри границы и заполняет её');
+  {
+    /* Гоняем знак в разные стороны: у частиц есть собственный снос (дым
+       всплывает), и по одному направлению боковой вылет не поймать. */
+    let worstD = 0, worstA = 0, wdK = '', waK = '', pinned = 0;
+    const far = {};                                    // докуда дотягивается каждый род
+    for (const AIM2 of [0, 0.9, 1.571, 2.4, 3.1, -0.9, -1.571, -2.4]) {
+      const P2 = cast(S.r, AIM2);
+      for (let i = 0; i < 150; i++) {                  // 2.4 с — дольше самой долгой частицы
+        W.update(0.016);
+        for (const p of W.getParts()) {
+          if (p.t < (p.at || 0)) continue;             // ещё не вышла — её на экране нет
+          const d = Math.hypot(p.x - P2.x, p.y - P2.y);
+          const da = Math.abs(nrm(Math.atan2(p.y - P2.y, p.x - P2.x) - AIM2));
+          const kd = kindOf(p);
+          if (d > worstD) { worstD = d; wdK = kd; }
+          if (d > (far[kd] || 0)) far[kd] = d;
+          if (d > 1 && da > worstA) { worstA = da; waK = kd; }
+          if (p.rmax && Math.abs(d - p.rmax) < 0.01) pinned++;
+        }
+      }
+    }
+    note('дальше всех улетел ' + wdK + ': ' + worstD.toFixed(1) + ' при границе ' + LEN.toFixed(1));
+    note('шире всех отклонился ' + waK + ': ' + worstA.toFixed(3) + ' при растворе ' + HALF.toFixed(3));
+    note('докуда дотянулся каждый род: ' +
+         Object.keys(far).map(k => k + ' ' + far[k].toFixed(0)).join(', '));
+    ok(worstD <= LEN, 'ни одна частица не вылетела за границу');
+    ok(worstA <= HALF, 'ни одна частица не вышла за раствор');
+
+    /* Каждый ЛЕТЯЩИЙ род поодиночке заполняет зону. Одной общей мерки на всех
+       мало: искры одни дотягивались бы до дуги и за пламя, а пламя тем временем
+       жалось бы к ладони — и Игни выглядел бы пшиком в яркой раме. Дым сюда не
+       входит намеренно: он след, а не удар, и держится ближе. */
+    for (const kd of ['flame', 'spark', 'dust']) {
+      if (far[kd] === undefined) continue;
+      ok(far[kd] >= LEN * 0.75,
+         'зону заполняет и «' + kd + '»: доходит до ' + far[kd].toFixed(1) +
+         ' при трёх четвертях границы ' + (LEN * 0.75).toFixed(1));
+    }
+
+    /* Подрезка по rmax — СТРАХОВКА на просадку кадра, а не рабочий ход. Если
+       на ровных кадрах частицы упираются в неё, значит их разогнали дальше,
+       чем обещает дуга, и они кучей залипают на границе вместо полёта. */
+    ok(pinned === 0, 'на ровных кадрах ничто не упирается в подрезку: залипших ' + pinned);
+
+    /* ПРОСЕВШИЙ КАДР — отдельно. Считать «сколько частица успеет за свой срок»
+       мало: при dt 0.05 шаг втрое длиннее, и один такой шаг вынес бы искру за
+       дугу. Держит это радиальная подрезка (p.rmax в update), и без этого
+       прохода её пропажи никто бы не заметил — на ровных кадрах она молчит. */
+    let lagD = 0, lagK = '';
+    for (const AIM3 of [0, 1.571, 3.1, -1.571]) {
+      const P3 = cast(S.r, AIM3);
+      for (let i = 0; i < 60; i++) {
+        W.update(0.05);
+        for (const p of W.getParts()) {
+          if (p.t < (p.at || 0)) continue;
+          const d = Math.hypot(p.x - P3.x, p.y - P3.y);
+          if (d > lagD) { lagD = d; lagK = kindOf(p); }
+        }
+      }
+    }
+    note('на просевших кадрах (dt 0.05) дальше всех ' + lagK + ': ' + lagD.toFixed(1));
+    ok(lagD <= LEN, 'и на просадке кадра ничто не перелетает границу');
+
+    /* А теперь без всякого «повезёт — не повезёт»: разгоняем всё летящее
+       ВТРОЕ и смотрим, держит ли граница. Просадка кадра — только один из
+       способов вынести частицу за дугу; будущая правка скорости сделает то
+       же самое молча. Подрезка обещает: чем бы частицу ни разогнало, за дугу
+       она не выйдет. Мерка на случайный разброс такое ловит через раз —
+       эта ловит всегда. */
+    let fastD = 0, fastK = '';
+    for (const AIM4 of [0, 1.571, 3.1, -1.571]) {
+      const P4 = cast(S.r, AIM4);
+      for (const p of W.getParts()) { if (p.vx || p.vy) { p.vx *= 3; p.vy *= 3; } }
+      for (let i = 0; i < 80; i++) {
+        W.update(0.016);
+        for (const p of W.getParts()) {
+          if (p.t < (p.at || 0)) continue;
+          const d = Math.hypot(p.x - P4.x, p.y - P4.y);
+          if (d > fastD) { fastD = d; fastK = kindOf(p); }
+        }
+      }
+    }
+    note('разогнанное втрое дальше всех унесло ' + fastK + ': ' + fastD.toFixed(1));
+    ok(fastD <= LEN, 'даже разогнанное втрое остаётся внутри границы — подрезка на месте');
+  }
+
+  head(S.n + ': граница ярче стихии, стихия — всегда сквозь');
+  {
+    /* Мазки делим не по цвету, а ПО ЧАСТИЦАМ: отдельно рисуем кадр с одной
+       границей, отдельно — со всем прочим. Цвет знать не нужно вовсе. */
+    cast(S.r, 0.4);
+    let edgeMax = 0, elemMax = 0, elemWorst = '', worstFrame = null, waveMax = 0, waveSeen = false;
+    for (let i = 0; i < 60; i++) {
+      const cur = W.getParts();
+      const e = cur.filter(p => p.edge), rest = cur.filter(p => !p.edge);
+      for (const m of onlyParts(e, paintsFull).got) if (m.a > edgeMax) edgeMax = m.a;
+      for (const m of onlyParts(rest, paintsFull).got) {
+        if (m.a > elemMax) { elemMax = m.a; worstFrame = rest.slice(); }
+      }
+      // волна — единственное, что доходит до дуги само; её радиус берём из дуг
+      const wv = cur.filter(p => p.wave);
+      if (wv.length) {
+        waveSeen = true;
+        for (const A of onlyParts(wv, arcs).got) if (A.r > waveMax) waveMax = A.r;
+      }
+      W.update(0.016);
+    }
+    if (waveSeen) {
+      /* Волна — второе прочтение зоны: она уходит от ладони и ГАСНЕТ РОВНО НА
+         ДУГЕ. Не дойди она — толчок выглядел бы короче, чем бьёт, и игрок
+         отступал бы на шаг там, где отступать не надо. */
+      note('дальше всего волна ушла на ' + waveMax.toFixed(1) + ' при границе ' + LEN.toFixed(1));
+      ok(waveMax <= LEN, 'волна не перехлёстывает границу');
+      ok(waveMax >= LEN - 3, 'волна доходит до самой границы, а не гаснет на полпути');
+    }
+    // кто именно оказался самым густым — доискиваемся только на том кадре, где это вышло
+    if (worstFrame) {
+      const ps = W.getParts(); const all = ps.slice();
+      ps.length = 0; for (const p of worstFrame) ps.push(p);
+      let best = -1;
+      for (const p of worstFrame) {
+        for (const m of onlyParts([p], paintsFull).got) if (m.a > best) { best = m.a; elemWorst = kindOf(p); }
+      }
+      ps.length = 0; for (const p of all) ps.push(p);
+    }
+    note('самый густой мазок границы: ' + edgeMax.toFixed(3) +
+         ', самый густой мазок стихии (' + elemWorst + '): ' + elemMax.toFixed(3));
+    ok(edgeMax >= 0.95, 'граница выходит в полную яркость — её видно поверх всего');
+    ok(elemMax <= 0.85, 'ничто внутри границы не пишется гуще 0.85 — сквозь стихию видно бой');
+    ok(edgeMax > elemMax, 'граница гуще самого густого, что горит внутри неё');
+  }
+}
+
+head('Глиф под ладонью — общая основа всех знаков');
+{
+  const lives = [];
+  for (const r of [0, 1]) {
+    const P = cast(r, 0.4);
+    const g = W.getParts().filter(p => p.glyph);
+    ok(g.length === 1, 'знак ' + r + ' зажёг ровно один глиф: ' + g.length);
+    if (g.length !== 1) continue;
+    const d = Math.hypot(g[0].x - P.x, g[0].y - P.y);
+    ok(d <= 20, 'глиф у самой ладони (' + d.toFixed(1) + ' шага), а не посреди поля');
+    ok(Math.abs(nrm(Math.atan2(g[0].y - P.y, g[0].x - P.x) - 0.4)) < 0.01, 'глиф вынесен по руке');
+    ok(g[0].life > 0 && g[0].life <= 0.2, 'глиф гаснет за мгновение: ' + g[0].life);
+    lives.push(g[0].life);
+  }
+  ok(lives.length === 2 && lives[0] === lives[1],
+     'оба знака зажигают ОДИН И ТОТ ЖЕ глиф — есть на чём строить Квен и Ирден');
+}
+
+head('Отложенная частица ждёт на месте, а не летит вслепую');
+{
+  cast(0, 0.4);
+  const w = W.getParts().find(p => p.at > 0.06 && (p.vx || p.vy));
+  ok(!!w, 'у знака есть частицы с отсрочкой — иначе пламя выходило бы одним пыхом');
+  if (w) {
+    const x0 = w.x, y0 = w.y;
+    W.update(0.03);                                    // меньше отсрочки
+    ok(w.x === x0 && w.y === y0, 'пока ждёт — стоит: ' + w.t.toFixed(3) + ' с при отсрочке ' + w.at.toFixed(3));
+    while (w.t < w.at + 0.1) W.update(0.016);
+    ok(Math.hypot(w.x - x0, w.y - y0) > 1, 'дождалась своего часа — полетела');
+  }
 }
 
 done();

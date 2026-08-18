@@ -1905,6 +1905,14 @@ function hurtPlayer(raw, from) {
    было бы написано одно, а списывалось другое. */
 function runeCost(R) { return Math.max(1, Math.round(R.mp * (1 - 0.08 * schoolPow('sign')) * (1 - 0.06 * sk('thrift')))); }
 function runePower() { return 1 + 0.12 * schoolPow('sign') + 0.08 * sk('power'); }
+/* Глиф под ладонью — общий для всех четырёх знаков. Вспыхивает, растёт и
+   гаснет за 0.14 с: ровно столько, чтобы глаз успел прочитать, что ведьмак
+   что-то СДЕЛАЛ, и не столько, чтобы это мешало смотреть на бой. Он у самой
+   ладони (14 шагов), поэтому ни в какую границу не упирается. */
+function signCast(a, col) {
+  addPart({ glyph: true, x: P.x + Math.cos(a) * 14, y: P.y + Math.sin(a) * 14,
+            a, c: col, t: 0, life: 0.14 });
+}
 function castRune(i) {
   const R = RUNES[i]; if (!R) return;
   // зверю не до знаков: во второй ступени остались только когти
@@ -1917,11 +1925,65 @@ function castRune(i) {
   const pow = runePower();
   const a = faceAim();
   if (R.k === 'igni') {
-    addPart({ cone: true, x: P.x, y: P.y, a, t: 0, life: 0.35, c: '#ff8a3a', len: 120, w: 0.7 });
-    for (const f of foes) if (inCone(f, a, 120, 0.7)) { hurtFoe(f, 24 * pow, 'rune'); f.burn = 4; }
+    /* ЗОНА — одна на весь знак: и по ней бьёт, и её же рисует граница. Числа
+       ниже посчитаны так, чтобы НИ ОДНА искра и ни один язык не вылетели за
+       LEN — и без всякой подрезки, на ровных кадрах:
+         искра  12 + 98 · (1 + 0.016/0.3)  = 115.2, кружок 1.6  → 116.8
+         язык   10 + 96 · (1 + 0.016/0.28) = 111.5, кончик 4.5  → 116.0
+       Множитель — за лишний шаг: частица успевает шагнуть на кадре, где её
+       срок уже вышел. Пламя обещает ровно то, что выполняет, иначе граница
+       врёт, и знак читать нельзя. */
+    const LEN = 120, HALF = 0.7;
+    signCast(a, '#ffd06a');
+    addPart({ scorch: true, x: P.x, y: P.y, a, w: HALF, len: LEN, c: '#0a0705', t: 0, life: 2 });
+    for (let i = 0; i < 26; i++) {                     // языки пламени
+      const an = a + (Math.random() - 0.5) * 1.28;     // отклонение ≤ 0.64 — внутри HALF
+      const d = 26 + rnd(70), dur = 0.28 + rnd(0.2), at = rnd(0.14);
+      addPart({ flame: true, a: an, sz: 0.5 + rnd(0.5), ox: P.x, oy: P.y, rmax: LEN - 5,
+                x: P.x + Math.cos(an) * 10, y: P.y + Math.sin(an) * 10,
+                vx: Math.cos(an) * (d / dur), vy: Math.sin(an) * (d / dur),
+                t: 0, life: at + dur, at });
+    }
+    for (let i = 0; i < 22; i++) {                     // искры — быстрее и дальше огня
+      const an = a + (Math.random() - 0.5) * 1.28;
+      const d = 40 + rnd(58), dur = 0.3 + rnd(0.14);
+      addPart({ spark: true, ox: P.x, oy: P.y, rmax: LEN - 2,
+                x: P.x + Math.cos(an) * 12, y: P.y + Math.sin(an) * 12,
+                vx: Math.cos(an) * (d / dur), vy: Math.sin(an) * (d / dur),
+                c: '#ffe9a8', r: 1.6, t: 0, life: dur });
+    }
+    for (let i = 0; i < 9; i++) {                      // дым тянется следом за огнём
+      /* Дым сносит ВДОЛЬ выброса, а не вверх. Сверху-то оно смотрелось бы
+         привычнее, но взгляд у нас с высоты: дымок, отползающий на юг от
+         ближней к ладони точки, вылезал за раствор конуса (посчитано: при
+         отступе 24 и сносе 12 отклонение доходит до 0.84 при растворе 0.7).
+         Вдоль выброса он не выйдет за границу никогда — угол не меняется. */
+      const an = a + (Math.random() - 0.5) * 1.0, rr = 24 + rnd(42);
+      const dur = 0.7 + rnd(0.3), at = 0.14 + rnd(0.3), dr = 10 + rnd(8);
+      addPart({ smoke: true, ox: P.x, oy: P.y, rmax: LEN - 20,
+                x: P.x + Math.cos(an) * rr, y: P.y + Math.sin(an) * rr,
+                vx: Math.cos(an) * dr, vy: Math.sin(an) * dr, t: 0, life: at + dur, at });
+    }
+    /* Граница кладётся ПОСЛЕДНЕЙ: частицы рисуются в порядке добавления, и
+       только так яркая дуга ложится поверх собственного пламени, а не под ним. */
+    addPart({ edge: true, x: P.x, y: P.y, a, w: HALF, len: LEN, c: '#ffc45a', t: 0, life: 0.3 });
+    for (const f of foes) if (inCone(f, a, LEN, HALF)) { hurtFoe(f, 24 * pow, 'rune'); f.burn = 4; }
   } else if (R.k === 'aard') {
-    addPart({ cone: true, x: P.x, y: P.y, a, t: 0, life: 0.3, c: '#9fd8ff', len: 100, w: 0.8 });
-    for (const f of foes) if (inCone(f, a, 100, 0.8)) {
+    /* Та же порука: 14 + 72 · (1 + 0.016/0.4) = 88.9, радиус пылинки в конце
+       6 → 94.9 < 100. Обе волны приходят ровно на LEN и там гаснут. */
+    const LEN = 100, HALF = 0.8;
+    signCast(a, '#9fd8ff');
+    for (let i = 0; i < 30; i++) {                     // пыль, сорванная с земли
+      const an = a + (Math.random() - 0.5) * 1.5;      // отклонение ≤ 0.75 — внутри HALF
+      const d = 22 + rnd(50), dur = 0.4 + rnd(0.25);
+      addPart({ dust: true, ox: P.x, oy: P.y, rmax: LEN - 6,
+                x: P.x + Math.cos(an) * 14, y: P.y + Math.sin(an) * 14,
+                vx: Math.cos(an) * (d / dur), vy: Math.sin(an) * (d / dur), t: 0, life: dur });
+    }
+    addPart({ wave: true, x: P.x, y: P.y, a, w: HALF, len: LEN, c: '#cfeaff', t: 0, life: 0.36, thick: 3 });
+    addPart({ wave: true, x: P.x, y: P.y, a, w: HALF, len: LEN, c: '#cfeaff', t: 0, life: 0.5, thick: 1.6, at: 0.1 });
+    addPart({ edge: true, x: P.x, y: P.y, a, w: HALF, len: LEN, c: '#bfe4ff', t: 0, life: 0.3 });
+    for (const f of foes) if (inCone(f, a, LEN, HALF)) {
       hurtFoe(f, 7 * pow, 'rune');
       const d = Math.atan2(f.y - P.y, f.x - P.x);
       f.kx = Math.cos(d) * 260; f.ky = Math.sin(d) * 260; f.stun = Math.max(f.stun, 1.3);
@@ -2950,7 +3012,24 @@ function update(dt) {
   if (msgT > 0) msgT -= dt;
   for (const f of floaties) f.t += dt;
   floaties = floaties.filter(f => f.t < 1.1);
-  for (const p of parts) { p.t += dt; p.x += (p.vx || 0) * dt; p.y += (p.vy || 0) * dt; }
+  /* Отложенные частицы (p.at — через сколько секунд выйти) не летят, пока
+     ждут: иначе дым, которому велено всплыть через полсекунды, к своему часу
+     уже уехал бы, и посчитать, куда он ляжет, стало бы нельзя. Ждёт — стоит
+     на месте; вышел — летит ровно (life − at) секунд. */
+  /* И ГРАНИЦА ЗНАКА ДЕРЖИТ ДАЖЕ НА ПРОСЕВШЕМ КАДРЕ. Частицы знака летят от
+     точки броска (ox, oy) и дальше rmax не уходят. Считать «сколько успеет за
+     свой срок» мало: на просадке dt вырастает вдвое-втрое, и один шаг вынес бы
+     искру за дугу — а дуга ОБЕЩАЛА. Подрезаем по радиусу: направление то же
+     (летят строго от ox,oy), теряется только пара шагов полёта. */
+  for (const p of parts) {
+    p.t += dt;
+    if (p.at && p.t < p.at) continue;
+    p.x += (p.vx || 0) * dt; p.y += (p.vy || 0) * dt;
+    if (p.rmax) {
+      const dx = p.x - p.ox, dy = p.y - p.oy, d = Math.hypot(dx, dy);
+      if (d > p.rmax) { p.x = p.ox + dx / d * p.rmax; p.y = p.oy + dy / d * p.rmax; }
+    }
+  }
   parts = parts.filter(p => p.t < (p.life || 0.6));
   // пока лежишь — время идёт, но играть нечем. Пауза останавливает и это
   if (over && !paused) { downT -= dt; if (downT <= 0) rise(); return; }
@@ -3642,17 +3721,91 @@ function drawWorld() {
   }
 
   // частицы
+  /* ЧИТАЕМОСТЬ ВАЖНЕЕ КРАСОТЫ. Правило одно на все роды ниже: граница (edge)
+     рисуется ярко, чётко и один раз, а стихия внутри неё — всегда сквозь
+     полупрозрачность (не гуще 0.85). Иначе в третьем Игни подряд перестанет
+     быть видно, докуда знак достаёт, — и знак станет нечитаемым. */
   for (const p of parts) {
-    const k = 1 - p.t / (p.life || 0.6);
-    ctx.globalAlpha = clamp(k, 0, 1);
-    if (p.cone) {
-      ctx.fillStyle = p.c;
+    /* Прожитая доля считается от ВЫХОДА частицы, а не от рождения: у
+       отложенных (p.at) иначе половина жизни ушла бы на невидимое ожидание,
+       и они гасли бы раньше, чем разгорелись. У всех прочих at нет, и kk —
+       ровно то же, чем раньше был (1 − k). */
+    const lt = p.t - (p.at || 0);
+    if (lt < 0) { ctx.globalAlpha = 1; continue; }     // ещё не вышла — не рисуем вовсе
+    const kk = clamp(lt / ((p.life - (p.at || 0)) || 0.6), 0, 1);
+    ctx.globalAlpha = clamp(1 - kk, 0, 1);
+    if (p.glyph) {
+      const s = clamp(1 - Math.abs(kk - 0.5) * 2, 0, 1);   // вспыхнул и погас
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.a);
+      /* И глиф тоже сквозь: 0.8 — потолок для всего, что внутри границы.
+         Он у ладони и мелкий, ярче ему быть незачем. */
+      ctx.globalAlpha = s * 0.8;
+      ctx.strokeStyle = p.c; ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      for (let i = 0; i < 3; i++) {                    // треугольник знака
+        const an = i / 3 * 6.283 - 1.57, r = 6 + kk * 4;
+        if (i === 0) ctx.moveTo(Math.cos(an) * r, Math.sin(an) * r);
+        else ctx.lineTo(Math.cos(an) * r, Math.sin(an) * r);
+      }
+      ctx.closePath(); ctx.stroke();
+      ctx.globalAlpha = s * 0.45;
+      ctx.beginPath(); ctx.arc(0, 0, 3 + kk * 6, 0, 6.3); ctx.stroke();
+      ctx.restore();
+    } else if (p.edge) {
+      /* ГРАНИЦА ПОРАЖЕНИЯ. Не украшение, а обещание: досюда достанет. Держит
+         полную яркость больше половины срока и только потом гаснет — мигающую
+         черту глаз не успевает прочитать. Тёмная подложка под светлой дугой:
+         без неё жёлтое по выжженной земле и по песку сливается.
+         Радиус и раствор берутся из p.len/p.w — тех самых, по которым бьёт. */
+      const al = Math.min(1, (1 - kk) * 2.2);
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.len, p.a - p.w, p.a + p.w);
+      ctx.globalAlpha = al * 0.5; ctx.strokeStyle = '#0b0a08'; ctx.lineWidth = 4.5; ctx.stroke();
+      ctx.globalAlpha = al; ctx.strokeStyle = p.c; ctx.lineWidth = 1.8; ctx.stroke();
+      // рёбра к концам дуги: видно не только «докуда», но и «куда» — какой раствор
+      ctx.beginPath();
+      for (const s of [-1, 1]) {
+        const an = p.a + p.w * s;
+        ctx.moveTo(p.x + Math.cos(an) * 14, p.y + Math.sin(an) * 14);
+        ctx.lineTo(p.x + Math.cos(an) * p.len, p.y + Math.sin(an) * p.len);
+      }
+      ctx.globalAlpha = al * 0.7; ctx.lineWidth = 1.2; ctx.stroke();
+    } else if (p.scorch) {
+      // выжженная земля: остаётся под ногами ещё две секунды после того, как погасло
+      ctx.globalAlpha = (1 - kk) * 0.42; ctx.fillStyle = p.c;
       ctx.beginPath(); ctx.moveTo(p.x, p.y);
-      ctx.arc(p.x, p.y, p.len * (0.5 + 0.5 * (1 - k)), p.a - p.w, p.a + p.w);
-      ctx.closePath(); ctx.globalAlpha *= 0.4; ctx.fill();
+      ctx.arc(p.x, p.y, p.len, p.a - p.w, p.a + p.w); ctx.closePath(); ctx.fill();
+    } else if (p.flame) {
+      /* Язык пламени остывает по дороге: белый → жёлтый → оранжевый →
+         тёмно-красный. Цвет берём от прожитой доли, а не от времени: так
+         короткий и длинный языки остывают одинаково честно. И сам он к концу
+         съёживается — огонь не расползается пятном, а именно догорает. */
+      const rr = (1 - kk * 0.5) * p.sz;
+      ctx.globalAlpha = (1 - kk) * 0.8;
+      ctx.fillStyle = kk < 0.22 ? '#fff6d0' : kk < 0.45 ? '#ffd25a' : kk < 0.72 ? '#ff8a2a' : '#c22c10';
+      ctx.beginPath(); ctx.ellipse(p.x, p.y, rr * 9, rr * 5.5, p.a, 0, 6.3); ctx.fill();
+    } else if (p.spark) {
+      const al = clamp(1 - kk, 0, 1);
+      ctx.strokeStyle = p.c; ctx.lineWidth = 1.2; ctx.globalAlpha = al * 0.7;
+      ctx.beginPath();                                 // короткий хвост по ходу полёта
+      ctx.moveTo(p.x - p.vx * 0.012, p.y - p.vy * 0.012); ctx.lineTo(p.x, p.y); ctx.stroke();
+      ctx.globalAlpha = al * 0.85; ctx.fillStyle = p.c;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 6.3); ctx.fill();
+    } else if (p.smoke) {
+      // самое бледное, что есть на экране: дым не должен заслонять тварей
+      ctx.globalAlpha = (1 - kk) * 0.24; ctx.fillStyle = '#4a423c';
+      ctx.beginPath(); ctx.arc(p.x, p.y, 7 + kk * 13, 0, 6.3); ctx.fill();
+    } else if (p.wave) {
+      // волна приходит РОВНО на границу и там гаснет — это второе прочтение зоны
+      const rr = 14 + kk * (p.len - 14);
+      ctx.globalAlpha = (1 - kk) * 0.85; ctx.strokeStyle = p.c;
+      ctx.lineWidth = p.thick * (1 - kk * 0.55);
+      ctx.beginPath(); ctx.arc(p.x, p.y, rr, p.a - p.w, p.a + p.w); ctx.stroke();
+    } else if (p.dust) {
+      ctx.globalAlpha = clamp(1 - kk, 0, 1) * 0.5; ctx.fillStyle = '#9c9484';
+      ctx.beginPath(); ctx.arc(p.x, p.y, 2 + kk * 4, 0, 6.3); ctx.fill();
     } else if (p.ring) {
       ctx.strokeStyle = p.c; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(p.x, p.y, p.r * (1 + (1 - k)), 0, 6.3); ctx.stroke();
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r * (1 + kk), 0, 6.3); ctx.stroke();
     } else {
       ctx.fillStyle = p.c; ctx.beginPath(); ctx.arc(p.x, p.y, p.r || 2, 0, 6.3); ctx.fill();
     }

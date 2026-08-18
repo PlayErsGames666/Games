@@ -55,6 +55,11 @@ let paint = null;
    просто пусто на экране. Проверка «не упало» такое пропускает целиком.
    Записываем имя каждого вызова, которому дали не-число. */
 let spin = null, nanw = null;
+/* То же, что paints(), но с ГУСТОТОЙ мазка: {k:'fill'|'stroke', c, a, w}.
+   Одной краски мало там, где правило написано не про цвет, а про прозрачность
+   («граница ярче стихии, стихия всегда сквозь»): цвет у горящего пламени и у
+   границы разный, а вот кто из них гуще — видно только по globalAlpha. */
+let inks = null;
 function nanArgs(k, a) {
   if (!nanw) return;
   for (const v of a) if (typeof v === 'number' && v !== v) { nanw.push(k); return; }
@@ -69,7 +74,7 @@ function nanArgs(k, a) {
    рисуется через translate → scale → translate, и если хоть один сдвиг забыть,
    фигура уедет в несколько раз дальше от угла вместо того, чтобы вырасти на
    месте. По одним лишь местным осям такую ошибку не поймать: они те же. */
-let trace = null;
+let trace = null, arcw = null;
 let tstack = [{ tx: 0, ty: 0, sx: 1, sy: 1, clipped: false }];
 const ttop = () => tstack[tstack.length - 1];
 // местные оси → холст: сперва растянуть, потом сдвинуть
@@ -93,6 +98,16 @@ function makeCtx() {
         nanArgs(k, [x, y]);
         if (trace) trace.push({ k, x, y, sx: scrX(x), sy: scrY(y) });
       };
+      /* Дуги — отдельным списком, а не вместе с moveTo/lineTo: у знаков вся
+         граница нарисована одной дугой, и без её радиуса не проверить, не
+         врёт ли обещанная дальность. В trace их подмешивать нельзя — там уже
+         считают «точки пути», и центр дуги за точку пути не сойдёт. */
+      if (k === 'arc') return (x, y, r, a0, a1) => {
+        nanArgs(k, [x, y, r, a0, a1]);
+        if (arcw) arcw.push({ x, y, r, a0, a1, sx: scrX(x), sy: scrY(y), rs: r * ttop().sx,
+                              c: String(t.strokeStyle), f: String(t.fillStyle),
+                              al: t.globalAlpha === undefined ? 1 : t.globalAlpha });
+      };
       if (k === 'clip') return () => { ttop().clipped = true; };
       if (k === 'setTransform') return () => { tstack = [{ tx: 0, ty: 0, sx: 1, sy: 1, clipped: false }]; };
       if (k === 'fillText') return (s, x, y) => {
@@ -105,8 +120,19 @@ function makeCtx() {
       if (k === 'createImageData') return (w, h) => ({ width: w, height: h, data: new Uint8ClampedArray(w * h * 4) });
       if (k === 'createRadialGradient' || k === 'createLinearGradient') return () => ({ addColorStop() {} });
       if (k === 'getImageData') return () => ({ data: [] });
-      if (k === 'fill' || k === 'fillRect') return (...a) => { nanArgs(k, a); if (paint) paint.push(String(t.fillStyle)); };
-      if (k === 'stroke' || k === 'strokeRect') return (...a) => { nanArgs(k, a); if (paint) paint.push(String(t.strokeStyle)); };
+      if (k === 'fill' || k === 'fillRect') return (...a) => {
+        nanArgs(k, a);
+        if (paint) paint.push(String(t.fillStyle));
+        if (inks) inks.push({ k: 'fill', c: String(t.fillStyle),
+                              a: t.globalAlpha === undefined ? 1 : t.globalAlpha });
+      };
+      if (k === 'stroke' || k === 'strokeRect') return (...a) => {
+        nanArgs(k, a);
+        if (paint) paint.push(String(t.strokeStyle));
+        if (inks) inks.push({ k: 'stroke', c: String(t.strokeStyle),
+                              a: t.globalAlpha === undefined ? 1 : t.globalAlpha,
+                              w: t.lineWidth === undefined ? 1 : t.lineWidth });
+      };
       if (k in t) return t[k];
       return (...a) => { nanArgs(k, a); };
     },
@@ -227,6 +253,16 @@ function paints(fn) {
   paint = [];
   try { fn(); return paint; } finally { paint = null; }
 }
+// Мазки внутри fn вместе с прозрачностью: [{k, c, a, w}, ...].
+function paintsFull(fn) {
+  inks = [];
+  try { fn(); return inks; } finally { inks = null; }
+}
+// Все дуги внутри fn: [{x, y, r, a0, a1, sx, sy, rs, c, f, al}, ...].
+function arcs(fn) {
+  arcw = [];
+  try { fn(); return arcw; } finally { arcw = null; }
+}
 // Все повороты холста внутри fn, в радианах: spins(() => W.drawPawn(...)).
 function spins(fn) {
   spin = [];
@@ -260,5 +296,5 @@ function tap(x, y) {
 
 module.exports = { W: sandbox.__W, store, sandbox, ok, note, head, done, makeCanvas, GAME,
                    key, keyDown, winEvent, frame, frameMarks, frameMarksAll, span, said, click, tap, buttons,
-                   paints, spins, nans, traces,
+                   paints, paintsFull, spins, nans, traces, arcs,
                    peek: name => vm.runInContext(name, sandbox) };
