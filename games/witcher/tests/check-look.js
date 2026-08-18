@@ -1,7 +1,8 @@
 /* Облик ведьмака: таблицы, запись, зеркало, панель.
    Пишется по частям вместе с задачами 2, 5 и 6 плана. */
 'use strict';
-const { W, store, ok, note, head, done, paints, spins, nans, traces, frameMarksAll } = require('./harness.js');
+const { W, store, ok, note, head, done, paints, spins, nans, traces,
+        frame, frameMarks, frameMarksAll, tap, peek } = require('./harness.js');
 
 head('Умолчание, когда записи нет');
 {
@@ -393,6 +394,263 @@ head('E у зеркала открывает и закрывает облик');
   ok(W.getPanel && W.getPanel() === 'look', 'подошёл, нажал E — открылся облик');
   W.interact();
   ok(W.getPanel() === null, 'ещё раз E — закрылся');
+}
+
+/* =====================  ЛИСТАНИЕ ПОЛЕЙ  ===================== */
+
+head('Стрелка листает причёску и запоминает');
+{
+  W.reset(); W.setPhase('CAMP');
+  W.setLook(W.LOOK_DEF); W.setPanel('look');
+  const was = W.getLook().hair;
+  const keys = Object.keys(W.HAIRS);
+  W.lookStep('hair', 1);
+  const now = W.getLook().hair;
+  note('причёска: ' + was + ' → ' + now);
+  ok(now !== was, 'причёска сменилась');
+  ok(keys.indexOf(now) === (keys.indexOf(was) + 1) % keys.length, 'сменилась на следующую по таблице');
+  ok(JSON.parse(store['witcher_look']).hair === now, 'и сразу записалась');
+
+  W.lookStep('hair', -1);
+  ok(W.getLook().hair === was, 'шаг назад возвращает ровно предыдущую');
+}
+
+head('Листание по кругу не выходит за таблицу');
+{
+  W.setLook(W.LOOK_DEF);
+  const keys = Object.keys(W.HAIRS);
+  for (let i = 0; i < keys.length * 3 + 1; i++) W.lookStep('hair', 1);
+  ok(!!W.HAIRS[W.getLook().hair], 'после многих щелчков ключ всё ещё из таблицы');
+  for (let i = 0; i < keys.length * 3 + 1; i++) W.lookStep('hair', -1);
+  ok(!!W.HAIRS[W.getLook().hair], 'и в обратную сторону тоже');
+  ok(W.getLook().hair === W.LOOK_DEF.hair, 'столько же шагов туда и обратно — там же, где начали');
+
+  // чужое имя поля не должно ни ронять игру, ни портить облик
+  const before = JSON.stringify(W.getLook());
+  let fell = null;
+  try { W.lookStep('нос', 1); } catch (e) { fell = e.message; }
+  ok(!fell, fell || 'незнакомое поле листается вхолостую, без падения');
+  ok(JSON.stringify(W.getLook()) === before, 'и облик от этого не изменился');
+}
+
+/* =====================  ПАНЕЛЬ У ЗЕРКАЛА  =====================
+   Панель — это то, что человек видит глазами, и «не упало» тут не мерка:
+   молча не нарисовать можно всё что угодно. Меряем по следу: что написано,
+   ГДЕ написано, куда расставлены попадания и какими красками нарисовано
+   превью. */
+
+head('Панель облика рисуется и подписана');
+{
+  W.reset(); W.setPhase('CAMP');
+  W.setLook(W.LOOK_DEF);
+  W.setPanel('look');
+  let fell = null;
+  try { W.render(); } catch (e) { fell = e.message; }
+  ok(!fell, fell || 'панель облика рисуется');
+
+  const lines = frame();
+  ok(lines.some(s => s.indexOf('ОБЛИК') >= 0), 'заголовок на месте');
+  for (const F of W.LOOK_FIELDS) {
+    ok(lines.some(s => s === F.n), 'строка «' + F.n + '» на месте');
+    ok(lines.some(s => s === F.tab[W.LOOK_DEF[F.k]].n),
+       'и рядом написано текущее значение «' + F.tab[W.LOOK_DEF[F.k]].n + '»');
+  }
+  ok(lines.some(s => s.indexOf('наугад') >= 0), 'кнопка «наугад» на месте');
+  ok(lines.some(s => s.indexOf('готово') >= 0), 'кнопка «готово» на месте');
+
+  /* Холст глотает путь с NaN в координатах МОЛЧА: ни ошибки, ни следа, просто
+     пустое место вместо превью. Проверка «не упало» такое пропускает целиком. */
+  const bad = nans(() => W.drawLook());
+  ok(bad.length === 0, bad.length ? 'холсту дали NaN: ' + bad.join(', ')
+                                  : 'ни одного NaN в доводах холста');
+}
+
+/* Раскладка считается ОТДЕЛЬНО от отрисовки — значит её можно померить на
+   любом размере холста, не видя пикселей. Полный экран меняет и CW, и CH:
+   на сверхшироком мониторе высота падает до 400. */
+head('Панель складывается на любом холсте');
+{
+  for (const [cw0, ch] of [[520, 640], [480, 640], [1800, 640], [1800, 400], [640, 1400]]) {
+    const cw = Math.min(W.PANEL_MAX, cw0);             // панель сама сужает колонку
+    const A = W.lookLayout(cw, ch);
+    const r = A.s * W.PAWN_R;
+    const nm = cw0 + 'x' + ch + ': ';
+    ok(A.px - r >= A.box.x && A.px + r <= A.box.x + A.box.w &&
+       A.py - r >= A.box.y && A.py + r <= A.box.y + A.box.h,
+       nm + 'фигура в ЛЮБОМ повороте внутри рамки превью (радиус ' + r.toFixed(1) +
+       ' при полурамке ' + (Math.min(A.box.w, A.box.h) / 2) + ')');
+    ok(A.box.x >= 14 && A.box.x + A.box.w <= cw - 14 &&
+       A.box.y >= 68 && A.box.y + A.box.h + 16 <= ch - 56,
+       nm + 'рамка превью с подписью внутри панели, ниже шапки и выше подвала');
+    ok(A.px + r <= A.fx, nm + 'превью не налезает на колонку полей');
+    const last = A.y0 + A.step * (W.LOOK_FIELDS.length - 1);
+    ok(last + 24 <= A.by, nm + 'последняя строка не налезает на кнопки');
+    ok(A.by + 20 <= ch - 56, nm + 'кнопки не налезают на подвал панели');
+    ok(A.step >= 26, nm + 'между строками остаётся просвет (шаг ' + A.step + ')');
+    ok(A.fw >= 200 && A.fx + A.fw <= cw - 14, nm + 'колонка полей не схлопнулась (ширина ' + A.fw + ')');
+    ok(A.fw - 2 * 96 >= 8, nm + 'две кнопки внизу колонки не наезжают друг на друга');
+  }
+}
+
+head('Строки правда нарисованы там, где считает раскладка');
+{
+  W.reset(); W.setPhase('CAMP'); W.setLook(W.LOOK_DEF); W.setPanel('look');
+  const A = W.lookLayout(Math.min(W.PANEL_MAX, 520), 640);
+  const ms = frameMarks();
+  const bad = [];
+  W.LOOK_FIELDS.forEach((F, i) => {
+    const m = ms.find(t => t.s === F.n);
+    if (!m) { bad.push(F.n + ': не написано'); return; }
+    if (Math.abs(m.x - A.fx) > 0.5 || Math.abs(m.y - (A.y0 + i * A.step)) > 0.5)
+      bad.push(F.n + ': ' + Math.round(m.x) + ',' + Math.round(m.y) +
+               ' вместо ' + A.fx + ',' + (A.y0 + i * A.step));
+  });
+  ok(bad.length === 0, bad.length ? 'разъехалось: ' + bad.join('; ')
+                                  : 'все шесть строк стоят в колонке ровно по шагу раскладки');
+  const onBox = ms.filter(t => W.LOOK_FIELDS.some(F => F.n === t.s))
+                  .filter(t => t.x < A.box.x + A.box.w);
+  ok(onBox.length === 0, 'ни одна строка не заезжает на рамку превью');
+}
+
+/* Превью — единственное место в игре, где холст РАСТЯГИВАЕТСЯ: translate →
+   scale → translate. Забудь один сдвиг — и фигура не вырастет на месте, а
+   уедет вчетверо дальше от угла холста. Ни краска, ни поворот, ни местные
+   оси от этого не меняются: поймать можно только по точкам пути, приведённым
+   к холсту (p.sx/p.sy), — их стенд и ведёт. */
+head('Превью правда нарисовано в своей рамке, а не уехало от угла');
+{
+  W.reset(); W.setPhase('CAMP'); W.setLook(W.LOOK_DEF); W.setPanel('look');
+  W.render();
+  const A = W.lookLayout(Math.min(W.PANEL_MAX, 520), 640);
+  const pts = traces(() => W.drawLook());
+  note('точек пути в превью: ' + pts.length);
+  ok(pts.length > 0, 'путь фигуры вообще проложен — есть что мерить');
+  const out = pts.filter(p => p.sx < A.box.x || p.sx > A.box.x + A.box.w ||
+                              p.sy < A.box.y || p.sy > A.box.y + A.box.h);
+  ok(out.length === 0, out.length
+     ? 'за рамкой оказалось точек: ' + out.length + ', первая в ' +
+       Math.round(out[0].sx) + ',' + Math.round(out[0].sy) +
+       ' при рамке ' + A.box.x + '…' + (A.box.x + A.box.w) + ' на ' +
+       A.box.y + '…' + (A.box.y + A.box.h)
+     : 'все точки фигуры легли внутрь рамки превью');
+  /* Поворот стенд не считает, но он и не нужен: середина фигуры совпадает с
+     серединой рамки, а поворот расстояния до неё не меняет. Значит по этим же
+     точкам видно, не занижен ли PAWN_R, из которого считается увеличение. */
+  const rmax = Math.max.apply(null, pts.map(p => Math.hypot(p.sx - A.px, p.sy - A.py))) / A.s;
+  note('дальняя точка пути от середины: ' + rmax.toFixed(1) + ' при заявленных ' + W.PAWN_R);
+  ok(rmax <= W.PAWN_R, 'заявленный радиус пешки не занижен — рамка не обманывает сама себя');
+}
+
+/* Полный экран: холст становится вдвое шире, а панель сама сужается в колонку
+   посередине (panelStart) и сдвигает вместе с собой попадания. Посчитай
+   раскладку по НЕсуженной ширине — и стрелки уедут за правый край панели.
+   В окне 520 эта ошибка не видна вовсе: там сужать нечего. */
+head('В полный экран панель остаётся в своей колонке');
+{
+  W.reset(); W.setPhase('CAMP'); W.setLook(W.LOOK_DEF); W.setPanel('look');
+  peek('__fsResize')(1600, 900);
+  const cw = peek('CW'), ch = peek('CH');
+  note('холст в полный экран: ' + cw + 'x' + ch);
+  const colW = Math.min(W.PANEL_MAX, cw), shift = Math.round((cw - colW) / 2);
+  note('колонка панели: ' + (shift + 14) + '…' + (shift + colW - 14));
+  ok(shift > 0, 'колонка правда уже холста — есть что проверять');
+
+  W.render();
+  const out = W.getHits().filter(b => b.x < shift + 14 || b.x + b.w > shift + colW - 14 ||
+                                      b.y < 24 || b.y + b.h > ch - 36);
+  ok(out.length === 0, out.length
+     ? 'за колонку уехало кнопок: ' + out.length + ' (правый край ' +
+       Math.round(out[0].x + out[0].w) + ')'
+     : 'все кнопки панели остались в колонке посередине экрана');
+
+  const A = W.lookLayout(colW, ch);
+  const m = frameMarks().find(t => t.s === 'Причёска');
+  ok(!!m && Math.abs(m.x - (shift + A.fx)) < 0.5,
+     m ? 'и строки написаны в той же колонке' : 'строки «Причёска» в кадре нет');
+
+  peek('__fsRestore')();
+  W.render();
+  ok(peek('CW') === 520 && peek('CH') === 640, 'обратно в окно — холст прежний');
+}
+
+/* Превью обязано показывать облик, который человек ЛИСТАЕТ ПРЯМО СЕЙЧАС.
+   Испечь картинку один раз при открытии — соблазн (так и написано в замысле
+   про быстродействие), и ровно от этого она молча перестала бы отвечать на
+   стрелки. Ловим по краскам: другого следа от картинки нет. */
+head('Превью показывает облик, который сейчас листают, а не испечённый однажды');
+{
+  W.reset(); W.setPhase('CAMP'); W.setPanel('look');
+  W.setLook(W.LOOK_DEF);                                // hairC = white
+  const a = paints(() => W.drawLook());
+  note('красок за отрисовку панели: ' + a.length);
+  ok(a.indexOf(W.HAIR_C.white.c) >= 0, 'седые волосы в превью нарисованы');
+  W.lookStep('hairC', 1);                               // white → ash
+  note('цвет волос: ' + W.getLook().hairC);
+  const b = paints(() => W.drawLook());
+  ok(b.indexOf(W.HAIR_C.ash.c) >= 0, 'после щелчка в превью новый цвет');
+  ok(b.indexOf(W.HAIR_C.white.c) < 0, 'а старого не осталось — картинка не испечена наперёд');
+}
+
+head('Стрелки и «наугад» нажимаются мышью, а не только зовутся из кода');
+{
+  W.reset(); W.setPhase('CAMP'); W.setLook(W.LOOK_DEF); W.setPanel('look');
+  W.render();                                           // отрисовка расставляет попадания
+  const A = W.lookLayout(Math.min(W.PANEL_MAX, 520), 640);
+  const i = W.LOOK_FIELDS.findIndex(f => f.k === 'hair');
+  const ry = A.y0 + i * A.step;
+  const keys = Object.keys(W.HAIRS);
+
+  const was = W.getLook().hair;
+  tap(A.fx + A.fw - 9, ry + 16);                        // середина правой стрелки
+  const now = W.getLook().hair;
+  note('щёлкнули «›» в ' + Math.round(A.fx + A.fw - 9) + ',' + (ry + 16) + ': ' + was + ' → ' + now);
+  ok(keys.indexOf(now) === (keys.indexOf(was) + 1) % keys.length, 'клик по «›» листает вперёд');
+  ok(JSON.parse(store['witcher_look']).hair === now, 'и сразу записывается');
+
+  W.render();
+  tap(A.fx + 9, ry + 16);                               // середина левой стрелки
+  ok(W.getLook().hair === was, 'клик по «‹» возвращает назад');
+
+  W.setLook(W.LOOK_DEF); W.render();
+  let changed = false;
+  for (let n = 0; n < 20 && !changed; n++) {
+    tap(A.fx + 48, A.by + 10);                          // середина «наугад»
+    changed = W.LOOK_FIELDS.some(F => W.getLook()[F.k] !== W.LOOK_DEF[F.k]);
+    W.render();
+  }
+  ok(changed, 'кнопка «наугад» правда меняет облик');
+  const strange = W.LOOK_FIELDS.filter(F => !F.tab[W.getLook()[F.k]]);
+  ok(strange.length === 0, 'и после неё все поля из своих таблиц');
+}
+
+/* Панель перекрывает пояс с зельями, и в этой игре уже случалось, что клик по
+   «пустому» месту переключал зелье сквозь окно. panelBox затирает старые
+   попадания — значит все, что остались, обязаны лежать внутри рамки. */
+head('Сквозь панель ничего не нажать');
+{
+  W.reset(); W.setPhase('CAMP'); W.setPanel('look');
+  W.render();
+  const hits = W.getHits();
+  note('попаданий в панели: ' + hits.length);
+  ok(hits.length === W.LOOK_FIELDS.length * 2 + 3,
+     'двенадцать стрелок, «наугад», «готово» и «закрыть» — и больше ничего');
+  const out = hits.filter(b => b.x < 14 || b.y < 24 || b.x + b.w > 520 - 14 || b.y + b.h > 640 - 36);
+  ok(out.length === 0, out.length ? 'за рамкой оказалось кнопок: ' + out.length
+                                  : 'все попадания внутри рамки — пояс с зельями закрыт');
+}
+
+head('Облик у зеркала меняется даром и время похода при этом стоит');
+{
+  W.reset(); W.setPhase('CAMP'); W.setLook(W.LOOK_DEF); W.setPanel('look');
+  const P = W.getP();
+  const gold0 = W.getGold(), hp0 = P.hp;
+  P.tox = 40; P.mut = 3;
+  const mut0 = P.mut, tox0 = P.tox;
+  for (let i = 0; i < 60; i++) { W.update(0.016); W.render(); }
+  for (let n = 0; n < 8; n++) W.lookStep('hair', 1);
+  ok(W.getGold() === gold0, 'золото не тронуто: облик даром');
+  ok(P.hp === hp0, 'здоровье не тронуто');
+  ok(P.mut === mut0 && P.tox === tox0, 'почти секунда с открытой панелью — а мутация и отрава стоят');
 }
 
 done();

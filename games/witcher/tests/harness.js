@@ -61,25 +61,43 @@ function nanArgs(k, a) {
 }
 /* Куда легли точки пути — единственный след ГЕОМЕТРИИ, который холст готов
    отдать: сама краска и поворот фигуры от неё не зависят. Копится только
-   moveTo/lineTo — их аргументы приходят как есть, локальный translate их
-   не трогает (сдвиг применяется холстом уже после). Включается на время
-   одного вызова, как paints(). */
+   moveTo/lineTo. В x/y лежат аргументы КАК ЕСТЬ, в местных осях фигуры;
+   в sx/sy — то же место на холсте, со сдвигом и увеличением. Включается на
+   время одного вызова, как paints().
+
+   Увеличение (ctx.scale) ведём наравне со сдвигом ради превью у зеркала: оно
+   рисуется через translate → scale → translate, и если хоть один сдвиг забыть,
+   фигура уедет в несколько раз дальше от угла вместо того, чтобы вырасти на
+   месте. По одним лишь местным осям такую ошибку не поймать: они те же. */
 let trace = null;
-let tstack = [{ tx: 0, ty: 0, clipped: false }];
+let tstack = [{ tx: 0, ty: 0, sx: 1, sy: 1, clipped: false }];
 const ttop = () => tstack[tstack.length - 1];
+// местные оси → холст: сперва растянуть, потом сдвинуть
+const scrX = x => ttop().tx + ttop().sx * x;
+const scrY = y => ttop().ty + ttop().sy * y;
 function makeCtx() {
   return new Proxy({}, {
     get(t, k) {
       if (k === 'save') return () => tstack.push(Object.assign({}, ttop()));
       if (k === 'restore') return () => { if (tstack.length > 1) tstack.pop(); };
-      if (k === 'translate') return (x, y) => { nanArgs(k, [x, y]); ttop().tx += x; ttop().ty += y; };
+      if (k === 'translate') return (x, y) => {
+        nanArgs(k, [x, y]);
+        const s = ttop(); s.tx += s.sx * x; s.ty += s.sy * y;
+      };
+      if (k === 'scale') return (x, y) => {
+        nanArgs(k, [x, y]);
+        const s = ttop(); s.sx *= x; s.sy *= (y === undefined ? x : y);
+      };
       if (k === 'rotate') return a => { nanArgs(k, [a]); if (spin) spin.push(a); };
-      if (k === 'moveTo' || k === 'lineTo') return (x, y) => { nanArgs(k, [x, y]); if (trace) trace.push({ k, x, y }); };
+      if (k === 'moveTo' || k === 'lineTo') return (x, y) => {
+        nanArgs(k, [x, y]);
+        if (trace) trace.push({ k, x, y, sx: scrX(x), sy: scrY(y) });
+      };
       if (k === 'clip') return () => { ttop().clipped = true; };
-      if (k === 'setTransform') return () => { tstack = [{ tx: 0, ty: 0, clipped: false }]; };
+      if (k === 'setTransform') return () => { tstack = [{ tx: 0, ty: 0, sx: 1, sy: 1, clipped: false }]; };
       if (k === 'fillText') return (s, x, y) => {
         drawn.push(String(s));
-        marks.push({ s: String(s), x: x + ttop().tx, y: y + ttop().ty, al: t.textAlign || 'left',
+        marks.push({ s: String(s), x: scrX(x), y: scrY(y), al: t.textAlign || 'left',
                      size: parseFloat(t.font) || 10, w: String(s).length * 5,
                      world: ttop().clipped });
       };

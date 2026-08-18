@@ -232,6 +232,19 @@ function randomLook() {
   saveLook();
   return look;
 }
+/* Листание поля облика по кругу — то, что делают стрелки «‹» и «›» у зеркала.
+   Ключи берём ИЗ САМОЙ ТАБЛИЦЫ, поэтому выйти за неё нельзя: сколько ни щёлкай
+   в любую сторону, значение остаётся своим. Слагаемое ks.length * 2 — чтобы
+   остаток от деления не ушёл в минус при шаге назад: в js -1 % 5 это -1, а не 4.
+   Незнакомое имя поля молча пропускаем: ронять игру из-за опечатки не за что. */
+function lookStep(field, d) {
+  const F = LOOK_FIELDS.find(f => f.k === field); if (!F) return;
+  const ks = Object.keys(F.tab);
+  let i = ks.indexOf(look[field]);
+  if (i < 0) i = 0;                                    // облик побит — начинаем с первого
+  look[field] = ks[(i + d + ks.length * 2) % ks.length];
+  saveLook();
+}
 
 /* Насколько сильна школа НА ЭТОЙ СТУПЕНИ. Обычный — 1 шаг, гроссмейстер — 5:
    ровно то, ради чего доспех и тащат на верстак. */
@@ -4578,6 +4591,81 @@ function drawVendor() {
   drawTrade(vendorNpc);
 }
 
+/* =====================  ОБЛИК У ЗЕРКАЛА (E)  =====================
+   Слева ведьмак вчетверо крупнее и медленно поворачивается сам — так за один
+   заход видно и лицо, и затылок с причёской, и мечи за спиной; иначе, чтобы
+   разглядеть косу, пришлось бы разворачивать самого героя в мире. Справа шесть
+   строк со стрелками «‹ ›» — тот же приём, что на вкладках лавки и верстака,
+   переучиваться не надо.
+
+   Облик меняется ДАРОМ: косметика ничего в игре не решает, платы не стоит.
+   Время похода на неё тоже не идёт — при открытой панели update() выходит
+   сразу, так что стоять у зеркала можно сколько угодно. */
+
+/* Видимый радиус пешки в её собственных шагах. Самое дальнее, что она рисует, —
+   остриё меча за спиной (7.9, 14.9), это 16.9 от середины; берём с запасом,
+   чтобы новая деталь на фигуре не вылезла за рамку молча. Через него и
+   считается увеличение превью: не «×4 наугад», а «сколько влезает в рамку». */
+const PAWN_R = 19;
+
+/* Раскладку держим ОТДЕЛЬНО от отрисовки, и вот зачем: панель обязана
+   складываться и в окне 520x640, и в полный экран, где ширина доходит до
+   PANEL_MAX, а высота падает до 400. Проверить это, не видя пикселей, можно
+   только посчитав — стенд и считает, ту же самую функцию, что рисует.
+
+   cw/ch приходят УЖЕ суженные panelStart: панель рисует себя в колонке. */
+function lookLayout(cw, ch) {
+  const box = { x: 24, y: 88, w: 168, h: 176 };        // рамка превью
+  const s = (Math.min(box.w, box.h) / 2 - 6) / PAWN_R; // фигура плюс поля по 6
+  const fx = box.x + box.w + 16;                       // колонка полей правее рамки
+  const fw = cw - 24 - fx;
+  const y0 = box.y;                                    // первая строка вровень с рамкой
+  /* Подвал панели занимает панельная подсказка (CH-44, высотой 9). Кнопкам под
+     строками нужно 26 — их и вычитаем, остальное делим на шесть строк. */
+  const step = clamp(Math.floor((ch - 56 - 26 - y0) / LOOK_FIELDS.length), 26, 38);
+  return { box, s, px: box.x + box.w / 2, py: box.y + box.h / 2,
+           fx, fw, y0, step, by: y0 + step * LOOK_FIELDS.length + 6 };
+}
+
+let lookSpin = 0;
+function drawLook() {
+  panelBox('🪞 ОБЛИК');                                 // он же обнуляет попадания
+  const A = lookLayout(CW, CH);
+  lookSpin += 0.012;                                   // медленно, чтобы успеть разглядеть
+
+  ctx.fillStyle = 'rgba(14,13,11,.9)';
+  ctx.fillRect(A.box.x, A.box.y, A.box.w, A.box.h);
+  ctx.strokeStyle = 'rgba(201,162,39,.25)'; ctx.lineWidth = 1;
+  ctx.strokeRect(A.box.x + .5, A.box.y + .5, A.box.w - 1, A.box.h - 1);
+  /* Увеличиваем ОТНОСИТЕЛЬНО середины рамки: ctx.scale тянет от начала
+     координат холста, и без этих двух сдвигов фигура уехала бы вчетверо
+     дальше от угла, а не выросла на месте. */
+  ctx.save();
+  ctx.translate(A.px, A.py); ctx.scale(A.s, A.s); ctx.translate(-A.px, -A.py);
+  /* Облик передаём ЯВНО, через pawnState: превью показывает то, что человек
+     листает прямо сейчас. Печь картинку один раз при открытии нельзя — она
+     тут же перестанет отвечать на стрелки. */
+  drawPawn(A.px, A.py, lookSpin, pawnState());
+  ctx.restore();
+  txt('поворачивается сам — посмотри со всех сторон',
+      A.px, A.box.y + A.box.h + 12, 9, '#6c7683', 'center');
+
+  let y = A.y0;
+  for (const F of LOOK_FIELDS) {
+    txt(F.n, A.fx, y, 10, '#98a2ae');
+    // облик мог прийти из битой записи — тогда показываем умолчание, а не пусто
+    const cur = F.tab[look[F.k]] || F.tab[LOOK_DEF[F.k]];
+    txt(cur.n, A.fx + A.fw / 2, y + 16, 11, '#e8d9a8', 'center');
+    btn(A.fx, y + 8, 18, 16, '‹', () => lookStep(F.k, -1));
+    btn(A.fx + A.fw - 18, y + 8, 18, 16, '›', () => lookStep(F.k, 1));
+    y += A.step;
+  }
+  btn(A.fx, A.by, 96, 20, '🎲 наугад', () => randomLook());
+  btn(A.fx + A.fw - 96, A.by, 96, 20, '✔ готово', () => { panel = null; });
+
+  panelFooter('E или ✕ — закрыть · облик меняется даром, и время похода у зеркала стоит');
+}
+
 /* =====================  ОКНО НАВЫКОВ (K)  =====================
    Три столбца по веткам. В каждой строке видно, сколько уже вложено, что
    даёт ступень и что даст следующая — чтобы очко тратилось осознанно. */
@@ -4687,6 +4775,7 @@ function render() {
   else if (panel === 'bench') drawBench();
   else if (panel === 'board') drawBoard();
   else if (panel === 'map') drawMap();
+  else if (panel === 'look') drawLook();
   if (panel) panelEnd();                               // вернуть холсту его настоящую ширину
 
   if (paused && !over && !panel) {
@@ -4915,7 +5004,8 @@ if (typeof globalThis !== 'undefined') globalThis.__W = {
   runeCost, runePower, armorDef, maxHP, mpRegen, moveSpeed, MUT2_TIME, TOXLOCK_TIME,
   getBolt: () => P.boltSel, setBolt: v => { P.boltSel = v; },
   getLook: () => look, setLook: v => { look = Object.assign({}, LOOK_DEF, v); },
-  loadLook, saveLook, randomLook, LOOK_FIELDS, LOOK_DEF,
+  loadLook, saveLook, randomLook, lookStep, LOOK_FIELDS, LOOK_DEF,
+  drawLook, lookLayout, PAWN_R, PANEL_MAX,
   HAIRS, HAIR_C, BEARDS, SCARS, SKINS, EYES,
   drawPawn, pawnState, rrect,
   getP: () => P, getFoes: () => foes, setFoes: v => { foes = v; }, getInv: () => inv, setInv: v => { inv = v; },

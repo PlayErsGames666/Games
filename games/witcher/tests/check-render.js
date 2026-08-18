@@ -12,7 +12,7 @@ function safely(what, fn) {
 
 head('Панели');
 let allOk = true;
-for (const p of [null, 'bag', 'skills', 'craft', 'bench', 'board', 'map', 'vendor']) {
+for (const p of [null, 'bag', 'skills', 'craft', 'bench', 'board', 'map', 'vendor', 'look']) {
   W.reset();
   W.getInv().push(W.mkArmor('cat', 3, 'ward'), W.mkXbow('siege', 2, 'flame'), W.mkSword('silver', 4, 'vamp'));
   W.addStack('essence', 5); W.addStack('herb', 9); W.addStack('boltbom', 4);
@@ -22,7 +22,7 @@ for (const p of [null, 'bag', 'skills', 'craft', 'bench', 'board', 'map', 'vendo
   if (p === 'bench') W.setBenchTab('trade');
   allOk = safely('панель ' + p, () => W.render()) && allOk;
 }
-ok(allOk, 'все восемь панелей рисуются');
+ok(allOk, 'все девять панелей рисуются');
 
 head('Вкладки лавки');
 allOk = true;
