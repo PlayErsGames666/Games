@@ -1437,8 +1437,29 @@ let P, foes, drops, shots, parts, obst, inv, gold, contract, ci, phase, over, ca
    в update). Захвати мы старый массив — новые частицы уезжали бы в
    выброшенный, и на экране не появлялось бы ничего. */
 const PART_CAP = 320;
+/* НО ГРАНИЦА ЗНАКА ВЫТЕСНЕНИЮ НЕ ПОДЛЕЖИТ. По возрасту она в самом низу
+   стопки: дуга рождается вместе с выбросом и живёт 0.3 с, а поверх неё за то
+   же время насыпается шесть десятков языков, искр и дыма. Когда потолок
+   срабатывает, погибает ровно она — то есть единственное, что ОБЕЩАЕТ игроку
+   «досюда достанет». Замерено: в самой жёсткой сцене пик 315 из 320, запаса
+   пять частиц; один Игни просит 60. То есть до беды не «когда-нибудь», а
+   один болт по толпе.
+   Выжиг (scorch) держим по той же причине: это след той же зоны на земле.
+   Обе метки — про ЗОНУ, а не про красоту, и читаемость важнее красоты.
+
+   Совсем несгораемыми их не делаем: если вдруг не останется ничего, кроме
+   защищённых, потолок всё равно старше — режем и их, по возрасту. Потолок
+   на то и потолок, чтобы кадр не лёг. */
 function addPart(p) {
-  if (parts.length >= PART_CAP) parts.splice(0, parts.length - PART_CAP + 1);
+  if (parts.length >= PART_CAP) {
+    let need = parts.length - PART_CAP + 1;
+    const kept = parts.filter(q => {
+      if (need > 0 && !q.edge && !q.scorch) { need--; return false; }
+      return true;
+    });
+    if (need > 0) kept.splice(0, need);                // одни защищённые — тогда по возрасту
+    parts.splice(0, parts.length, ...kept);            // на месте: ссылку менять нельзя
+  }
   parts.push(p);
   return p;
 }
@@ -1887,6 +1908,12 @@ function killFoe(f) {
   killsLeft = contract ? contract.left : 0;
   lootFrom(f);
 }
+/* Трещин на куполе больше пяти не копим — иначе щит превращается в решето и
+   перестаёт читаться, а читаться он должен в первую очередь. Объявлено ЗДЕСЬ,
+   рядом с единственным местом, где трещины ставят: прежде эта строка лежала
+   у рисовалки купола, за полторы тысячи строк отсюда. Прочие числа купола
+   (радиус, грани, вылет лучей) остались там — они про рисунок. */
+const QUEN_CRACKS = 5;
 function hurtPlayer(raw, from) {
   if (P.dodge > 0 || P.inv > 0) return;
   let d = damageTaken(raw);
@@ -2992,6 +3019,9 @@ function reset() {
     xbow: mkXbow('light', 0, null),   // арбалет теперь вещь, а не вечная кнопка
     boltSel: 'bolt',                  // какой болт в жёлобе — переключается на B
     atkCd: 0, boltCd: 0, dodge: 0, dodgeCd: 0, dx: 0, dy: 0, inv: 0, swing: null,
+    walk: 0,                  // часы шага: по ним качается пешка. Без объявления
+                              // Math.sin(undefined) давал NaN, и холст глотал весь
+                              // путь молча — вместо ведьмака было пустое место
     runeCd: [0, 0, 0, 0], quen: 0, quenT: 0, quenHits: [], yrden: null, mut: 0, mut2: 0, mutGauge: 0,
     toxLock: 0,               // сколько ещё держится мутагенная отрава после срыва
     regen: 0, buffThunder: 0, biz: 0, slow: 0, shake: 0, face: -Math.PI / 2,
@@ -3129,7 +3159,7 @@ function update(dt) {
      иначе пешка покачивалась бы стоя на месте. Часы не сбрасываем — покачивание
      подхватывается с той же фазы, на которой остановились, без рывка. */
   const moving = mx !== 0 || my !== 0;
-  P.walk = (P.walk || 0) + (moving ? dt : 0);
+  P.walk += moving ? dt : 0;
   P.x = clamp(P.x, 9, WORLD_W - 9); P.y = clamp(P.y, 9, WORLD_H - 9);
   // препятствия (перебираем только те, что рядом: их на весь мир под сотню)
   for (const o of obstNear(P.x, P.y)) {
@@ -3473,12 +3503,19 @@ function potionTint() {
   for (const [k, id] of POTION_SHOWN) if (P[k] > 0) return POTIONS[id].c;
   return null;
 }
+/* Чего в состоянии пешки НЕТ намеренно: quen и dodge. Оба лежали здесь и не
+   читались никем, и это не упущение рисовалки, а решение по слоям. Купол
+   Квена рисуется ДО пешки — окажись он внутри drawPawn, он лёг бы поверх
+   плаща и прочёлся бы царапинами по ведьмаку. Полупрозрачность уклонения
+   ставится на холст ДО пешки и снимается ПОСЛЕ меча — внутри рисовалки она
+   накрыла бы фигуру, а меч оставила плотным. Мёртвое поле хуже
+   отсутствующего: по нему следующий решит, что рисовалка про Квен знает, и
+   станет чинить не там. */
 function pawnState() {
   return {
     armor: P.armor ? P.armor.type : null,
     hand: P.hand, mut: P.mut > 0, mut2: P.mut2 > 0,
-    quen: P.quen > 0, dodge: P.dodge > 0, down: over,
-    walk: P.walk || 0, xbow: !!P.xbow,
+    down: over, walk: P.walk, xbow: !!P.xbow,
     /* Арбалет виден на поясе, пока НЕ стреляет: взвод (boltCd) — это те
        секунды, когда он в руках, а не на боку. */
     shooting: P.boltCd > 0,
@@ -3493,8 +3530,12 @@ function drawPawn(x, y, a, st) {
   st = st || {};
   /* Облик берём из ПЕРЕДАННОГО, а не из глобального: зеркало показывает то,
      что человек сейчас листает, и оно ещё не принято. Глобальный — запасной
-     путь, чтобы вызов без облика по-прежнему рисовал текущего ведьмака. */
-  const L = st.look || look;
+     путь, чтобы вызов без облика по-прежнему рисовал текущего ведьмака.
+     Имя НЕ L: так зовётся модульная L() — «правила края, где стоим», и её
+     зовут по всему файлу. Местная L затеняла её на всё тело рисовалки, и
+     первый же, кто добавил бы сюда обращение к текущему краю, получил бы
+     не функцию, а объект облика. */
+  const lk = st.look || look;
   const A = st.armor && ARMOR[st.armor] ? ARMOR[st.armor] : null;
   const cloak = st.mut2 ? '#5a2020' : (A ? A.c : '#6b6f78');
   // силуэт по ВЕСУ доспеха: лёгкий узкий, тяжёлый широкий с пластинами
@@ -3574,25 +3615,25 @@ function drawPawn(x, y, a, st) {
   }
   ctx.restore();                                            // конец плечевого пояса
 
-  const hc = (HAIR_C[L.hairC] || HAIR_C.white).c;
-  const sc = (SKINS[L.skin] || SKINS.fair).c;
-  const ec = (EYES[L.eye] || EYES.cat).c;
+  const hc = (HAIR_C[lk.hairC] || HAIR_C.white).c;
+  const sc = (SKINS[lk.skin] || SKINS.fair).c;
+  const ec = (EYES[lk.eye] || EYES.cat).c;
   ctx.fillStyle = st.mut2 ? '#c98a7a' : sc;                 // голова
   ctx.beginPath(); ctx.arc(0, -7 + bob, 5.2, 0, 6.3); ctx.fill();
 
   ctx.fillStyle = hc;                                       // волосы
-  if (L.hair !== 'bald') {
+  if (lk.hair !== 'bald') {
     ctx.beginPath(); ctx.arc(0, -7 + bob, 5.2, Math.PI, 0); ctx.fill();
   }
-  if (L.hair === 'mane') {                                  // грива по бокам
+  if (lk.hair === 'mane') {                                  // грива по бокам
     rrect(-5.2, -7 + bob, 1.8, 6, 0.9); ctx.fill();
     rrect(3.4, -7 + bob, 1.8, 6, 0.9); ctx.fill();
-  } else if (L.hair === 'tail') {                           // хвост назад
+  } else if (lk.hair === 'tail') {                           // хвост назад
     // «назад» — это +Y. Голова: центр -7, радиус 5.2, край сзади — -1.8;
     // оттуда хвост и растёт (rrect кладёт от верхнего левого угла, не от
     // середины) на свою высоту 5, до 3.2 — на воротник плаща, не глубже.
     rrect(-1.2, -1.8 + bob, 2.4, 5, 1.2); ctx.fill();
-  } else if (L.hair === 'braid') {                          // коса вбок
+  } else if (lk.hair === 'braid') {                          // коса вбок
     rrect(3.6, -9 + bob, 1.8, 7, 0.9); ctx.fill();
   }
 
@@ -3600,15 +3641,15 @@ function drawPawn(x, y, a, st) {
   ctx.beginPath(); ctx.arc(-2, -6 + bob, 0.85, 0, 6.3); ctx.fill();
   ctx.beginPath(); ctx.arc(2, -6 + bob, 0.85, 0, 6.3); ctx.fill();
 
-  if (L.beard !== 'none') {                                 // борода
-    ctx.fillStyle = L.beard === 'stubble' ? 'rgba(90,80,70,.55)' : hc;
-    const bh = L.beard === 'full' ? 4 : L.beard === 'short' ? 2.6 : 1.6;
+  if (lk.beard !== 'none') {                                 // борода
+    ctx.fillStyle = lk.beard === 'stubble' ? 'rgba(90,80,70,.55)' : hc;
+    const bh = lk.beard === 'full' ? 4 : lk.beard === 'short' ? 2.6 : 1.6;
     rrect(-3.2, -4.4 + bob, 6.4, bh, 1.4); ctx.fill();
   }
-  if (L.scar !== 'none') {                                  // шрам
+  if (lk.scar !== 'none') {                                  // шрам
     ctx.strokeStyle = 'rgba(150,90,80,.85)'; ctx.lineWidth = 0.8;
     ctx.beginPath();
-    if (L.scar === 'eye') { ctx.moveTo(-2.6, -9 + bob); ctx.lineTo(-1.4, -4 + bob); }
+    if (lk.scar === 'eye') { ctx.moveTo(-2.6, -9 + bob); ctx.lineTo(-1.4, -4 + bob); }
     else { ctx.moveTo(2.2, -8 + bob); ctx.lineTo(3.4, -4.5 + bob); }
     ctx.stroke();
   }
@@ -3670,8 +3711,8 @@ function drawPawn(x, y, a, st) {
    Проверка меряет след пешки сама и сверяет с этим запасом. */
 const QUEN_R = 22;                                     // обод: вершины граней
 const QUEN_FACETS = 8;                                 // граней в куполе
-const QUEN_CRACKS = 5;                                 // больше — решето, а не щит
 const QUEN_CRACK_R = [24, 27];                         // докуда бьют лучи трещины
+// сколько трещин копится — см. QUEN_CRACKS у hurtPlayer, где их и ставят
 function drawQuenDome(x, y) {
   const rot = anim * 0.7;
   /* Здесь круг делим на ПОЛНЫЕ 2π, а не на привычные игре 6.283: у ломаной
@@ -5084,11 +5125,17 @@ function lookLayout(cw, ch) {
            fx, fw, y0, step, by: y0 + step * LOOK_FIELDS.length + 6 };
 }
 
-let lookSpin = 0;
+/* Скорость поворота превью — в радианах В СЕКУНДУ, а не за кадр. Раньше
+   здесь копилось 0.012 на каждую отрисовку: на 60 Гц это те же 0.72 рад/с,
+   а на 144 Гц превью крутилось в 2.4 раза быстрее заявленного оборота за
+   девять секунд. Вся остальная игра живёт по dt, и это было единственное
+   место, считавшее кадры. Берём anim — те же часы, по которым вращается
+   купол Квена и печать Ирдена. */
+const LOOK_SPIN = 0.72;                                // оборот примерно за 8.7 с
 function drawLook() {
   panelBox('🪞 ОБЛИК');                                 // он же обнуляет попадания
   const A = lookLayout(CW, CH);
-  lookSpin += 0.012;                                   // медленно, чтобы успеть разглядеть
+  const lookSpin = anim * LOOK_SPIN;                   // медленно, чтобы успеть разглядеть
 
   ctx.fillStyle = 'rgba(14,13,11,.9)';
   ctx.fillRect(A.box.x, A.box.y, A.box.w, A.box.h);
@@ -5464,7 +5511,7 @@ if (typeof globalThis !== 'undefined') globalThis.__W = {
   loadLook, saveLook, randomLook, lookStep, LOOK_FIELDS, LOOK_DEF,
   drawLook, lookLayout, PAWN_R, PANEL_MAX,
   HAIRS, HAIR_C, BEARDS, SCARS, SKINS, EYES,
-  drawPawn, pawnState, rrect,
+  drawPawn, pawnState,   // rrect наружу не отдаём: это местная кисть рисовалки, мерить в ней нечего
   drawQuenDome, drawYrdenSeal, QUEN_R, QUEN_FACETS, QUEN_CRACKS, QUEN_CRACK_R,
   YRDEN_MARKS, YRDEN_NICKS,
   getP: () => P, getFoes: () => foes, setFoes: v => { foes = v; }, getInv: () => inv, setInv: v => { inv = v; },

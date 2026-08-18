@@ -505,6 +505,24 @@ head('Ведьмак в зеркале поворачивается сам');
      steps.map(s => s.toFixed(3)).join(', '));
   ok(steps.every(s => s < 2), 'и не мельтешит: самый большой шаг ' +
      Math.max.apply(null, steps).toFixed(3) + ' рад');
+
+  /* И крутится по ВРЕМЕНИ, а не по кадрам. Раньше поворот копился на каждой
+     отрисовке: на 60 Гц выходило как задумано, на 144 Гц превью летело в
+     2.4 раза быстрее. Меряем ровно это: одно и то же игровое время, разное
+     число кадров — поворот обязан выйти один и тот же. */
+  const spinAfter = frames => {
+    W.reset(); W.setPhase('CAMP'); W.setLook(W.LOOK_DEF); W.setPanel('look');
+    const was = turn();
+    for (let i = 0; i < frames; i++) { W.update(1 / frames); turn(); }
+    return turn() - was;
+  };
+  const slow = spinAfter(60), fast = spinAfter(144);
+  note('за одну секунду: на 60 кадрах ' + slow.toFixed(3) + ' рад, на 144 ' + fast.toFixed(3) + ' рад');
+  ok(Math.abs(slow - fast) < 1e-9,
+     'на быстром экране превью крутится не быстрее: разница ' + Math.abs(slow - fast).toExponential(1));
+  ok(slow > 0.3 && slow < 1.5,
+     'и крутится медленно, чтобы успеть разглядеть: ' + slow.toFixed(2) + ' рад/с, оборот за ' +
+     (Math.PI * 2 / slow).toFixed(1) + ' с');
 }
 
 head('Уклонение видно полупрозрачностью');
@@ -586,8 +604,6 @@ head('Пешка не уходит в NaN, когда про шаг не ска�
 head('Лежачий ведьмак тоже рисуется');
 {
   W.reset(); W.setPhase('HUNT'); W.setPanel(null);
-  const P = W.getP();
-  P.inv = 0; P.dodge = 0;                       // иначе удар отбрасывается на первой же строке
   W.hurtPlayer(999999, 'проверка');
   ok(W.getOver(), 'ведьмак и правда упал');
   ok(W.pawnState().down === true, 'pawnState это заметил');
