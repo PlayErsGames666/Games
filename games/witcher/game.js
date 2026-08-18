@@ -1427,6 +1427,21 @@ function rollBoard(k) {
 /* =====================  СОСТОЯНИЕ  ===================== */
 
 let P, foes, drops, shots, parts, obst, inv, gold, contract, ci, phase, over, cause;
+/* ПОТОЛОК ЧАСТИЦ. Раньше массив рос свободно: на двух частицах за знак это
+   было незаметно, но с живым пламенем разрывной болт по толпе плюс три Игни
+   подряд забьют его за секунду, и кадр ляжет. Вытесняем самые старые: свежая
+   искра важнее догорающей.
+
+   Работаем через переменную parts, а НЕ через однажды взятую ссылку: каждый
+   кадр массив не чистится на месте, а заменяется новым (parts = parts.filter
+   в update). Захвати мы старый массив — новые частицы уезжали бы в
+   выброшенный, и на экране не появлялось бы ничего. */
+const PART_CAP = 320;
+function addPart(p) {
+  if (parts.length >= PART_CAP) parts.splice(0, parts.length - PART_CAP + 1);
+  parts.push(p);
+  return p;
+}
 /* ВЗЯТЫЕ РАБОТЫ. Раньше держали одну: взял — остальные с доски пропали, и до
    конца работы ты никуда. Теперь их до трёх разом, у каждой свой счёт целей и
    своя очередь выхода, а `contract` — та, которой ты сейчас занят: либо та,
@@ -1804,7 +1819,7 @@ function boltHit(s, f) {
   }
   if (B.blast) {
     snd('blast');
-    parts.push({ x: s.x, y: s.y, vx: 0, vy: 0, t: 0, life: 0.35, c: '#ffb43a', r: B.blast, ring: true });
+    addPart({ x: s.x, y: s.y, vx: 0, vy: 0, t: 0, life: 0.35, c: '#ffb43a', r: B.blast, ring: true });
     for (const o of foes) {
       if (o === f || o.dead || dist(o, s) > B.blast) continue;
       hurtFoe(o, s.dmg * k * 0.6, 'shot', B.pierce);
@@ -1872,7 +1887,7 @@ function hurtPlayer(raw, from) {
   if (P.quen > 0) {                                    // щит съедает урон, пока не лопнет
     const eat = Math.min(P.quen, d);
     P.quen -= eat; d -= eat;
-    parts.push({ x: P.x, y: P.y, vx: 0, vy: 0, t: 0, life: 0.3, c: '#7fd6ff', r: 16, ring: true });
+    addPart({ x: P.x, y: P.y, vx: 0, vy: 0, t: 0, life: 0.3, c: '#7fd6ff', r: 16, ring: true });
     if (P.quen <= 0) message('🛡 Квен разбит');
   }
   if (d <= 0) return;
@@ -1902,10 +1917,10 @@ function castRune(i) {
   const pow = runePower();
   const a = faceAim();
   if (R.k === 'igni') {
-    parts.push({ cone: true, x: P.x, y: P.y, a, t: 0, life: 0.35, c: '#ff8a3a', len: 120, w: 0.7 });
+    addPart({ cone: true, x: P.x, y: P.y, a, t: 0, life: 0.35, c: '#ff8a3a', len: 120, w: 0.7 });
     for (const f of foes) if (inCone(f, a, 120, 0.7)) { hurtFoe(f, 24 * pow, 'rune'); f.burn = 4; }
   } else if (R.k === 'aard') {
-    parts.push({ cone: true, x: P.x, y: P.y, a, t: 0, life: 0.3, c: '#9fd8ff', len: 100, w: 0.8 });
+    addPart({ cone: true, x: P.x, y: P.y, a, t: 0, life: 0.3, c: '#9fd8ff', len: 100, w: 0.8 });
     for (const f of foes) if (inCone(f, a, 100, 0.8)) {
       hurtFoe(f, 7 * pow, 'rune');
       const d = Math.atan2(f.y - P.y, f.x - P.x);
@@ -3165,7 +3180,7 @@ function drawIco(ch, size, x, y) {
 function blood(x, y, n) {
   for (let i = 0; i < n; i++) {
     const a = rnd(6.3), s = 30 + rnd(90);
-    parts.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, t: 0, life: 0.4 + rnd(0.4), c: '#a4222a', r: 1.5 + rnd(2) });
+    addPart({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, t: 0, life: 0.4 + rnd(0.4), c: '#a4222a', r: 1.5 + rnd(2) });
   }
 }
 
@@ -5010,7 +5025,7 @@ if (typeof globalThis !== 'undefined') globalThis.__W = {
   drawPawn, pawnState, rrect,
   getP: () => P, getFoes: () => foes, setFoes: v => { foes = v; }, getInv: () => inv, setInv: v => { inv = v; },
   getGold: () => gold, setGold: v => { gold = v; }, getDrops: () => drops, getShots: () => shots,
-  getParts: () => parts,
+  getParts: () => parts, PART_CAP,
   getPhase: () => phase, setPhase: v => { phase = v; }, getOver: () => over, getCi: () => ci, setCi: v => { ci = v; },
   getKillsLeft: () => killsLeft, getTaken: () => taken, MAX_JOBS, focusJob, syncFocus, setPanel: v => { panel = v; }, setMouse: (x, y) => { mouse.x = x; mouse.y = y; },
   swing, shootBolt, applyOil, swapHand, saveRun, loadRun, clearRun, freeSpot,
