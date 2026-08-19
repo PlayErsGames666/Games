@@ -1090,6 +1090,96 @@ head('Навешенное на плащ лежит НА плаще, а не р�
      'арбалет держится за пояс, а не висит рядом с ним');
 }
 
+/* =====================  МЕТКА «ЭТО ТЫ»  =====================
+   Жители стали рисоваться такой же фигурой, что и ведьмак, и себя в деревне
+   можно потерять. Метка — тонкое кольцо на земле, и держится она на трёх
+   обещаниях: стоит вокруг ОДНОГО ведьмака, не задевает ни его, ни купол
+   щита, и остаётся самой тихой из всего, что вокруг пешки спорит. */
+head('Кольцо «это ты» стоит лесенкой между фигурой и куполом');
+{
+  note('PAWN_R ' + W.PAWN_R + ' · SELF_R ' + W.SELF_R + ' · QUEN_R ' + W.QUEN_R);
+  ok(W.SELF_R > W.PAWN_R, 'кольцо снаружи фигуры — оно её обводит, а не перечёркивает');
+  ok(W.SELF_R < W.QUEN_R, 'и внутри купола щита — купол по-прежнему крайний');
+  ok(W.SELF_R - W.PAWN_R >= 1 && W.QUEN_R - W.SELF_R >= 2,
+     'и не слиплось ни с фигурой, ни с куполом');
+}
+
+head('Кольцо одно и стоит вокруг ведьмака');
+{
+  W.reset(); W.setPhase('HUNT'); W.setPanel(null);
+  const P = W.getP();
+  W.update(0.016);
+  const GOLD = 'rgba(201,162,39,.22)';
+  const rings = arcs(() => W.render()).filter(m => m.k === 'stroke' && m.c === GOLD);
+  note('колец в кадре: ' + rings.length);
+  ok(rings.length === 1, 'кольцо ровно одно — метка про ведьмака, а не про всех подряд');
+  if (rings.length === 1) {
+    ok(Math.abs(rings[0].x - P.x) < 1e-9 && Math.abs(rings[0].y - P.y) < 1e-9,
+       'и стоит ровно на ведьмаке');
+    ok(Math.abs(rings[0].r - W.SELF_R) < 1e-9, 'радиусом в заявленный SELF_R');
+  }
+}
+
+head('Метка не гаснет вместе с уклонением');
+{
+  W.reset(); W.setPhase('HUNT'); W.setPanel(null);
+  const P = W.getP(), GOLD = 'rgba(201,162,39,.22)';
+  const ringAlpha = () => {
+    const m = paintsFull(() => W.render()).find(k => k.c === GOLD);
+    return m ? (m.a === undefined ? 1 : m.a) : null;
+  };
+  W.update(0.016);
+  const calm = ringAlpha();
+  P.dodge = 0.2;
+  const dodging = ringAlpha();
+  note('густота холста под кольцом: в покое ' + calm + ', на уклонении ' + dodging);
+  ok(calm === 1 && dodging === 1,
+     'кольцо кладётся до полупрозрачности уклонения — ведьмак бледнеет, метка нет');
+}
+
+head('Метка не перекрикивает то, что вокруг пешки спорит');
+{
+  /* Та же мерка, что у ободка зелья: густота живёт и в globalAlpha, и в самой
+     краске, поэтому перемножаем. И берём полный круг обоих колебаний — иначе
+     мерка держалась бы на том, в какой фазе её застали.
+
+     Сверяем метку с ПИКОМ каждого из двоих, а не с их самой тусклой фазой:
+     оба дышат, а искры зелья и вовсе гаснут в ноль, и «тише всегда» не
+     выполнимо ни при какой густоте метки, кроме нулевой. Смысл же в другом:
+     метка стоит ВСЕГДА, и она не должна оказываться самым громким мазком на
+     фигуре ни в один миг. Это и меряем. */
+  const ink = m => {
+    const g = m.a === undefined ? 1 : m.a;
+    const rgba = /^rgba?\(([^)]*)\)/.exec(String(m.c));
+    if (!rgba) return g;
+    const p = rgba[1].split(',');
+    return g * (p.length > 3 ? parseFloat(p[3]) : 1);
+  };
+  W.reset(); W.setPhase('HUNT'); W.setPanel(null);
+  const GOLD = 'rgba(201,162,39,.22)', c = W.POTIONS.swallow.c;
+  const P = W.getP();
+  let mark = 0, rimLoud = 0, fireLoud = 0, seenRim = 0, seenFire = 0;
+  for (let i = 0; i < 130; i++) {
+    W.update(0.016);
+    for (const m of paintsFull(() => W.render())) if (m.c === GOLD) mark = Math.max(mark, ink(m));
+    for (const m of paintsFull(() => W.drawPawn(0, 0, 0,
+        { armor: 'heavy', look: W.LOOK_DEF, potion: c, mut: true, mut2: true }))) {
+      if (m.c === c) { seenRim++; rimLoud = Math.max(rimLoud, ink(m)); }
+      if (String(m.c).indexOf('rgba(255,120,36,') === 0) { seenFire++; fireLoud = Math.max(fireLoud, ink(m)); }
+    }
+  }
+  note('за круг колебаний: метка ' + mark.toFixed(2) + ', ободок в пике ' +
+       rimLoud.toFixed(2) + ', контур в пике ' + fireLoud.toFixed(2));
+  ok(mark > 0, 'метка вообще рисуется — есть что мерить');
+  ok(seenRim > 0 && mark < rimLoud, 'метка не громче ободка зелья даже в его пике');
+  ok(seenFire > 0 && mark < fireLoud, 'и заметно тише горящего контура зверя');
+  /* И не в невидимку: метка, которую не разглядеть, не метка вовсе. Половина
+     от пика ободка — та граница, ниже которой её уже не поймать краем глаза
+     на тёмной земле. */
+  ok(mark > rimLoud * 0.5, 'но и не в невидимку: ' + mark.toFixed(2) +
+     ' при пике ободка ' + rimLoud.toFixed(2));
+}
+
 /* =====================  ЖИТЕЛИ ДЕРЕВНИ  =====================
    Фигура из двух кругов держится на трёх обещаниях, и все три легко потерять
    молча: круги могут разъехаться встык, фигура — вырасти и полезть в стену,
