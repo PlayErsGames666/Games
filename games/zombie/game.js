@@ -1470,22 +1470,30 @@ function drawHUD(){
   drawBody(8, 5, 5.2);
   // шкалы
   const bx = 48;
-  ctx.font = '10px Segoe UI'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.font = '11px Segoe UI'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = '#c8ccd2';
   ctx.fillText('🩸 Кровь', bx, 14); bar(bx+52, 6, 78, 8, player.blood, BLOOD_MAX, player.blood<40?'#be392d':'#b8353a');
   ctx.fillText('💪 Силы', bx, 28);  bar(bx+52, 20, 78, 8, player.stam, 100, player.stam<25?'#be892d':'#5f9a52');
   const w8 = weight();
-  ctx.fillText('🎒 '+w8.toFixed(1)+'/'+CAP+'кг', bx, 42);
+  /* Подпись слева, ЧИСЛО СПРАВА ОТ ПОЛОСЫ. Раньше число стояло в подписи, и
+     колонки в 52 пикселя ему хватало ровно до тех пор, пока кегль был
+     десятым: на одиннадцатом «🎒 1.5/14кг» полезло под саму полосу. У крови
+     и сил подпись короткая и такой беды нет — а значит и чинить надо не
+     кегль, а место числа. */
+  ctx.fillText('🎒 Вес', bx, 42);
   bar(bx+52, 34, 78, 8, Math.min(w8,CAP*1.6), CAP*1.6, w8>CAP?'#be392d':'#4b7fa8');
+  ctx.fillStyle = w8>CAP ? '#be392d' : '#8f98a1';
+  ctx.fillText(w8.toFixed(1)+'/'+CAP+' кг', bx+136, 42);
+  ctx.fillStyle = '#c8ccd2';
   ctx.strokeStyle = '#e6ebef'; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(bx+52+78/1.6, 34); ctx.lineTo(bx+52+78/1.6, 42); ctx.stroke();
 
   // правая часть: время, шум, тревога
   ctx.textAlign = 'right'; ctx.fillStyle = '#dfe5ea';
   const mm = Math.floor(time/60), ss = Math.floor(time%60);
-  ctx.font = 'bold 13px Segoe UI';
+  ctx.font = 'bold 14px Segoe UI';
   ctx.fillText('⏱ '+mm+':'+(ss<10?'0':'')+ss, CW-10, 15);
-  ctx.font = '10px Segoe UI'; ctx.fillStyle = '#aab3bb';
+  ctx.font = '11px Segoe UI'; ctx.fillStyle = '#aab3bb';
   ctx.fillText('🧟 в тревоге: '+alerted+'   ☠ убито: '+killCount, CW-10, 29);
   ctx.fillText((countItem('keys')>0?'🔑':'🔒')+' ключи   '+(countItem('fuel')>0?'⛽':'🚫')+' бензин', CW-10, 42);
   // индикатор шума
@@ -1540,20 +1548,25 @@ function drawHUD(){
     ctx.strokeStyle = player.weapon===k ? '#8ab547' : 'rgba(255,255,255,.10)';
     ctx.lineWidth = 1; ctx.strokeRect(x+0.5,y+0.5,49,31);
     ctx.globalAlpha = has?1:0.32;
-    ctx.font = '15px serif'; ctx.textAlign = 'center'; ctx.textBaseline='middle';
+    ctx.font = '14px serif'; ctx.textAlign = 'center'; ctx.textBaseline='middle';
     ctx.fillStyle = '#e6ebef'; ctx.fillText(w.ico, x+25, y+13);
     ctx.font = '9px Segoe UI'; ctx.fillText(k+1, x+6, y+27);
     if(k===3 && has){ ctx.fillText(player.mag+'/'+countItem('ammo'), x+30, y+26); }
     ctx.globalAlpha = 1;
     uiHit.push({ x, y, w:50, h:32, fn:()=>selectWeapon(k) });
   }
-  // режим передвижения
-  ctx.textAlign='center'; ctx.textBaseline='middle';
+  /* Режим и подсказка — СПРАВА ОТ СЛОТОВ, от края в 232. Слоты идут по
+     x = 8 + k*54 шириной 50, то есть четвёртый кончается на 220; выключка по
+     середине на 244 держалась, пока текст был мелким, а на одиннадцатом
+     кегле подсказка расползлась и накрыла собой четвёртый слот. Считаем от
+     края слотов, а не от середины экрана: тогда рост кегля уводит текст
+     вправо, в пустоту, а не влево, на кнопки. */
+  ctx.textAlign='left'; ctx.textBaseline='middle';
   const mode = crouch ? '🐈 крадусь' : (runHeld ? '🏃 бегу' : '🚶 иду');
   ctx.font = '11px Segoe UI'; ctx.fillStyle = crouch ? '#8ab547' : (runHeld ? '#e6c894' : '#c8ccd2');
-  ctx.fillText(mode, 244, CH-30);
-  ctx.fillStyle = '#8f98a1'; ctx.font='10px Segoe UI';
-  ctx.fillText('E — действие · Q — перевязка', 244, CH-14);
+  ctx.fillText(mode, 232, CH-30);
+  ctx.fillStyle = '#8f98a1'; ctx.font='11px Segoe UI';
+  ctx.fillText('E — действие · Q — перевязка', 232, CH-14);
   uiBtn(CW-118, CH-40, 52, 32, '🎒 I', ()=>togglePanel('inv'));
   uiBtn(CW-62,  CH-40, 52, 32, '🩹 H', ()=>togglePanel('med'));
 }
@@ -1562,23 +1575,23 @@ function drawInvPanel(){
   const w = 420, h = 446, x = (CW-w)/2, y = (CH-h)/2 - 10;
   ctx.fillStyle = 'rgba(8,11,15,.95)'; ctx.fillRect(x,y,w,h);
   ctx.strokeStyle = '#8ab547'; ctx.lineWidth = 2; ctx.strokeRect(x+1,y+1,w-2,h-2);
-  ctx.fillStyle = '#e6ebef'; ctx.font = 'bold 15px Segoe UI'; ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+  ctx.fillStyle = '#e6ebef'; ctx.font = 'bold 14px Segoe UI'; ctx.textAlign='left'; ctx.textBaseline='alphabetic';
   ctx.fillText('🎒 РЮКЗАК', x+14, y+24);
   const w8 = weight();
-  ctx.font = '12px Segoe UI'; ctx.fillStyle = w8>CAP ? '#e69a94' : '#a9b3bd';
+  ctx.font = '11px Segoe UI'; ctx.fillStyle = w8>CAP ? '#e69a94' : '#a9b3bd';
   ctx.fillText(w8.toFixed(2)+' / '+CAP+' кг'+(w8>CAP?'  — ПЕРЕГРУЗ: медленно, не перелезть':''), x+14, y+42);
-  ctx.fillStyle = '#7f8a94'; ctx.font='10px Segoe UI';
+  ctx.fillStyle = '#7f8a94'; ctx.font='11px Segoe UI';
   ctx.fillText('мир вокруг движется медленно, но движется · Esc / I — закрыть', x+14, y+h-12);
 
   let ry = y+54;
-  if(!inv.length){ ctx.fillStyle='#7f8a94'; ctx.font='12px Segoe UI'; ctx.fillText('Пусто. Обыскивай шкафы (E)', x+14, ry+14); }
+  if(!inv.length){ ctx.fillStyle='#7f8a94'; ctx.font='11px Segoe UI'; ctx.fillText('Пусто. Обыскивай шкафы (E)', x+14, ry+14); }
   for(const it of inv){
     if(ry > y+h-40) break;
     const I = ITEMS[it.id];
     ctx.fillStyle = 'rgba(255,255,255,.04)'; ctx.fillRect(x+10, ry, w-20, 22);
-    ctx.font = '13px serif'; ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillStyle='#e6ebef';
+    ctx.font = '14px serif'; ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillStyle='#e6ebef';
     ctx.fillText(I.ico, x+18, ry+11);
-    ctx.font = '12px Segoe UI';
+    ctx.font = '11px Segoe UI';
     ctx.fillText(I.name + (it.n>1?' ×'+it.n:''), x+40, ry+11);
     ctx.fillStyle = '#8f98a1'; ctx.font = '11px Segoe UI'; ctx.textAlign='right';
     ctx.fillText((I.w*it.n).toFixed(2)+' кг', x+w-136, ry+11);
@@ -1592,14 +1605,14 @@ function drawMedPanel(){
   const w = 452, h = 400, x = (CW-w)/2, y = (CH-h)/2 - 10;
   ctx.fillStyle = 'rgba(8,11,15,.95)'; ctx.fillRect(x,y,w,h);
   ctx.strokeStyle = '#be392d'; ctx.lineWidth = 2; ctx.strokeRect(x+1,y+1,w-2,h-2);
-  ctx.fillStyle = '#e6ebef'; ctx.font = 'bold 15px Segoe UI'; ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+  ctx.fillStyle = '#e6ebef'; ctx.font = 'bold 14px Segoe UI'; ctx.textAlign='left'; ctx.textBaseline='alphabetic';
   ctx.fillText('🩹 МЕДКАРТА', x+14, y+24);
   ctx.font = '11px Segoe UI'; ctx.fillStyle = '#a9b3bd'; ctx.textAlign = 'right';
   ctx.fillText('🩹'+countItem('bandage')+'   🧴'+countItem('antiseptic')+'   🦯'+countItem('splint')+'   💉'+countItem('antibio')+'   💊'+countItem('pills'), x+w-14, y+24);
   ctx.textAlign = 'left';
   ctx.fillText('Кровь '+Math.floor(player.blood)+'%   Боль '+Math.floor(painLevel()), x+14, y+41);
   if(player.virusOn){ ctx.fillStyle='#d8645a'; ctx.fillText('☣ ЗАРАЖЕНИЕ ОТ УКУСА '+Math.floor(player.virus)+'% — не лечится', x+180, y+41); }
-  ctx.fillStyle = '#7f8a94'; ctx.font='10px Segoe UI';
+  ctx.fillStyle = '#7f8a94'; ctx.font='11px Segoe UI';
   ctx.fillText('Esc / H — закрыть · мир вокруг движется медленно', x+14, y+h-12);
 
   let ry = y+54;
@@ -1607,7 +1620,7 @@ function drawMedPanel(){
     const b = body[p.id];
     ctx.fillStyle = 'rgba(255,255,255,.04)'; ctx.fillRect(x+10, ry, w-20, 46);
     ctx.fillStyle = partColor(b); ctx.fillRect(x+10, ry, 3, 46);
-    ctx.font = '12px Segoe UI'; ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillStyle = '#e6ebef';
+    ctx.font = '11px Segoe UI'; ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillStyle = '#e6ebef';
     ctx.fillText(p.name, x+20, ry+13);
     bar(x+110, ry+7, 70, 8, b.hp, 100, b.hp<40?'#be392d':'#5f9a52');
     const tags = [];
@@ -1616,7 +1629,7 @@ function drawMedPanel(){
     if(b.fx) tags.push(b.splint?'🦴шина':'🦴ПЕРЕЛОМ');
     if(b.inf>3) tags.push('🦠'+Math.floor(b.inf)+'%');
     if(b.disinf) tags.push('🧴чисто');
-    ctx.font = '10px Segoe UI'; ctx.fillStyle = '#a9b3bd';
+    ctx.font = '11px Segoe UI'; ctx.fillStyle = '#a9b3bd';
     ctx.fillText(tags.join('  ') || 'без повреждений', x+20, ry+31);
 
     const bx0 = x+w-198;
@@ -1635,13 +1648,13 @@ function drawEnd(){
   ctx.fillStyle = win ? '#8ab547' : '#b23a48';
   ctx.font = 'bold 34px Georgia, serif';
   ctx.fillText(win ? 'ВЫБРАЛСЯ' : 'ТЫ УМЕР', CW/2, CH/2-70);
-  ctx.fillStyle = '#e6ebef'; ctx.font = '15px Segoe UI';
+  ctx.fillStyle = '#e6ebef'; ctx.font = '14px Segoe UI';
   ctx.fillText(cause, CW/2, CH/2-40);
   const mm = Math.floor(time/60), ss = Math.floor(time%60);
   let score = killCount*5 + searched*3 + Math.floor(time/10);
   for(const i of inv) if(ITEMS[i.id].score) score += ITEMS[i.id].score*i.n;
   if(win) score += 250;
-  ctx.font = '13px Segoe UI'; ctx.fillStyle = '#c2cad2';
+  ctx.font = '14px Segoe UI'; ctx.fillStyle = '#c2cad2';
   ctx.fillText('Продержался '+mm+':'+(ss<10?'0':'')+ss+'   ·   обыскано '+searched+'   ·   упокоено '+killCount, CW/2, CH/2-12);
   ctx.fillText('Очки: '+score, CW/2, CH/2+10);
   if(best.esc) ctx.fillText('Лучший побег: '+Math.floor(best.esc/60)+':'+(best.esc%60<10?'0':'')+(best.esc%60), CW/2, CH/2+32);

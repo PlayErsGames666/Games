@@ -292,7 +292,7 @@ function drawSidePanel() {
   const px = BOARD_W + 10;
   const pw = SIDE * CELL - 20;
   ctx.fillStyle = 'rgba(255,255,255,.55)';
-  ctx.font = 'bold 13px Segoe UI'; ctx.textAlign = 'left';
+  ctx.font = 'bold 14px Segoe UI'; ctx.textAlign = 'left';
 
   ctx.fillText('СЛЕДУЮЩИЕ', px, 22);
   let y = 34;
@@ -313,7 +313,7 @@ function overlay(title, subtitle) {
   ctx.fillStyle = 'rgba(18,19,31,.82)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.fillStyle = '#edf2f4'; ctx.textAlign = 'center';
   ctx.font = 'bold 30px Segoe UI, sans-serif'; ctx.fillText(title, BOARD_W / 2, canvas.height / 2 - 6);
-  ctx.font = '15px Segoe UI, sans-serif'; ctx.fillStyle = 'rgba(237,242,244,.75)';
+  ctx.font = '14px Segoe UI, sans-serif'; ctx.fillStyle = 'rgba(237,242,244,.75)';
   ctx.fillText(subtitle, BOARD_W / 2, canvas.height / 2 + 24);
 }
 

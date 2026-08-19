@@ -146,7 +146,7 @@ function overlay(title, subtitle) {
   ctx.fillStyle = 'rgba(13,14,26,.8)'; ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = '#edf2f4'; ctx.textAlign = 'center';
   ctx.font = 'bold 30px Segoe UI, sans-serif'; ctx.fillText(title, W / 2, H / 2 - 6);
-  ctx.font = '15px Segoe UI, sans-serif'; ctx.fillStyle = 'rgba(237,242,244,.8)';
+  ctx.font = '14px Segoe UI, sans-serif'; ctx.fillStyle = 'rgba(237,242,244,.8)';
   ctx.fillText(subtitle, W / 2, H / 2 + 22);
 }
 

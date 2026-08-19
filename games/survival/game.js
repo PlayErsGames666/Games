@@ -581,7 +581,7 @@ function render() {
     ctx.fillText('ВЫ ПОГИБЛИ', 0, 0);
     ctx.restore();
     ctx.globalAlpha = a; ctx.shadowBlur = 0;
-    ctx.fillStyle = 'rgba(240,220,220,.92)'; ctx.font = '16px Georgia, serif';
+    ctx.fillStyle = 'rgba(240,220,220,.92)'; ctx.font = '14px Georgia, serif';
     ctx.fillText(deathCause + ' · прожито дней: ' + deathDay, CW / 2, CH / 2 + 26);
     ctx.fillStyle = 'rgba(240,220,220,.7)'; ctx.font = '14px Segoe UI, sans-serif';
     ctx.fillText(role === 'join' ? 'Ждём хоста…' : 'Enter / тап — заново', CW / 2, CH / 2 + 50);
@@ -618,11 +618,11 @@ function drawHUD(dk) {
     bar(x + 17, y, bw, bh, v[1] / 100, v[2]);
   });
   ctx.textAlign = 'right';
-  ctx.fillStyle = '#edf2f4'; ctx.font = 'bold 12px Segoe UI, sans-serif';
+  ctx.fillStyle = '#edf2f4'; ctx.font = 'bold 11px Segoe UI, sans-serif';
   ctx.fillText('📅 ' + dayNum() + '  ' + (isNight() ? '🌙' : (dk > 0 ? '🌆' : '☀️')) + '  🏆 ' + best, CW - 8, 17);
 
   // ресурсы — строка под верхней плашкой
-  ctx.textAlign = 'left'; ctx.font = 'bold 12px Segoe UI, sans-serif';
+  ctx.textAlign = 'left'; ctx.font = 'bold 11px Segoe UI, sans-serif';
   const resStr = '🪵' + inv.wood + '  🪨' + inv.stone + '  💎' + inv.ore + '  🍖' + inv.meat + '  🍓' + inv.berries + '  🟢' + (inv.slime || 0) + (p.torch > 0 ? '  🕯️' + Math.ceil(p.torch) + 'с' : '');
   const rw = ctx.measureText(resStr).width + 14;
   ctx.fillStyle = 'rgba(10,12,24,.45)'; ctx.fillRect(4, 38, rw, 22);
@@ -630,7 +630,7 @@ function drawHUD(dk) {
 
   // сообщение над хотбаром
   if (msgText && msgTimer > 0) {
-    ctx.textAlign = 'center'; ctx.font = 'bold 13px Segoe UI, sans-serif';
+    ctx.textAlign = 'center'; ctx.font = 'bold 14px Segoe UI, sans-serif';
     const mw = ctx.measureText(msgText).width + 18, my = hotbarRect(0).y - 26;
     ctx.fillStyle = 'rgba(10,12,24,.6)'; ctx.fillRect((CW - mw) / 2, my - 10, mw, 21);
     ctx.fillStyle = '#e6c894'; ctx.fillText(msgText, CW / 2, my);
@@ -702,11 +702,11 @@ function drawBackpack() {
   ctx.strokeStyle = '#2dbe69'; ctx.lineWidth = 2; ctx.strokeRect(p.x + 1, p.y + 1, p.w - 2, p.h - 2);
 
   ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
-  ctx.fillStyle = '#edf2f4'; ctx.font = 'bold 13px Segoe UI, sans-serif';
+  ctx.fillStyle = '#edf2f4'; ctx.font = 'bold 14px Segoe UI, sans-serif';
   ctx.fillText('🎒 РЮКЗАК', p.x + 12, p.y + 16);
   ctx.font = '11px Segoe UI, sans-serif'; ctx.fillStyle = 'rgba(237,242,244,.72)';
   ctx.fillText(selItem ? ('Выбрано «' + ITEMS[selItem].name + '» — кликни ячейку хотбара') : 'Предмет → затем ячейка хотбара (I — закрыть)', p.x + 90, p.y + 16);
-  ctx.font = 'bold 13px Segoe UI, sans-serif'; ctx.fillStyle = '#e6c894';
+  ctx.font = 'bold 14px Segoe UI, sans-serif'; ctx.fillStyle = '#e6c894';
   ctx.fillText('🪵' + inv.wood + '  🪨' + inv.stone + '  💎' + inv.ore + '  🍖' + inv.meat + '  🍓' + inv.berries + '  🟢' + (inv.slime || 0), p.x + 12, p.y + 40);
 
   ASSIGNABLE.forEach((id, i) => {
@@ -721,9 +721,9 @@ function drawBackpack() {
     ctx.textAlign = 'center';
     ctx.font = '18px Segoe UI Emoji, sans-serif'; ctx.fillStyle = '#fff';
     ctx.fillText(it.ico, r.x + r.w / 2, r.y + 17);
-    ctx.font = '10px Segoe UI, sans-serif'; ctx.fillStyle = '#edf2f4';
+    ctx.font = '11px Segoe UI, sans-serif'; ctx.fillStyle = '#edf2f4';
     ctx.fillText(it.name, r.x + r.w / 2, r.y + 34);
-    ctx.font = 'bold 10px Segoe UI, sans-serif'; ctx.fillStyle = '#e6c894';
+    ctx.font = 'bold 11px Segoe UI, sans-serif'; ctx.fillStyle = '#e6c894';
     ctx.fillText(it.kind === 'food' ? ('есть: ' + (it.food === 'meat' ? inv.meat : inv.berries)) : costStr(it.cost), r.x + r.w / 2, r.y + 49);
     ctx.globalAlpha = 1;
   });

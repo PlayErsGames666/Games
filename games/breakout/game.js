@@ -275,7 +275,7 @@ function draw() {
   for (const b of balls) { ctx.beginPath(); ctx.arc(b.x, b.y, BALL_R, 0, Math.PI * 2); ctx.fill(); }
 
   if (!launched && !over) {
-    ctx.fillStyle = 'rgba(237,242,244,.75)'; ctx.font = '16px Segoe UI'; ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(237,242,244,.75)'; ctx.font = '14px Segoe UI'; ctx.textAlign = 'center';
     ctx.fillText('Пробел / тап — запуск', W / 2, PADDLE_Y - 30);
   }
   if (paused && !over) overlay('⏸ ПАУЗА', 'P / Esc — продолжить');
@@ -298,7 +298,7 @@ function overlay(title, subtitle) {
   ctx.fillStyle = 'rgba(15,16,32,.82)'; ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = '#edf2f4'; ctx.textAlign = 'center';
   ctx.font = 'bold 32px Segoe UI, sans-serif'; ctx.fillText(title, W / 2, H / 2 - 6);
-  ctx.font = '16px Segoe UI, sans-serif'; ctx.fillStyle = 'rgba(237,242,244,.75)';
+  ctx.font = '14px Segoe UI, sans-serif'; ctx.fillStyle = 'rgba(237,242,244,.75)';
   ctx.fillText(subtitle, W / 2, H / 2 + 24);
 }
 

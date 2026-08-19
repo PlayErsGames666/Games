@@ -674,15 +674,22 @@ function drawHUD(){
   ctx.font = 'bold 20px Consolas, monospace';
   ctx.fillStyle = timeLeft < TOTAL_TIME*0.17 ? (((anim*3)|0)%2 ? '#d8645a' : '#e69a94') : '#e7ecf3';
   ctx.fillText('T−'+mm+':'+(ss<10?'0':'')+ss, 10, 24);
-  ctx.font = '10px Segoe UI'; ctx.fillStyle = '#8f98a1';
+  ctx.font = '11px Segoe UI'; ctx.fillStyle = '#8f98a1';
   ctx.fillText('до входа в звезду', 10, 38);
 
-  ctx.font = '10px Segoe UI'; ctx.fillStyle = '#c8ccd2';
-  ctx.fillText('⛽ ГАЗ', 108, 15);  bar(150, 7, 92, 9, player.fuel, FUEL_MAX, player.fuel<25?'#d8645a':'#d8aa5a');
-  ctx.fillText('🧑‍🚀 СКАФ', 108, 30); bar(150, 22, 92, 9, player.hull, 100, player.hull<35?'#d8645a':'#94d0e6');
+  /* Колонка подписей и колонка полос. Ширину колонки держим ОТ САМОЙ ДЛИННОЙ
+     подписи, а не на глаз: «🧑‍🚀 СКАФ» на десятом кегле влезало в сорок два
+     пикселя, а на одиннадцатом полезло под свою же полосу. Считаем один раз
+     и от него ставим полосы — тогда правка кегля не роняет раскладку. */
+  ctx.font = '11px Segoe UI'; ctx.fillStyle = '#c8ccd2';
+  const LX = 108;
+  const BX = LX + Math.ceil(Math.max(
+    ctx.measureText('⛽ ГАЗ').width,
+    ctx.measureText('🧑‍🚀 СКАФ').width)) + 10;
+  ctx.fillText('⛽ ГАЗ', LX, 15);  bar(BX, 7, 92, 9, player.fuel, FUEL_MAX, player.fuel<25?'#d8645a':'#d8aa5a');
+  ctx.fillText('🧑‍🚀 СКАФ', LX, 30); bar(BX, 22, 92, 9, player.hull, 100, player.hull<35?'#d8645a':'#94d0e6');
   const c = cargoCount();
-  ctx.fillText('📦 ГРУЗ '+c+'/'+CARGO_CAP+'  ·  '+Math.round(mass())+' кг', 108, 45);
-  bar(150+92+6, 7, 0, 0, 0, 1, '#000');   // выравниватель, ничего не рисует
+  ctx.fillText('📦 ГРУЗ '+c+'/'+CARGO_CAP+'  ·  '+Math.round(mass())+' кг', LX, 45);
 
   // сборка модуля
   ctx.textAlign='right';
@@ -707,7 +714,7 @@ function drawHUD(){
   }
 
   // предупреждения
-  ctx.textAlign='center'; ctx.font='bold 13px Segoe UI';
+  ctx.textAlign='center'; ctx.font='bold 14px Segoe UI';
   if(lostT > 0.35){
     ctx.fillStyle = ((anim*4)|0)%2 ? '#d8645a' : '#ffb0a0';
     ctx.fillText('⚠️ ЗА ГРАНИЦЕЙ ПРИТЯЖЕНИЯ — ТЯГУ К АСТЕРОИДУ!', CW/2, 76);
@@ -721,7 +728,7 @@ function drawHUD(){
   if(msgT>0){
     ctx.globalAlpha = clamp(msgT,0,1);
     ctx.fillStyle = 'rgba(8,11,18,.78)';
-    ctx.font = '12px Segoe UI';
+    ctx.font = '11px Segoe UI';
     const w = ctx.measureText(msg).width+16;
     ctx.fillRect(CW/2-w/2, CH-118, w, 19);
     ctx.fillStyle = '#e7ecf3'; ctx.fillText(msg, CW/2, CH-105);
@@ -736,7 +743,7 @@ function drawHUD(){
   ctx.fillText('WASD — импульс · Shift — точный · ЛКМ/Space — бур · E — док', 10, CH-24);
   ctx.fillText('R — расщепить ресурс в газ · Q — сбросить груз · P — пауза', 10, CH-9);
   ctx.textAlign='right'; ctx.fillStyle = docked() ? '#94e6b6' : '#6d7681';
-  ctx.font='bold 12px Segoe UI';
+  ctx.font='bold 11px Segoe UI';
   ctx.fillText(docked()?'🛰 В ДОКЕ':'в поле', CW-10, CH-24);
   ctx.font='11px Segoe UI'; ctx.fillStyle='#9aa4ae';
   ctx.fillText('скорость '+Math.round(len(player.vx,player.vy)), CW-10, CH-9);
@@ -771,7 +778,7 @@ function drawPadArrow(){
   ctx.fillStyle = 'rgba(230,200,148,.9)';
   ctx.beginPath(); ctx.moveTo(11,0); ctx.lineTo(-7,6); ctx.lineTo(-7,-6); ctx.closePath(); ctx.fill();
   ctx.restore();
-  ctx.fillStyle = 'rgba(230,200,148,.9)'; ctx.font='10px Segoe UI'; ctx.textAlign='center';
+  ctx.fillStyle = 'rgba(230,200,148,.9)'; ctx.font='11px Segoe UI'; ctx.textAlign='center';
   ctx.fillText('док '+Math.round(len(padX-player.x, padY-player.y)/T)+'кл', x, y+20);
 }
 
@@ -862,11 +869,11 @@ function drawEnd(){
   ctx.fillStyle = win ? '#94e6b6' : '#d8645a';
   ctx.font = 'bold 32px Georgia, serif';
   ctx.fillText(win ? 'ЭВАКУИРОВАН' : 'КОНЕЦ СМЕНЫ', CW/2, CH/2-72);
-  ctx.fillStyle = '#e7ecf3'; ctx.font='15px Segoe UI';
+  ctx.fillStyle = '#e7ecf3'; ctx.font='14px Segoe UI';
   ctx.fillText(cause, CW/2, CH/2-44);
   const gm = timeLeft/TOTAL_TIME*3600;
   const mm = Math.floor(gm/60), ss = Math.floor(gm%60);
-  ctx.font='13px Segoe UI'; ctx.fillStyle='#c2cad2';
+  ctx.font='14px Segoe UI'; ctx.fillStyle='#c2cad2';
   ctx.fillText('Осталось до звезды: '+mm+':'+(ss<10?'0':'')+ss+'   ·   выбурено блоков: '+dug, CW/2, CH/2-14);
   ctx.fillText('Модуль: ⚙️'+built.iron+'/'+NEED.iron+'  🔩'+built.titan+'/'+NEED.titan+'  💎'+built.cryst+'/'+NEED.cryst+'  ⛽'+Math.round(reserve)+'/'+NEED_FUEL, CW/2, CH/2+10);
   const bl = best.bestLeft, bm = Math.floor(bl/TOTAL_TIME*3600/60), bs = Math.floor((bl/TOTAL_TIME*3600)%60);

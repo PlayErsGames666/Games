@@ -310,7 +310,7 @@ function overlay(title, subtitle) {
   ctx.fillStyle = 'rgba(13,14,26,.82)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.fillStyle = '#edf2f4'; ctx.textAlign = 'center';
   ctx.font = 'bold 28px Segoe UI, sans-serif'; ctx.fillText(title, canvas.width / 2, canvas.height / 2 - 6);
-  ctx.font = '15px Segoe UI, sans-serif'; ctx.fillStyle = 'rgba(237,242,244,.75)';
+  ctx.font = '14px Segoe UI, sans-serif'; ctx.fillStyle = 'rgba(237,242,244,.75)';
   ctx.fillText(subtitle, canvas.width / 2, canvas.height / 2 + 22);
 }
 

@@ -246,7 +246,7 @@ function draw() {
   if (!over) drawRocket();
 
   if (!started && !over) {
-    ctx.fillStyle = 'rgba(237,242,244,.85)'; ctx.textAlign = 'center'; ctx.font = '16px Segoe UI';
+    ctx.fillStyle = 'rgba(237,242,244,.85)'; ctx.textAlign = 'center'; ctx.font = '14px Segoe UI';
     ctx.fillText('Держи тягу — старт', W / 2, 40);
   }
   if (paused && !over) overlay('⏸ ПАУЗА', 'P / Esc — продолжить');
@@ -281,7 +281,7 @@ function overlay(title, subtitle) {
   ctx.fillStyle = 'rgba(13,14,26,.8)'; ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = '#edf2f4'; ctx.textAlign = 'center';
   ctx.font = 'bold 28px Segoe UI, sans-serif'; ctx.fillText(title, W / 2, H / 2 - 6);
-  ctx.font = '15px Segoe UI, sans-serif'; ctx.fillStyle = 'rgba(237,242,244,.8)';
+  ctx.font = '14px Segoe UI, sans-serif'; ctx.fillStyle = 'rgba(237,242,244,.8)';
   ctx.fillText(subtitle, W / 2, H / 2 + 20);
 }
 

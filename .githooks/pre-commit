@@ -10,13 +10,17 @@ if ! command -v node >/dev/null 2>&1; then
   echo "  ⚠ node не найден — правила не проверены. Проверь руками:"
   echo "      node tools/version.js check"
   echo "      node tools/palette.js check"
+  echo "      node tools/type.js check"
   exit 0
 fi
 
 # Штамп версии в ссылках: без него правка не доедет до игрока из кеша.
 node tools/version.js check || exit 1
 
-# Палитра: новые кричащие цвета вне общей семьи не заводим.
+# Палитра: новых кричащих цветов вне общей семьи не заводим.
 node tools/palette.js check >/dev/null || { node tools/palette.js check; exit 1; }
+
+# Кегль: текста мельче девяти пикселей в HUD быть не должно.
+node tools/type.js check >/dev/null || { node tools/type.js check; exit 1; }
 
 exit 0

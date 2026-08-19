@@ -357,7 +357,7 @@ function render() {
     ctx.fillStyle = 'rgba(5,15,25,.72)'; ctx.fillRect(0, 0, CW, CH);
     ctx.textAlign = 'center'; ctx.fillStyle = '#5ab7d8'; ctx.font = 'bold 34px Georgia, serif'; ctx.fillText('ПЛОТ ПОТЕРЯН', CX, CY - 26);
     ctx.fillStyle = '#eaf6ff'; ctx.font = '17px Segoe UI'; ctx.fillText(overCause, CX, CY + 4);
-    ctx.font = '15px Segoe UI'; ctx.fillText('Продержался ' + Math.floor(time) + 'с · рекорд ' + best + 'с', CX, CY + 28);
+    ctx.font = '14px Segoe UI'; ctx.fillText('Продержался ' + Math.floor(time) + 'с · рекорд ' + best + 'с', CX, CY + 28);
     ctx.fillStyle = '#94d0e6'; ctx.fillText('Enter / тап — заново', CX, CY + 54);
   }
 }

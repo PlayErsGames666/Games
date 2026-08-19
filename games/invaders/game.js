@@ -588,7 +588,7 @@ function drawBoss(e) {
 function drawPickup(p) {
   if (p.kind === 'coin') {
     ctx.fillStyle = '#e6c894'; ctx.beginPath(); ctx.arc(p.x + 9, p.y + 9, 9, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#0d0e1a'; ctx.font = 'bold 12px Segoe UI'; ctx.textAlign = 'center'; ctx.fillText('$', p.x + 9, p.y + 13);
+    ctx.fillStyle = '#0d0e1a'; ctx.font = 'bold 11px Segoe UI'; ctx.textAlign = 'center'; ctx.fillText('$', p.x + 9, p.y + 13);
   } else {
     ctx.fillStyle = '#d8645a'; ctx.font = '18px Segoe UI'; ctx.textAlign = 'center'; ctx.fillText('❤', p.x + 9, p.y + 15);
   }
@@ -642,7 +642,7 @@ function overlay(title, subtitle) {
   ctx.fillStyle = 'rgba(13,14,26,.8)'; ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = '#edf2f4'; ctx.textAlign = 'center';
   ctx.font = 'bold 32px Segoe UI, sans-serif'; ctx.fillText(title, W / 2, H / 2 - 6);
-  ctx.font = '16px Segoe UI, sans-serif'; ctx.fillStyle = 'rgba(237,242,244,.75)';
+  ctx.font = '14px Segoe UI, sans-serif'; ctx.fillStyle = 'rgba(237,242,244,.75)';
   ctx.fillText(subtitle, W / 2, H / 2 + 26);
 }
 

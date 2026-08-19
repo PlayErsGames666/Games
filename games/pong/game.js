@@ -279,7 +279,7 @@ function draw() {
     ctx.fillStyle = 'rgba(237,242,244,.9)';
     ctx.font = 'bold 64px Segoe UI, sans-serif';
     ctx.fillText(n, W / 2, H / 2 + 22);
-    ctx.font = '16px Segoe UI, sans-serif';
+    ctx.font = '14px Segoe UI, sans-serif';
     ctx.fillStyle = 'rgba(237,242,244,.6)';
     ctx.fillText(ball.dir < 0 ? '◄ подача к тебе' : 'подача к сопернику ►', W / 2, H - 40);
   }

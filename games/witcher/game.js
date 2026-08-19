@@ -3536,7 +3536,7 @@ function bakeCompass(w, h) {
   const g = compassCv.getContext('2d');
   g.scale(icoScale, icoScale);
   g.drawImage(miniCv, 0, 0, TW, TH, 0, 0, w, h);
-  g.font = '7px serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#1a1712';
+  g.font = '9px serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#1a1712';
   for (const k in SPOTS) {
     if (spotEaten(k)) continue;                        // и на компасе тоже не двоим
     g.fillText(SPOTS[k].ico, (SPOTS[k].x / WORLD_W) * w, (SPOTS[k].y / WORLD_H) * h);
@@ -4107,9 +4107,9 @@ function drawWorld() {
   drawIco('📜', 26, BOARD.x, BOARD.y);
   drawIco('🪞', 26, MIRROR.x, MIRROR.y);
   txt('костёр', FIRE.x, FIRE.y + 24, 9, '#98a2ae', 'center');
-  txt('U — верстак', BENCH.x, BENCH.y + 24, 10, '#98a2ae', 'center');
-  txt('E — доска работ', BOARD.x, BOARD.y + 24, 10, '#be892d', 'center');
-  txt('E — облик', MIRROR.x, MIRROR.y + 24, 10, '#c9a0ff', 'center');
+  txt('U — верстак', BENCH.x, BENCH.y + 24, 11, '#98a2ae', 'center');
+  txt('E — доска работ', BOARD.x, BOARD.y + 24, 11, '#be892d', 'center');
+  txt('E — облик', MIRROR.x, MIRROR.y + 24, 11, '#c9a0ff', 'center');
 
   /* Поселения: колодец, площадь и название. Дворы стоят отдельно (они же
      преграды и рисуются вместе с камнями) — здесь только то, что делает из
@@ -4209,7 +4209,7 @@ function drawWorld() {
     if (f.slow > 0) drawIco('❄', 10, f.x - 10, f.y - 9);
     const bw = f.name ? 40 : 26;                       // именной зверь и полосой шире
     bar(f.x - bw / 2, f.y - f.r - 8, bw, f.name ? 4 : 3, f.hp / f.max, S.fam === 'monster' ? '#a8c6e8' : '#d8aa5a');
-    if (f.name) txt(f.name, f.x, f.y - f.r - 18, 10, '#ffb0a8', 'center');
+    if (f.name) txt(f.name, f.x, f.y - f.r - 18, 11, '#ffb0a8', 'center');
   }
 
   // снаряды
@@ -4487,7 +4487,7 @@ function drawHUD() {
   ctx.fillStyle = 'rgba(10,9,8,.92)'; ctx.fillRect(0, 0, CW, WY0 - 4);
   // здоровье и энергия
   bar(10, 10, 150, 11, P.hp / maxHP(), P.mut > 0 ? '#d8645a' : '#b5423f');
-  txt('❤ ' + Math.max(0, Math.round(P.hp)) + '/' + Math.round(maxHP()), 14, 16, 10, '#ffd9d0');
+  txt('❤ ' + Math.max(0, Math.round(P.hp)) + '/' + Math.round(maxHP()), 14, 14, 10, '#ffd9d0');
   bar(10, 25, 150, 8, P.mp / maxMP(), '#4a86c8');
   txt('✨ ' + Math.round(P.mp), 14, 29, 9, '#cfe3ff');
   // токсичность
@@ -4496,7 +4496,7 @@ function drawHUD() {
      ровно тут, и без этой пометки непонятно, почему мёд вдруг берёт вполсилы
      и почему отрава стоит на месте. */
   txt('☠ токсичность ' + Math.round(P.tox) + (P.toxLock > 0 ? ' · 🩸 мутаген ' + Math.ceil(P.toxLock) + 'с' : ''),
-      14, 41, 8, P.toxLock > 0 ? '#e69a94' : P.tox > 70 ? '#94e6b6' : '#98a2ae');
+      14, 41, 9, P.toxLock > 0 ? '#e69a94' : P.tox > 70 ? '#94e6b6' : '#98a2ae');
 
   // мутация
   const mx = 174;
@@ -4507,7 +4507,7 @@ function drawHUD() {
   txt(P.mut2 > 0 ? '🩸 ЗВЕРЬ ' + P.mut.toFixed(1) + 'с'
     : P.mut > 0 ? '🩸 ЕБАТНЯ ' + P.mut.toFixed(1) + 'с · R дальше'
     : '🩸 ' + Math.round(P.mutGauge) + '/100 (R)',
-    mx + 2, 15, 8, P.mut2 > 0 ? '#fff0a8' : '#ffb0a8');
+    mx + 2, 15, 9, P.mut2 > 0 ? '#fff0a8' : '#ffb0a8');
 
   // меч в руке. По коробке можно щёлкнуть — это тот же Q: в полном экране
   // кнопка «Сменить меч» под игрой не показывается, а меч меняют постоянно.
@@ -4515,22 +4515,22 @@ function drawHUD() {
   uiHit.push({ x: mx, y: 23, w: 92, h: 21, fn: swapHand });
   ctx.fillStyle = 'rgba(40,36,30,.9)'; ctx.fillRect(mx, 23, 92, 21);
   ctx.strokeStyle = sw ? TIERS[sw.tier].c : '#555'; ctx.lineWidth = 1; ctx.strokeRect(mx + .5, 23.5, 91, 20);
-  txt(sw ? SWORD[sw.metal].ico + ' ' + (sw.metal === 'silver' ? 'СЕРЕБРО' : 'СТАЛЬ') : 'без меча', mx + 5, 30, 10, sw ? SWORD[sw.metal].c : '#888');
-  txt('Q ⇄', mx + 87, 30, 8, '#98a2ae', 'right');
-  txt(sw ? TIERS[sw.tier].n + (sw.ench ? ' ' + ENCH[sw.ench].ico : '') + (sw.oil > 0 ? ' 🧴' + sw.oil : '') : 'Q — сменить', mx + 5, 40, 8, sw && sw.oil > 0 ? '#7fd6a0' : '#98a2ae');
+  txt(sw ? SWORD[sw.metal].ico + ' ' + (sw.metal === 'silver' ? 'СЕРЕБРО' : 'СТАЛЬ') : 'без меча', mx + 5, 30, 11, sw ? SWORD[sw.metal].c : '#888');
+  txt('Q ⇄', mx + 87, 30, 9, '#98a2ae', 'right');
+  txt(sw ? TIERS[sw.tier].n + (sw.ench ? ' ' + ENCH[sw.ench].ico : '') + (sw.oil > 0 ? ' 🧴' + sw.oil : '') : 'Q — сменить', mx + 5, 40, 9, sw && sw.oil > 0 ? '#7fd6a0' : '#98a2ae');
 
   // золото, вес, болты
   const rx = CW - 10;
-  txt('💰 ' + gold, rx, 15, 12, '#d8aa5a', 'right');
+  txt('💰 ' + gold, rx, 15, 11, '#d8aa5a', 'right');
   // ступень и опыт: без них прокачка была бы невидимой
   {
     const need = xpNeed(P.lvl), w = 92, bx2 = 174, by2 = 46;
     bar(bx2, by2, w, 6, clamp(P.xp / need, 0, 1), '#be892d');
-    txt('⭐ ' + P.lvl + (P.sp > 0 ? '  ·  очков ' + P.sp + ' (K)' : ''), bx2 + 2, by2 + 3, 8,
+    txt('⭐ ' + P.lvl + (P.sp > 0 ? '  ·  очков ' + P.sp + ' (K)' : ''), bx2 + 2, by2 + 3, 9,
         P.sp > 0 ? '#d8aa5a' : '#98a2ae');
   }
   const ld = loadState();                              // не L: L() — это место, и оно тут же рядом
-  txt('⚖ ' + carried().toFixed(1) + ' / ' + capacity() + ' кг', rx, 29, 10,
+  txt('⚖ ' + carried().toFixed(1) + ' / ' + capacity() + ' кг', rx, 29, 11,
     ld.lvl === 0 ? '#98a2ae' : ld.lvl === 1 ? '#d8aa5a' : '#d8645a', 'right');
   // болты: важно не «сколько всего», а сколько ТЕХ, что сейчас в жёлобе
   const bsel = STUFF[boltInfo()], bhave = countStack(boltInfo());
@@ -4542,7 +4542,7 @@ function drawHUD() {
     /* Работ теперь может быть до трёх. Пишем все, а ту, которой занят прямо
        сейчас, отбиваем цветом: иначе непонятно, чей счёт целей идёт. */
     const here2 = locAt(P.x, P.y);
-    txt(here, 10, 50, 10, '#98a2ae');
+    txt(here, 10, 50, 11, '#98a2ae');
     let lx2 = 10 + 96;
     for (const c of taken) {
       const now = c === contract;
@@ -4550,16 +4550,16 @@ function drawHUD() {
       const there = c.loc === here2;
       const s2 = (c.story ? '📖 ' : '') + c.t + (wait ? ' → место' : ' ' + Math.max(0, c.left) + '/' + c.n) +
                  (there || wait ? '' : ' → ' + (LOCS[c.loc] || LOCS.woods).ico);
-      ctx.font = '10px Segoe UI';
+      ctx.font = '11px Segoe UI';
       const w2 = ctx.measureText(s2).width + 10;
       if (lx2 + w2 > CW - 10) break;
       ctx.fillStyle = now ? 'rgba(96,78,36,.55)' : 'rgba(30,28,24,.55)';
       ctx.fillRect(lx2 - 4, 43, w2, 14);
-      txt(s2, lx2, 50, 10, now ? '#e6c894' : '#98a2ae');
+      txt(s2, lx2, 50, 11, now ? '#e6c894' : '#98a2ae');
       lx2 += w2 + 4;
     }
   } else {
-    txt(here + ' · контракт ' + (ci + 1) + ' · рекорд: ' + best, CW / 2, 50, 10, '#98a2ae', 'center');
+    txt(here + ' · контракт ' + (ci + 1) + ' · рекорд: ' + best, CW / 2, 50, 11, '#98a2ae', 'center');
   }
 
   // --- нижний пояс: руны, арбалет, зелья ---
@@ -4631,8 +4631,8 @@ function drawHUD() {
     ctx.fillStyle = bhave ? 'rgba(60,60,80,.55)' : 'rgba(35,32,28,.9)';
     ctx.fillRect(x, y, w, h);
     ctx.strokeStyle = bhave ? '#8a9ad8' : 'rgba(255,255,255,.1)'; ctx.strokeRect(x + .5, y + .5, w - 1, h - 1);
-    txt(bsel.ico, x + w / 2, y + 11, 13, bhave ? '#dfe4ff' : '#6c7683', 'center');
-    txt('B ×' + bhave, x + w / 2, y + 23, 8, bhave ? '#98a2ae' : '#e69a94', 'center');
+    txt(bsel.ico, x + w / 2, y + 11, 14, bhave ? '#dfe4ff' : '#6c7683', 'center');
+    txt('B ×' + bhave, x + w / 2, y + 23, 9, bhave ? '#98a2ae' : '#e69a94', 'center');
   }
 
   // МАСЛО на клинок, что сейчас в руке
@@ -4668,7 +4668,7 @@ function drawHUD() {
     ctx.fillStyle = P.mut2 > 0 ? 'rgba(190,57,45,.75)' : P.mut > 0 ? 'rgba(140,30,30,.6)' : ready ? 'rgba(110,40,40,.55)' : 'rgba(35,32,28,.9)';
     ctx.fillRect(x, y, w, h);
     ctx.strokeStyle = ready ? '#d8645a' : 'rgba(255,255,255,.1)'; ctx.strokeRect(x + .5, y + .5, w - 1, h - 1);
-    txt('🩸 R', x + 4, y + 10, 10, ready ? '#ffb0a8' : '#6c7683');
+    txt('🩸 R', x + 4, y + 10, 11, ready ? '#ffb0a8' : '#6c7683');
     txt(clipText(P.mut2 > 0 ? 'ЗВЕРЬ ' + P.mut.toFixed(1) : P.mut > 0 ? P.mut.toFixed(1) + 'с · R!' : Math.round(P.mutGauge) + '/100', w - 8, 8),
         x + 4, y + 22, 8, ready ? '#ffb0a8' : '#98a2ae');
   }
@@ -4718,7 +4718,7 @@ function drawHUD() {
     const lines = wrapText(msg, WW - 16, 10, 2);
     const h = 6 + lines.length * 13, y0 = WY1 - 2 - h;
     ctx.fillStyle = 'rgba(0,0,0,.66)'; ctx.fillRect(WX0, y0, WW, h);
-    lines.forEach((l, i) => txt(l, CW / 2, y0 + h / 2 - (lines.length - 1) * 6.5 + i * 13, 10, '#e6c894', 'center'));
+    lines.forEach((l, i) => txt(l, CW / 2, y0 + h / 2 - (lines.length - 1) * 6.5 + i * 13, 11, '#e6c894', 'center'));
     ctx.globalAlpha = 1;
   }
 }
@@ -4765,11 +4765,11 @@ function panelBox(title, maxW) {
   ctx.fillStyle = 'rgba(29,26,22,.98)'; ctx.fillRect(14, 24, CW - 28, CH - 60);
   ctx.strokeStyle = 'rgba(190,137,45,.35)'; ctx.lineWidth = 1; ctx.strokeRect(14.5, 24.5, CW - 29, CH - 61);
   txt(title, CW / 2, 40, 14, '#e8d9a8', 'center');
-  txt('вес ' + carried().toFixed(1) + '/' + capacity() + ' кг   ·   💰 ' + gold, CW / 2, 56, 10, '#98a2ae', 'center');
+  txt('вес ' + carried().toFixed(1) + '/' + capacity() + ' кг   ·   💰 ' + gold, CW / 2, 56, 11, '#98a2ae', 'center');
   const bw = 92;
   uiHit.push({ x: CW - 24 - bw, y: 30, w: bw, h: 18, fn: () => { panel = null; } });
   ctx.fillStyle = 'rgba(60,50,40,.9)'; ctx.fillRect(CW - 24 - bw, 30, bw, 18);
-  txt('✕ закрыть', CW - 24 - bw / 2, 39, 10, '#e6ebf2', 'center');
+  txt('✕ закрыть', CW - 24 - bw / 2, 39, 11, '#e6ebf2', 'center');
 }
 /* Погашенная кнопка теперь не молчит: по нажатию говорит, ЧЕГО не хватает.
    Раньше клик просто не давал ничего, и выглядело это как поломка. */
@@ -4796,7 +4796,7 @@ function drawEquipRow(y) {
     if (x + w > CW - 20) { x = 24; y += 40; }
     ctx.fillStyle = 'rgba(20,18,15,.9)'; ctx.fillRect(x, y, w, 34);
     ctx.strokeStyle = it ? TIERS[it.tier].c : 'rgba(255,255,255,.1)'; ctx.strokeRect(x + .5, y + .5, w - 1, 33);
-    txt(nm, x + 5, y + 9, 8, '#98a2ae');
+    txt(nm, x + 5, y + 9, 9, '#98a2ae');
     if (it) {
       txt(clipText(itemIco(it) + ' ' + TIERS[it.tier].n, w - 10, 10), x + 5, y + 20, 10, TIERS[it.tier].c);
       let sub = it.k === 'sword' ? 'урон ' + Math.round(SWORD[it.metal].dmg * TIERS[it.tier].m)
@@ -4807,7 +4807,7 @@ function drawEquipRow(y) {
       if (it.ench) sub += ' ' + ENCH[it.ench].ico;
       if (it.oil > 0) sub += ' 🧴' + it.oil;
       txt(clipText(sub, w - 10, 8), x + 5, y + 29, 8, '#98a2ae');
-    } else txt('пусто', x + 5, y + 20, 10, '#5a616b');
+    } else txt('пусто', x + 5, y + 20, 11, '#5a616b');
     x += w + 6;
   }
   return y + 42;
@@ -4843,10 +4843,10 @@ function drawBag() {
   const top = y + 14, bottom = CH - 56;
   const v = listView(inv.length, top, bottom, 24, bagScroll);
   bagScroll = v.from;
-  txt('В сумке: ' + inv.length, 24, y, 10, '#e8d9a8');
+  txt('В сумке: ' + inv.length, 24, y, 11, '#e8d9a8');
   scrollBtns(y, v, () => bagScroll, n => { bagScroll = clamp(n, 0, v.max); });
   y = top;
-  if (!inv.length) txt('пусто', 24, y + 6, 10, '#5a616b');
+  if (!inv.length) txt('пусто', 24, y + 6, 11, '#5a616b');
   for (const it of inv.slice(v.from, v.from + v.vis)) {
     const rowY = y;
     ctx.fillStyle = 'rgba(20,18,15,.75)'; ctx.fillRect(24, rowY, CW - 48, 22);
@@ -4908,7 +4908,7 @@ function drawBoard() {
   ctx.fillStyle = 'rgba(38,30,18,.92)'; ctx.fillRect(24, y, CW - 48, q ? 92 : 34);
   ctx.strokeStyle = 'rgba(216,170,90,.55)'; ctx.lineWidth = 1; ctx.strokeRect(24.5, y + .5, CW - 49, (q ? 92 : 34) - 1);
   if (!q) {
-    txt('📖 Сюжет пройден. Остались работы с доски.', CW / 2, y + 17, 10, '#be892d', 'center');
+    txt('📖 Сюжет пройден. Остались работы с доски.', CW / 2, y + 17, 11, '#be892d', 'center');
     y += 42;
   } else {
     const S = LOCS[q.loc] || LOCS.woods, sp = SPOTS[q.spot];
@@ -4936,15 +4936,15 @@ function drawBoard() {
     const famC = o.fam === 'monster' ? '#a8c6e8' : o.fam === 'mortal' ? '#d8aa5a' : '#e8d9a8';
     ctx.fillStyle = 'rgba(20,18,15,.85)'; ctx.fillRect(24, y, CW - 48, 74);
     ctx.strokeStyle = 'rgba(190,137,45,.28)'; ctx.lineWidth = 1; ctx.strokeRect(24.5, y + .5, CW - 49, 73);
-    txt(o.t, 34, y + 14, 12, '#e8d9a8');
-    txt('💰 ' + o.gold, CW - 34, y + 14, 12, '#d8aa5a', 'right');
+    txt(o.t, 34, y + 14, 11, '#e8d9a8');
+    txt('💰 ' + o.gold, CW - 34, y + 14, 11, '#d8aa5a', 'right');
     txt(S.ico + ' ' + S.n + ' · ' + S.note, 34, y + 30, 9, '#be892d');
     // кто там водится — иконками, чтобы не читать, а видеть
     const who = [];
     for (const t of o.pool) if (who.indexOf(t) < 0) who.push(t);
     txt(who.map(t => FOES[t].ico + ' ' + FOES[t].n).join('   ') + '   ·   целей ' + o.n,
         34, y + 45, 9, '#c2cad2');
-    txt(fam, 34, y + 60, 10, famC);
+    txt(fam, 34, y + 60, 11, famC);
     const full = taken.length >= MAX_JOBS;
     btn(CW - 116, y + 50, 82, 19, full ? 'занят' : '📜 взять', () => startContract(o),
         'rgba(80,66,30,.95)', full, 'Три работы уже на руках — доделай что-нибудь');
@@ -5020,7 +5020,7 @@ function drawMap() {
     if (spotEaten(key)) continue;                      // деревня уже подписала это место собой
     const s = SPOTS[key];
     drawIco(s.ico, 13, px(s.x), py(s.y));
-    txt(s.n, px(s.x), py(s.y) + 12, 8, '#c2cad2', 'center');
+    txt(s.n, px(s.x), py(s.y) + 12, 9, '#c2cad2', 'center');
   }
   // места силы: непочатые светятся, выбранные серые
   for (const p of POWER) {
@@ -5032,7 +5032,7 @@ function drawMap() {
     ctx.globalAlpha = used ? 0.4 : 1;
     drawIco('🔮', 13, px(p.x), py(p.y));
     ctx.globalAlpha = 1;
-    txt(used ? 'пусто' : p.n, px(p.x), py(p.y) + 12, 8, used ? '#6c7683' : '#c9a0ff', 'center');
+    txt(used ? 'пусто' : p.n, px(p.x), py(p.y) + 12, 9, used ? '#6c7683' : '#c9a0ff', 'center');
   }
   // круг лагеря — куда нечисть не заходит
   ctx.strokeStyle = 'rgba(190,137,45,.35)'; ctx.setLineDash([4, 4]); ctx.lineWidth = 1;
@@ -5055,7 +5055,7 @@ function drawMap() {
 
   // где ты сейчас и что тут за место
   const S = L();
-  txt('Ты в ' + S.ico + ' ' + S.n.toLowerCase() + ' — ' + S.note, CW / 2, 74, 10, '#be892d', 'center');
+  txt('Ты в ' + S.ico + ' ' + S.n.toLowerCase() + ' — ' + S.note, CW / 2, 74, 11, '#be892d', 'center');
 
   // легенда красками краёв — все пятнадцать, разложены выше (см. mapLegend)
   let ly = CH - 62 - (leg.length - 1) * LEG_ROW;
@@ -5121,10 +5121,10 @@ function drawBench() {
     const мало = { gold: gold < c.gold, mat: countStack(c.matId) < c.mat };
     // Пишем не только цену, но и СКОЛЬКО ЕСТЬ: иначе непонятно, почему
     // кнопка мертва — денег вроде полно, а не хватает руды.
-    if (maxed) txt('выше некуда', 30, y + 19, 8, '#6c7683');
+    if (maxed) txt('выше некуда', 30, y + 19, 9, '#6c7683');
     else {
-      txt('⚒ ' + c.gold + '💰', 30, y + 19, 8, мало.gold ? '#e69a94' : '#98a2ae');
-      txt('+ ' + c.mat + STUFF[c.matId].ico, 76, y + 19, 8, мало.mat ? '#e69a94' : '#98a2ae');
+      txt('⚒ ' + c.gold + '💰', 30, y + 19, 9, мало.gold ? '#e69a94' : '#98a2ae');
+      txt('+ ' + c.mat + STUFF[c.matId].ico, 76, y + 19, 9, мало.mat ? '#e69a94' : '#98a2ae');
       txt('(есть ' + Math.floor(gold) + '💰, ' + countStack(c.matId) + STUFF[c.matId].ico + ')', 122, y + 19, 8, '#6c7683');
     }
     const нетДенегИлиРуды = maxed || мало.gold || мало.mat;
@@ -5221,7 +5221,7 @@ function drawCard(c, x, y, w, h) {
   // нижняя полоса: цена, сколько уже есть, и состояние
   ctx.fillStyle = c.mine ? 'rgba(60,90,55,.6)' : poor ? 'rgba(40,30,28,.7)' : 'rgba(70,58,30,.75)';
   ctx.fillRect(x + 1, y + h - 17, w - 2, 16);
-  txt(c.mine ? '✓ уже твоё' : c.price + '💰', x + 7, y + h - 9, 10,
+  txt(c.mine ? '✓ уже твоё' : c.price + '💰', x + 7, y + h - 9, 11,
       c.mine ? '#9ad9a0' : poor ? '#e69a94' : '#e6c894');
   if (c.have != null) txt('в сумке ' + c.have, x + w - 7, y + h - 9, 9, '#98a2ae', 'right');
   else if (!c.mine) txt(poor ? 'не хватает' : 'купить', x + w - 7, y + h - 9, 9, poor ? '#e69a94' : '#be892d', 'right');
@@ -5406,7 +5406,7 @@ function drawLook() {
 
   let y = A.y0;
   for (const F of LOOK_FIELDS) {
-    txt(F.n, A.fx, y, 10, '#98a2ae');
+    txt(F.n, A.fx, y, 11, '#98a2ae');
     // облик мог прийти из битой записи — тогда показываем умолчание, а не пусто
     const cur = F.tab[look[F.k]] || F.tab[LOOK_DEF[F.k]];
     txt(cur.n, A.fx + A.fw / 2, y + 16, 11, '#e8d9a8', 'center');
@@ -5448,7 +5448,7 @@ function drawSkills() {
       ctx.strokeStyle = maxed ? 'rgba(216,170,90,.6)' : lv > 0 ? 'rgba(190,137,45,.35)' : 'rgba(255,255,255,.08)';
       ctx.lineWidth = 1; ctx.strokeRect(x + .5, y + .5, colW - 1, 51);
       txt(clipText(S.ico + ' ' + S.n, colW - 40, 10), x + 5, y + 12, 10, lv > 0 ? '#e8d9a8' : '#98a2ae');
-      txt(lv + '/' + S.max, x + colW - 5, y + 12, 10, maxed ? '#d8aa5a' : '#98a2ae', 'right');
+      txt(lv + '/' + S.max, x + colW - 5, y + 12, 11, maxed ? '#d8aa5a' : '#98a2ae', 'right');
       // полоска вложенного: видно с одного взгляда, куда уже сыпал
       for (let i = 0; i < S.max; i++) {
         ctx.fillStyle = i < lv ? '#be892d' : 'rgba(255,255,255,.10)';
@@ -5469,11 +5469,11 @@ function drawSkills() {
    решает навык, а не место. */
 function drawCraft() {
   panelBox('⚗ ВАРКА В ДОРОГЕ');
-  txt('Котелок при себе — варить можно хоть посреди болота.', 24, 96, 10, '#98a2ae');
+  txt('Котелок при себе — варить можно хоть посреди болота.', 24, 96, 11, '#98a2ae');
   txt('⚗ Травничество ' + sk('brew') + '/3   ·   ➶ Болторезка ' + sk('fletch') + '/3',
-      CW - 24, 96, 10, '#be892d', 'right');
+      CW - 24, 96, 11, '#be892d', 'right');
   txt('🌿 травы ' + countStack('herb') + '   ⛏ руда ' + countStack('ore') + '   ✨ эссенции ' + countStack('essence'),
-      24, 112, 10, '#e8d9a8');
+      24, 112, 11, '#e8d9a8');
 
   const list = RECIPES.filter(r => sk(r.s) > 0 || r.lvl === 1);
   const top = 126;
@@ -5481,7 +5481,7 @@ function drawCraft() {
   benchScroll = v.from;
   if (v.max > 0) scrollBtns(top - 8, v, () => benchScroll, n => { benchScroll = clamp(n, 0, v.max); });
   let y = top;
-  if (!list.length) txt('Пока не умеешь ничего: вложи очко в Травничество или Болторезку (K)', 24, y + 12, 10, '#6c7683');
+  if (!list.length) txt('Пока не умеешь ничего: вложи очко в Травничество или Болторезку (K)', 24, y + 12, 11, '#6c7683');
   for (const r of list.slice(v.from, v.from + v.vis)) {
     const why = canCraft(r), ok = !why;
     ctx.fillStyle = ok ? 'rgba(34,40,28,.9)' : 'rgba(20,18,15,.75)';
@@ -5489,7 +5489,7 @@ function drawCraft() {
     ctx.strokeStyle = ok ? 'rgba(127,214,160,.35)' : 'rgba(255,255,255,.06)';
     ctx.lineWidth = 1; ctx.strokeRect(24.5, y + .5, CW - 49, 27);
     const G = goodInfo(r.id);
-    txt(G.ico + ' ' + G.n + (r.out > 1 ? ' ×' + r.out : ''), 32, y + 10, 10, ok ? '#e8d9a8' : '#8a8f96');
+    txt(G.ico + ' ' + G.n + (r.out > 1 ? ' ×' + r.out : ''), 32, y + 10, 11, ok ? '#e8d9a8' : '#8a8f96');
     const need = Object.keys(r.need).map(k => STUFF[k].ico + r.need[k] + ' (есть ' + countStack(k) + ')').join('   ');
     txt(clipText(need + '   ·   ' + SKILLS[r.s].ico + ' ' + SKILLS[r.s].n + ' ' + r.lvl, CW - 190, 8),
         32, y + 21, 8, ok ? '#98a2ae' : '#6c7683');
@@ -5517,7 +5517,7 @@ function render() {
   }
   if (P.biz > 0) {
     ctx.fillStyle = 'rgba(216,170,90,.06)'; ctx.fillRect(WX0, WY0, WW, WH);
-    txt('💼 РЕЖИМ БИЗНЕСМЭНА: ' + P.biz.toFixed(1) + ' с · золото ×3 · ЛКМ — договор', CW / 2, WY0 + 12, 10, '#e6c894', 'center');
+    txt('💼 РЕЖИМ БИЗНЕСМЭНА: ' + P.biz.toFixed(1) + ' с · золото ×3 · ЛКМ — договор', CW / 2, WY0 + 12, 11, '#e6c894', 'center');
   }
 
   drawHUD();
@@ -5535,13 +5535,13 @@ function render() {
   if (paused && !over && !panel) {
     ctx.fillStyle = 'rgba(8,7,6,.72)'; ctx.fillRect(0, 0, CW, CH);
     txt('⏸ ПАУЗА', CW / 2, CH / 2, 26, '#e8d9a8', 'center');
-    txt('P / Esc — продолжить', CW / 2, CH / 2 + 26, 12, '#98a2ae', 'center');
+    txt('P / Esc — продолжить', CW / 2, CH / 2 + 26, 11, '#98a2ae', 'center');
   }
   if (over) {
     ctx.fillStyle = 'rgba(20,6,6,.9)'; ctx.fillRect(0, 0, CW, CH);
     txt('☠ ВЕДЬМАК ПАЛ', CW / 2, CH / 2 - 76, 28, '#d8645a', 'center');
-    txt(cause, CW / 2, CH / 2 - 46, 12, '#e6ebf2', 'center');
-    txt('Работа сорвана · за лечение отдано ' + downLost + ' крон', CW / 2, CH / 2 - 22, 12, '#c2cad2', 'center');
+    txt(cause, CW / 2, CH / 2 - 46, 11, '#e6ebf2', 'center');
+    txt('Работа сорвана · за лечение отдано ' + downLost + ' крон', CW / 2, CH / 2 - 22, 11, '#c2cad2', 'center');
     txt('Снаряжение, сумка и сюжет (' + storyIdx + '/' + STORY.length + ') остаются при тебе',
         CW / 2, CH / 2 + 2, 11, '#7fd6a0', 'center');
     // шкала «приходит в себя»: видно, что это не конец, а пауза
@@ -5550,7 +5550,7 @@ function render() {
     txt('приходит в себя… ' + Math.max(0, downT).toFixed(1) + ' с', CW / 2, CH / 2 + 32, 11, '#ffd9d0', 'center');
     txt('Закрыто контрактов: ' + ci + '   ·   рекорд: ' + best + '   ·   падений: ' + deaths,
         CW / 2, CH / 2 + 60, 11, '#98a2ae', 'center');
-    txt('«Заново» — начать поход с нуля', CW / 2, CH / 2 + 82, 10, '#6c7683', 'center');
+    txt('«Заново» — начать поход с нуля', CW / 2, CH / 2 + 82, 11, '#6c7683', 'center');
   }
 }
 

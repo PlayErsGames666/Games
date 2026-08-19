@@ -208,7 +208,7 @@ function overlay(title, subtitle, fg, bg) {
   ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = fg; ctx.textAlign = 'center';
   ctx.font = 'bold 26px Segoe UI, sans-serif'; ctx.fillText(title, W / 2, H / 2 - 6);
-  ctx.font = '15px Segoe UI, sans-serif';
+  ctx.font = '14px Segoe UI, sans-serif';
   ctx.fillText(subtitle, W / 2, H / 2 + 20);
 }
 
