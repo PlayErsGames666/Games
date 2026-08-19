@@ -3,7 +3,7 @@
     --panel: #3a3d5c;
     --panel2: #4a4e73;
     --text: #edf2f4;
-    --accent: #ff9f1c;
+    --accent: #d8aa5a;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -64,7 +64,7 @@
   .shop-ov { position:absolute; inset:0; background:rgba(13,14,26,.95); border-radius:10px; padding:14px; display:flex; flex-direction:column; overflow-y:auto; }
   .shop-ov[hidden] { display:none; }
   .shop-ov h2 { text-align:center; font-size:19px; margin-bottom:4px; }
-  .shop-ov .coins { text-align:center; color:#ffd166; font-weight:bold; margin-bottom:10px; }
+  .shop-ov .coins { text-align:center; color:#e6c894; font-weight:bold; margin-bottom:10px; }
   .skins { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
   .shop-ov .sect { font-size:12px; font-weight:bold; opacity:.7; text-transform:uppercase; letter-spacing:.5px; margin:10px 2px 6px; text-align:left; }
   .skin { background:var(--panel); border:2px solid transparent; border-radius:10px; padding:6px; text-align:center; cursor:pointer; transition:background .12s; }
@@ -74,10 +74,10 @@
   .skin canvas { width:100%; height:44px; display:block; background:#141726; border-radius:6px; margin-bottom:5px; }
   .skin .nm { font-size:12px; font-weight:bold; }
   .skin .act { font-size:11px; margin-top:2px; opacity:.9; }
-  .skin.owned .act { color:#06d6a0; }
-  .skin .price { color:#ffd166; font-weight:bold; }
-  .shop-ov .close { margin-top:12px; background:#06d6a0; color:#0d0e1a; font-weight:bold; padding:10px; border-radius:8px; border:none; cursor:pointer; }
-  .shop-ov .close:hover { background:#08f5b4; }
+  .skin.owned .act { color:#2dbe69; }
+  .skin .price { color:#e6c894; font-weight:bold; }
+  .shop-ov .close { margin-top:12px; background:#2dbe69; color:#0d0e1a; font-weight:bold; padding:10px; border-radius:8px; border:none; cursor:pointer; }
+  .shop-ov .close:hover { background:#2dbe69; }
 
   
   

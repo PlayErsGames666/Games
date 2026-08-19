@@ -249,15 +249,15 @@ function draw() {
   ctx.fillText(scoreAI, W / 2 + 60, 60);
 
   // ракетки (со вспышкой при ударе)
-  drawPaddle(PADDLE_MARGIN, player.y, '#06d6a0', player.flash);
-  drawPaddle(W - PADDLE_MARGIN - PADDLE_W, ai.y, '#ef233c', ai.flash);
+  drawPaddle(PADDLE_MARGIN, player.y, '#2dbe69', player.flash);
+  drawPaddle(W - PADDLE_MARGIN - PADDLE_W, ai.y, '#d8645a', ai.flash);
 
   // след за мячом
   for (let i = 0; i < trail.length; i++) {
     const t = trail[i];
     const k = (i + 1) / trail.length;
     ctx.globalAlpha = k * 0.5;
-    ctx.fillStyle = '#ffd166';
+    ctx.fillStyle = '#e6c894';
     ctx.beginPath();
     ctx.arc(t.x, t.y, BALL_R * k, 0, Math.PI * 2);
     ctx.fill();
@@ -265,9 +265,9 @@ function draw() {
   ctx.globalAlpha = 1;
 
   // мяч (с мягким свечением)
-  ctx.shadowColor = '#ffd166';
+  ctx.shadowColor = '#e6c894';
   ctx.shadowBlur = 16;
-  ctx.fillStyle = '#ffd166';
+  ctx.fillStyle = '#e6c894';
   ctx.beginPath();
   ctx.arc(ball.x, ball.y, BALL_R, 0, Math.PI * 2);
   ctx.fill();

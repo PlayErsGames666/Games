@@ -15,7 +15,7 @@ const SHAPES = {
   L: [[0,0,1],[1,1,1],[0,0,0]],
 };
 const KEYS_ORDER = ['I','O','T','S','Z','J','L'];
-const COLORS = { I:'#4cc9f0', O:'#ffd166', T:'#b388ff', S:'#06d6a0', Z:'#ef476f', J:'#3a86ff', L:'#ff9f1c' };
+const COLORS = { I:'#5ab7d8', O:'#e6c894', T:'#ba94e6', S:'#2dbe69', Z:'#d8645a', J:'#5a84d8', L:'#d8aa5a' };
 const LINE_SCORE = [0, 100, 300, 500, 800];
 
 const el = {

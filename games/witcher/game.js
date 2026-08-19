@@ -84,7 +84,7 @@ const TIERS = [
   { n: 'улучшенный',   m: 1.30, c: '#7fb0d8' },
   { n: 'отличный',     m: 1.65, c: '#7fd6a0' },
   { n: 'мастерский',   m: 2.05, c: '#c9a0ff' },
-  { n: 'гроссмейстер', m: 2.50, c: '#f2b134' },
+  { n: 'гроссмейстер', m: 2.50, c: '#d8aa5a' },
 ];
 
 // Зачарования. Одно на предмет, вешается на верстаке.
@@ -137,7 +137,7 @@ const BOLTS = {
   boltbom: { mul: 1.2, blast: 46 },
 };
 const BOLT_IDS = Object.keys(BOLTS);
-const BOLT_COLOR = { bolt: '#e8d9a8', boltsil: '#cfe3ff', boltarm: '#9aa3ad', boltfir: '#ff9a4a', boltbom: '#ffd166' };
+const BOLT_COLOR = { bolt: '#e8d9a8', boltsil: '#cfe3ff', boltarm: '#9aa3ad', boltfir: '#d8aa5a', boltbom: '#e6c894' };
 
 /* Доспехи. Тип решает не только броню, но и повадку.
 
@@ -160,7 +160,7 @@ const ARMOR = {
 
   cat:    { n: 'Доспех Школы Кота',     ico: '🐱', def: 7,  w: 5.5, spd: 1.24, mpr: 1.35, c: '#c9a0ff', price: 420,
             school: 'dodge', bon: 'уворот перезаряжается быстрее и уносит дальше' },
-  griffin:{ n: 'Доспех Школы Грифона',  ico: '🦅', def: 9,  w: 10,  spd: 1.06, mpr: 1.65, c: '#7fd6ff', price: 520,
+  griffin:{ n: 'Доспех Школы Грифона',  ico: '🦅', def: 9,  w: 10,  spd: 1.06, mpr: 1.65, c: '#94d0e6', price: 520,
             school: 'sign',  bon: 'знаки дешевле и бьют сильнее' },
   bear:   { n: 'Доспех Школы Медведя',  ico: '🐻', def: 20, w: 26,  spd: 0.82, mpr: 0.95, c: '#d8a86a', price: 680,
             school: 'tank',  bon: 'больше здоровья, и удар по тебе гасится сверх брони' },
@@ -187,7 +187,7 @@ const SCARS  = { none:{n:'Нет'}, eye:{n:'Через глаз'}, cheek:{n:'Ч�
 const SKINS  = { pale:{n:'Бледная',c:'#e0bd9a'}, fair:{n:'Светлая',c:'#d9b48c'},
                  tan:{n:'Смуглая',c:'#bb8f66'}, olive:{n:'Оливковая',c:'#a9825c'},
                  dark:{n:'Тёмная',c:'#7d5a3c'} };
-const EYES   = { cat:{n:'Кошачий жёлтый',c:'#c8b400'}, amber:{n:'Янтарный',c:'#d08a2a'},
+const EYES   = { cat:{n:'Кошачий жёлтый',c:'#beab2d'}, amber:{n:'Янтарный',c:'#be892d'},
                  grey:{n:'Серый',c:'#9aa6ad'}, green:{n:'Зелёный',c:'#6fa257'} };
 
 const LOOK_FIELDS = [
@@ -283,8 +283,8 @@ function schoolRange(id) {
 // Зелья. Каждое травит: токсичность — вторая цена любого глотка.
 const POTIONS = {
   swallow: { n: 'Ласточка',     ico: '🧪', c: '#7fd6a0', tox: 18, w: 0.4, price: 40, desc: 'заживляет 45 здоровья за 8 секунд' },
-  thunder: { n: 'Гром',         ico: '⚗',  c: '#ff7a5a', tox: 22, w: 0.4, price: 55, desc: '+45% урона на 20 секунд' },
-  honey:   { n: 'Белый мёд',    ico: '🍯', c: '#ffd166', tox: -70, w: 0.3, price: 35, desc: 'вычищает токсичность' },
+  thunder: { n: 'Гром',         ico: '⚗',  c: '#d8645a', tox: 22, w: 0.4, price: 55, desc: '+45% урона на 20 секунд' },
+  honey:   { n: 'Белый мёд',    ico: '🍯', c: '#e6c894', tox: -70, w: 0.3, price: 35, desc: 'вычищает токсичность' },
   shit:    { n: 'Зелье гавна',  ico: '💩', c: '#8a6a3a', tox: 30, w: 0.6, price: 90, desc: '12 секунд ты БИЗНЕСМЭН: вместо меча договоры, золота втрое, брони вдвое меньше' },
 };
 
@@ -1733,8 +1733,8 @@ function compareNote(it) {                             // it лежит в су�
                (!cur.k || cur.k !== 'armor' || ARMOR[cur.type].school !== ARMOR[it.type].school)
              ? ' ' + ARMOR[it.type].ico : '';
   if (d > 0) return { t: '+' + d + what + mark, c: '#7fd6a0' };
-  if (d < 0) return { t: '−' + (-d) + what + mark, c: mark ? '#c9a227' : '#ff7a6a' };
-  return { t: 'цифры те же' + mark, c: '#c9a227' };    // разница только в чарах, масле или школе
+  if (d < 0) return { t: '−' + (-d) + what + mark, c: mark ? '#be892d' : '#e69a94' };
+  return { t: 'цифры те же' + mark, c: '#be892d' };    // разница только в чарах, масле или школе
 }
 /* Подрезаем длинное имя, чтобы оно не налезло на пометку справа. */
 function clipText(s, px, size) {
@@ -1886,7 +1886,7 @@ function boltHit(s, f) {
   }
   if (B.blast) {
     snd('blast');
-    addPart({ x: s.x, y: s.y, vx: 0, vy: 0, t: 0, life: 0.35, c: '#ffb43a', r: B.blast, ring: true });
+    addPart({ x: s.x, y: s.y, vx: 0, vy: 0, t: 0, life: 0.35, c: '#d8aa5a', r: B.blast, ring: true });
     for (const o of foes) {
       if (o === f || o.dead || dist(o, s) > B.blast) continue;
       hurtFoe(o, s.dmg * k * 0.6, 'shot', B.pierce);
@@ -1919,7 +1919,7 @@ function hurtFoe(f, dmg, src, pierce) {
   f.hitT = 0.12;
   const weak = src === 'wrong' || src === 'wrongbolt';
   snd(weak ? 'hitwrong' : 'hit');
-  floaties.push({ x: f.x, y: f.y - 14, txt: Math.round(real), t: 0, c: weak ? '#8a8f96' : '#ffd166' });
+  floaties.push({ x: f.x, y: f.y - 14, txt: Math.round(real), t: 0, c: weak ? '#8a8f96' : '#e6c894' });
   if (weak) floaties.push({ x: f.x, y: f.y - 26, txt: src === 'wrong' ? 'не тот меч' : 'не тот болт', t: 0, c: '#8a8f96' });
   if (hasEnch('vamp')) P.hp = Math.min(maxHP(), P.hp + real * 0.12);
   if (P.mut > 0) P.hp = Math.min(maxHP(), P.hp + real * (P.mut2 > 0 ? 0.5 : 0.25));
@@ -1973,7 +1973,7 @@ function hurtPlayer(raw, from) {
        по ведьмаку. У вспышки этой беды нет — она целиком снаружи PAWN_R и
        на фигуру не заходит ни в один свой миг. Значит перекладывать её к
        куполу не за чем, а держать все частицы в одном месте — есть за чем. */
-    addPart({ x: P.x, y: P.y, vx: 0, vy: 0, t: 0, life: 0.3, c: '#7fd6ff', r: QUEN_R, ring: true });
+    addPart({ x: P.x, y: P.y, vx: 0, vy: 0, t: 0, life: 0.3, c: '#94d0e6', r: QUEN_R, ring: true });
     /* Трещина остаётся до конца щита: по ней видно, сколько он ещё держит.
        Больше пяти не копим — иначе купол превращается в решето и перестаёт
        читаться, а он должен читаться в первую очередь.
@@ -2039,7 +2039,7 @@ function castRune(i) {
        конце): тогда обещание держится, чем бы частицу ни разогнало.
        Пламя обещает ровно то, что выполняет, иначе граница врёт. */
     const LEN = 120, HALF = 0.7;
-    signCast(a, '#ffd06a');
+    signCast(a, '#e6c894');
     addPart({ scorch: true, x: P.x, y: P.y, a, w: HALF, len: LEN, c: '#0a0705', t: 0, life: 2 });
     for (let i = 0; i < 26; i++) {                     // языки пламени
       const an = a + (Math.random() - 0.5) * 1.28;     // отклонение ≤ 0.64 — внутри HALF
@@ -2071,7 +2071,7 @@ function castRune(i) {
     }
     /* Граница кладётся ПОСЛЕДНЕЙ: частицы рисуются в порядке добавления, и
        только так яркая дуга ложится поверх собственного пламени, а не под ним. */
-    addPart({ edge: true, x: P.x, y: P.y, a, w: HALF, len: LEN, c: '#ffc45a', t: 0, life: 0.3 });
+    addPart({ edge: true, x: P.x, y: P.y, a, w: HALF, len: LEN, c: '#d8aa5a', t: 0, life: 0.3 });
     for (const f of foes) if (inCone(f, a, LEN, HALF)) { hurtFoe(f, 24 * pow, 'rune'); f.burn = 4; }
   } else if (R.k === 'aard') {
     /* Та же порука: 14 + 72 · (1 + 0.016/0.4) = 88.9, радиус пылинки в конце
@@ -2099,12 +2099,12 @@ function castRune(i) {
       f.kx = Math.cos(d) * 260; f.ky = Math.sin(d) * 260; f.stun = Math.max(f.stun, 1.3);
     }
   } else if (R.k === 'quen') {
-    signCast(a, '#96e1ff');                            // цвет граней купола, см. drawQuenDome
+    signCast(a, '#94d0e6');                            // цвет граней купола, см. drawQuenDome
     P.quen = (60 + armorDef() * 1.2) * pow; P.quenT = 9;
     P.quenHits = [];                                   // новый щит — целое стекло
     message('🛡 Квен держит ' + Math.round(P.quen));
   } else if (R.k === 'yrden') {
-    signCast(a, '#c496ff');
+    signCast(a, '#ba94e6');
     /* Ловушка ложилась ровно под курсор — где бы тот ни был. Курсор на поясе
        (а он там и есть, если Ирден жмут кнопкой) — и 22 единицы энергии
        уходили за нижний край поля, в никуда. Теперь: не дальше 150 шагов,
@@ -2240,7 +2240,7 @@ function drop(x, y, it, hold) {
 let heavyT = 0;                                        // чтобы отказ не забивал строку сообщений каждый кадр
 function pickUp(d) {
   const it = d.it;
-  if (it.k === 'gold') { gold += it.n; snd('coin'); floaties.push({ x: d.x, y: d.y, txt: '+' + it.n + '💰', t: 0, c: '#f2b134' }); return true; }
+  if (it.k === 'gold') { gold += it.n; snd('coin'); floaties.push({ x: d.x, y: d.y, txt: '+' + it.n + '💰', t: 0, c: '#d8aa5a' }); return true; }
   // тяжёлое не поднимаем молча: иначе перегруз наступает незаметно
   if (carried() + itemWeight(it) > capacity() * 1.5) {
     if (heavyT <= 0) { message('Слишком тяжело — не поднять. Выбрось лишнее (I) или продай у костра'); heavyT = 3; }
@@ -3409,7 +3409,7 @@ function drawIco(ch, size, x, y) {
 function blood(x, y, n) {
   for (let i = 0; i < n; i++) {
     const a = rnd(6.3), s = 30 + rnd(90);
-    addPart({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, t: 0, life: 0.4 + rnd(0.4), c: '#a4222a', r: 1.5 + rnd(2) });
+    addPart({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, t: 0, life: 0.4 + rnd(0.4), c: '#be392d', r: 1.5 + rnd(2) });
   }
 }
 
@@ -3710,7 +3710,7 @@ function drawPawn(x, y, a, st) {
        контур виден и на стоящем на месте. Он самый заметный мазок на пешке,
        и так и должно быть: срыв — самое важное, что о ней сейчас можно
        сказать. Ободок зелья рядом идёт нарочно вполсилы и с ним не спорит. */
-    ctx.strokeStyle = 'rgba(255,120,36,' + (0.45 + 0.3 * Math.abs(Math.sin(anim * 5.5))).toFixed(2) + ')';
+    ctx.strokeStyle = 'rgba(216,170,90,' + (0.45 + 0.3 * Math.abs(Math.sin(anim * 5.5))).toFixed(2) + ')';
     ctx.lineWidth = 2.2;
     ctx.beginPath();
     ctx.ellipse(0, PAWN_BODY.y + bob, bw / 2 + 1.4, PAWN_BODY.ry + 1.4, 0, 0, 6.3); ctx.stroke();
@@ -3781,7 +3781,7 @@ function drawPawn(x, y, a, st) {
     ctx.stroke();
   }
   if (st.mut || st.mut2) {                                  // жилы мутации
-    ctx.strokeStyle = st.mut2 ? 'rgba(255,60,40,.9)' : 'rgba(200,60,50,.6)';
+    ctx.strokeStyle = st.mut2 ? 'rgba(216,100,90,.9)' : 'rgba(190,57,45,.6)';
     ctx.lineWidth = st.mut2 ? 1.4 : 0.9;
     ctx.beginPath(); ctx.moveTo(-4, -9 + bob); ctx.lineTo(-2, -5 + bob);
     ctx.moveTo(4, -9 + bob); ctx.lineTo(2, -5 + bob); ctx.stroke();
@@ -3939,7 +3939,7 @@ function drawQuenDome(x, y) {
     /* Волна света бежит по граням: у каждой свой сдвиг фазы, поэтому в один
        миг одни грани горят, другие едва тлеют — купол читается как живой. */
     const sh = 0.35 + 0.65 * Math.max(0, Math.sin(anim * 3.4 - i * 0.7));
-    ctx.strokeStyle = 'rgba(150,225,255,' + (0.3 + sh * 0.55).toFixed(2) + ')';
+    ctx.strokeStyle = 'rgba(148,208,230,' + (0.3 + sh * 0.55).toFixed(2) + ')';
     ctx.lineWidth = 1 + sh * 1.4;
     ctx.beginPath();
     ctx.moveTo(x + Math.cos(a1) * QUEN_R, y + Math.sin(a1) * QUEN_R);
@@ -3947,7 +3947,7 @@ function drawQuenDome(x, y) {
     ctx.stroke();
   }
   // стекло внутри — еле заметное: сквозь щит должно быть видно бой
-  ctx.globalAlpha = 0.12; ctx.fillStyle = '#8ad8ff';
+  ctx.globalAlpha = 0.12; ctx.fillStyle = '#94d0e6';
   ctx.beginPath(); ctx.arc(x, y, QUEN_R, 0, 6.3); ctx.fill(); ctx.globalAlpha = 1;
   /* Трещина — веер из четырёх лучей от места удара. Все они уходят ВБОК И
      НАРУЖУ, а не внутрь: внутри стоит сам ведьмак. Угол взят в hurtPlayer,
@@ -4012,7 +4012,7 @@ function drawYrdenSeal(Y) {
        по остатку от него, ползут с каждым оборотом. */
     const a1 = rot + (i * 2.399) % (Math.PI * 2), a2 = rot + (i * 4.129) % (Math.PI * 2);
     const r1 = Y.r * (0.25 + (i % 5) * 0.14), r2 = Y.r * (0.25 + ((i + 3) % 5) * 0.14);
-    ctx.strokeStyle = 'rgba(196,150,255,' + (0.2 + 0.28 * Math.abs(Math.sin(anim * 3 + i))).toFixed(2) + ')';
+    ctx.strokeStyle = 'rgba(186,148,230,' + (0.2 + 0.28 * Math.abs(Math.sin(anim * 3 + i))).toFixed(2) + ')';
     ctx.lineWidth = 0.8;
     ctx.beginPath();
     ctx.moveTo(Y.x + Math.cos(a1) * r1, Y.y + Math.sin(a1) * r1);
@@ -4023,7 +4023,7 @@ function drawYrdenSeal(Y) {
   ctx.globalAlpha = (1 - pu) * 0.7; ctx.strokeStyle = '#d9b8ff'; ctx.lineWidth = 1.4;
   ctx.beginPath(); ctx.arc(Y.x, Y.y, Y.r * pu, 0, 6.3); ctx.stroke(); ctx.globalAlpha = 1;
   // обод — граница. Самый толстый мазок печати и единственный в полную густоту
-  ctx.strokeStyle = '#c496ff'; ctx.lineWidth = 1.8;
+  ctx.strokeStyle = '#ba94e6'; ctx.lineWidth = 1.8;
   ctx.beginPath(); ctx.arc(Y.x, Y.y, Y.r, 0, 6.3); ctx.stroke();
   /* Метки едут по ободу — они его УКРАШЕНИЕ, а не соперник: потому и идут
      вполсилы и тоньше. В полную густоту на печати мажет только сам обод.
@@ -4087,7 +4087,7 @@ function drawWorld() {
     if (p.x < cam.x - 60 || p.x > cam.x + WW + 60 || p.y < cam.y - 60 || p.y > cam.y + WH + 60) continue;
     const used = powerUsed.has(p.k);
     if (!used) {
-      ctx.strokeStyle = 'rgba(180,120,255,' + (0.5 + Math.sin(anim * 3) * 0.22).toFixed(2) + ')';
+      ctx.strokeStyle = 'rgba(186,148,230,' + (0.5 + Math.sin(anim * 3) * 0.22).toFixed(2) + ')';
       ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(p.x, p.y, 24 + Math.sin(anim * 2) * 3, 0, 6.3); ctx.stroke();
     }
@@ -4108,7 +4108,7 @@ function drawWorld() {
   drawIco('🪞', 26, MIRROR.x, MIRROR.y);
   txt('костёр', FIRE.x, FIRE.y + 24, 9, '#98a2ae', 'center');
   txt('U — верстак', BENCH.x, BENCH.y + 24, 10, '#98a2ae', 'center');
-  txt('E — доска работ', BOARD.x, BOARD.y + 24, 10, '#c9a227', 'center');
+  txt('E — доска работ', BOARD.x, BOARD.y + 24, 10, '#be892d', 'center');
   txt('E — облик', MIRROR.x, MIRROR.y + 24, 10, '#c9a0ff', 'center');
 
   /* Поселения: колодец, площадь и название. Дворы стоят отдельно (они же
@@ -4137,8 +4137,8 @@ function drawWorld() {
     const mx = p.tabs ? p.x - 5 : p.x;
     drawIco(p.ico, 10, mx, p.y - 16 + bob);
     if (p.tabs) drawIco('💰', 10, p.x + 5, p.y - 16 + bob);
-    txt(p.n, p.x, p.y + 17, 9, near ? '#f2d59a' : '#98a2ae', 'center');
-    if (near) txt('E — ' + (p.tabs ? 'торговать' : 'говорить'), p.x, p.y + 28, 9, '#c9a227', 'center');
+    txt(p.n, p.x, p.y + 17, 9, near ? '#e6c894' : '#98a2ae', 'center');
+    if (near) txt('E — ' + (p.tabs ? 'торговать' : 'говорить'), p.x, p.y + 28, 9, '#be892d', 'center');
   }
 
   // гуща, камни и дворы: у каждого края своё. Берём через сетку — см. obstInView
@@ -4151,7 +4151,7 @@ function drawWorld() {
       ctx.fillStyle = '#4a3a26';
       ctx.beginPath(); ctx.moveTo(o.x - w / 2 - 3, o.y - h / 2);
       ctx.lineTo(o.x, o.y - h / 2 - o.r * 0.75); ctx.lineTo(o.x + w / 2 + 3, o.y - h / 2); ctx.closePath(); ctx.fill();
-      ctx.fillStyle = 'rgba(242,177,52,.45)';          // окошко: в избе горит
+      ctx.fillStyle = 'rgba(216,170,90,.45)';          // окошко: в избе горит
       ctx.fillRect(o.x - 3, o.y - 2, 6, 5);
       continue;
     }
@@ -4186,7 +4186,7 @@ function drawWorld() {
     const lx = f.lunge > 0 ? Math.cos(Math.atan2(P.y - f.y, P.x - f.x)) * 5 : 0;
     const ly = f.lunge > 0 ? Math.sin(Math.atan2(P.y - f.y, P.x - f.x)) * 5 : 0;
     // метка родства: по ней выбирают меч
-    ctx.fillStyle = S.fam === 'monster' ? 'rgba(168,198,232,.9)' : 'rgba(230,160,90,.9)';
+    ctx.fillStyle = S.fam === 'monster' ? 'rgba(168,198,232,.9)' : 'rgba(216,170,90,.9)';
     ctx.beginPath(); ctx.arc(f.x, f.y - f.r - 12, 3, 0, 6.3); ctx.fill();
     /* Повадка должна быть ВИДНА, иначе она бесполезна: игрок не станет
        проверять мирность зверя ударом. Мирный и пугливый обведены зелёным
@@ -4199,7 +4199,7 @@ function drawWorld() {
     if (!f.seen && f.noticeT > 0) {
       const k = clamp(f.noticeT / (S.notice || 0.8), 0, 1);
       ctx.globalAlpha = 0.35 + k * 0.65;
-      txt('!', f.x, f.y - f.r - 22, 9 + k * 5, S.mood === 'wild' ? '#ff9a5a' : '#f2d59a', 'center');
+      txt('!', f.x, f.y - f.r - 22, 9 + k * 5, S.mood === 'wild' ? '#d8aa5a' : '#e6c894', 'center');
       ctx.globalAlpha = 1;
     } else if (f.flee) txt('💨', f.x + f.r + 4, f.y - f.r - 4, 9, '#c2cad2', 'center');
     ctx.globalAlpha = f.hitT > 0 ? 0.5 : 1;
@@ -4208,7 +4208,7 @@ function drawWorld() {
     if (f.burn > 0) drawIco('🔥', 11, f.x + 9, f.y - 9);
     if (f.slow > 0) drawIco('❄', 10, f.x - 10, f.y - 9);
     const bw = f.name ? 40 : 26;                       // именной зверь и полосой шире
-    bar(f.x - bw / 2, f.y - f.r - 8, bw, f.name ? 4 : 3, f.hp / f.max, S.fam === 'monster' ? '#a8c6e8' : '#e8a05a');
+    bar(f.x - bw / 2, f.y - f.r - 8, bw, f.name ? 4 : 3, f.hp / f.max, S.fam === 'monster' ? '#a8c6e8' : '#d8aa5a');
     if (f.name) txt(f.name, f.x, f.y - f.r - 18, 10, '#ffb0a8', 'center');
   }
 
@@ -4220,7 +4220,7 @@ function drawWorld() {
       // болт видно, какой летит: серебро блестит, зажигательный тлеет
       ctx.fillStyle = s.mine ? (BOLT_COLOR[s.bolt] || '#e8d9a8') : '#c98a5a';
       ctx.fillRect(-6, -1.2, 12, 2.4);
-      if (s.bolt === 'boltfir') { ctx.fillStyle = 'rgba(255,140,60,.75)'; ctx.fillRect(-9, -1, 4, 2); }
+      if (s.bolt === 'boltfir') { ctx.fillStyle = 'rgba(216,170,90,.75)'; ctx.fillRect(-9, -1, 4, 2); }
     }
     ctx.restore();
   }
@@ -4246,7 +4246,7 @@ function drawWorld() {
      Кладём ПЕРВЫМ мазком и до полупрозрачности уклонения: сам ведьмак на
      уклонении бледнеет, и если бы метка бледнела с ним, она пропадала бы
      ровно в тот миг, когда за ним труднее всего уследить. */
-  ctx.strokeStyle = 'rgba(201,162,39,.22)'; ctx.lineWidth = 1;
+  ctx.strokeStyle = 'rgba(190,137,45,.22)'; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.arc(px, py, SELF_R, 0, 6.3); ctx.stroke();
   if (P.quen > 0) drawQuenDome(px, py);
   if (P.dodge > 0) ctx.globalAlpha = 0.55;
@@ -4343,7 +4343,7 @@ function drawWorld() {
       const rr = (1 - kk * 0.5) * p.sz;
       p.ext = rr * 9;                                  // полудлина языка вдоль полёта
       ctx.globalAlpha = (1 - kk) * 0.8;
-      ctx.fillStyle = kk < 0.22 ? '#fff6d0' : kk < 0.45 ? '#ffd25a' : kk < 0.72 ? '#ff8a2a' : '#c22c10';
+      ctx.fillStyle = kk < 0.22 ? '#fff6d0' : kk < 0.45 ? '#d8aa5a' : kk < 0.72 ? '#d8aa5a' : '#be392d';
       ctx.beginPath(); ctx.ellipse(p.x, p.y, p.ext, rr * 5.5, p.a, 0, 6.3); ctx.fill();
     } else if (p.spark) {
       const al = clamp(1 - kk, 0, 1);
@@ -4424,7 +4424,7 @@ function drawWorld() {
   ctx.restore();                                       // конец мировых координат
 
   drawCompass();
-  ctx.strokeStyle = 'rgba(201,162,39,.18)'; ctx.lineWidth = 1;
+  ctx.strokeStyle = 'rgba(190,137,45,.18)'; ctx.lineWidth = 1;
   ctx.strokeRect(WX0 - 0.5, WY0 - 0.5, WW + 1, WH + 1);
 }
 
@@ -4443,7 +4443,7 @@ function drawCompass() {
      же, сколько треть леса на экране. */
   if (!compassCv || compassScale !== icoScale) bakeCompass(w, h);
   ctx.drawImage(compassCv, x, y, w, h);
-  ctx.strokeStyle = 'rgba(201,162,39,.35)'; ctx.lineWidth = 1; ctx.strokeRect(x - 1.5, y - 1.5, w + 3, h + 3);
+  ctx.strokeStyle = 'rgba(190,137,45,.35)'; ctx.lineWidth = 1; ctx.strokeRect(x - 1.5, y - 1.5, w + 3, h + 3);
   /* Камни силы — точками поверх испечённого, а не значками в самой печати:
      точка рисуется вчетверо дешевле смайлика, и её состояние видно сразу,
      без перепекания компаса на каждый взятый камень. */
@@ -4455,11 +4455,11 @@ function drawCompass() {
   // цель
   const aim = questGoal();
   if (aim) {
-    ctx.strokeStyle = '#ff7a5a'; ctx.lineWidth = 1.5;
+    ctx.strokeStyle = '#d8645a'; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.arc(x + (aim.mx / WORLD_W) * w, y + (aim.my / WORLD_H) * h, 5, 0, 6.3); ctx.stroke();
   }
   // где ты
-  ctx.fillStyle = '#f2d59a';
+  ctx.fillStyle = '#e6c894';
   ctx.beginPath(); ctx.arc(x + (P.x / WORLD_W) * w, y + (P.y / WORLD_H) * h, 2.5, 0, 6.3); ctx.fill();
   ctx.globalAlpha = 1;
 
@@ -4470,7 +4470,7 @@ function drawCompass() {
   const cx = WX0 + WW / 2, cy = WY0 + WH / 2, rr = Math.min(WW, WH) * 0.42;
   const ax = cx + Math.cos(a) * rr, ay = cy + Math.sin(a) * rr;
   ctx.save(); ctx.translate(ax, ay); ctx.rotate(a);
-  ctx.fillStyle = 'rgba(242,177,52,.85)';
+  ctx.fillStyle = 'rgba(216,170,90,.85)';
   ctx.beginPath(); ctx.moveTo(10, 0); ctx.lineTo(-6, -6); ctx.lineTo(-6, 6); ctx.closePath(); ctx.fill();
   ctx.restore();
   /* Подпись под стрелкой держим ВНУТРИ поля. Стрелка ходит по кругу, и когда
@@ -4480,13 +4480,13 @@ function drawCompass() {
   const label = goal.n + ' · ' + dist2 + ' шагов';
   ctx.font = '9px Segoe UI';
   const half = ctx.measureText(label).width / 2;
-  txt(label, clamp(ax, WX0 + half + 2, WX1 - half - 2), ay + 14, 9, '#f2d59a', 'center');
+  txt(label, clamp(ax, WX0 + half + 2, WX1 - half - 2), ay + 14, 9, '#e6c894', 'center');
 }
 
 function drawHUD() {
   ctx.fillStyle = 'rgba(10,9,8,.92)'; ctx.fillRect(0, 0, CW, WY0 - 4);
   // здоровье и энергия
-  bar(10, 10, 150, 11, P.hp / maxHP(), P.mut > 0 ? '#ff5a4a' : '#b5423f');
+  bar(10, 10, 150, 11, P.hp / maxHP(), P.mut > 0 ? '#d8645a' : '#b5423f');
   txt('❤ ' + Math.max(0, Math.round(P.hp)) + '/' + Math.round(maxHP()), 14, 16, 10, '#ffd9d0');
   bar(10, 25, 150, 8, P.mp / maxMP(), '#4a86c8');
   txt('✨ ' + Math.round(P.mp), 14, 29, 9, '#cfe3ff');
@@ -4496,14 +4496,14 @@ function drawHUD() {
      ровно тут, и без этой пометки непонятно, почему мёд вдруг берёт вполсилы
      и почему отрава стоит на месте. */
   txt('☠ токсичность ' + Math.round(P.tox) + (P.toxLock > 0 ? ' · 🩸 мутаген ' + Math.ceil(P.toxLock) + 'с' : ''),
-      14, 41, 8, P.toxLock > 0 ? '#ff8a6a' : P.tox > 70 ? '#c8ff8a' : '#98a2ae');
+      14, 41, 8, P.toxLock > 0 ? '#e69a94' : P.tox > 70 ? '#94e6b6' : '#98a2ae');
 
   // мутация
   const mx = 174;
   /* Полоса показывает ступень: пока идёт первая — ещё и зовёт сорваться,
      иначе про вторую можно за весь поход не узнать. */
   bar(mx, 10, 92, 9, P.mut > 0 ? P.mut / (P.mut2 > 0 ? MUT2_TIME : 10) : P.mutGauge / 100,
-      P.mut2 > 0 ? '#ff1a1a' : P.mut > 0 ? '#ff3a3a' : '#8a2a30');
+      P.mut2 > 0 ? '#d8645a' : P.mut > 0 ? '#d8645a' : '#8a2a30');
   txt(P.mut2 > 0 ? '🩸 ЗВЕРЬ ' + P.mut.toFixed(1) + 'с'
     : P.mut > 0 ? '🩸 ЕБАТНЯ ' + P.mut.toFixed(1) + 'с · R дальше'
     : '🩸 ' + Math.round(P.mutGauge) + '/100 (R)',
@@ -4521,20 +4521,20 @@ function drawHUD() {
 
   // золото, вес, болты
   const rx = CW - 10;
-  txt('💰 ' + gold, rx, 15, 12, '#f2b134', 'right');
+  txt('💰 ' + gold, rx, 15, 12, '#d8aa5a', 'right');
   // ступень и опыт: без них прокачка была бы невидимой
   {
     const need = xpNeed(P.lvl), w = 92, bx2 = 174, by2 = 46;
-    bar(bx2, by2, w, 6, clamp(P.xp / need, 0, 1), '#c9a227');
+    bar(bx2, by2, w, 6, clamp(P.xp / need, 0, 1), '#be892d');
     txt('⭐ ' + P.lvl + (P.sp > 0 ? '  ·  очков ' + P.sp + ' (K)' : ''), bx2 + 2, by2 + 3, 8,
-        P.sp > 0 ? '#f2b134' : '#98a2ae');
+        P.sp > 0 ? '#d8aa5a' : '#98a2ae');
   }
   const ld = loadState();                              // не L: L() — это место, и оно тут же рядом
   txt('⚖ ' + carried().toFixed(1) + ' / ' + capacity() + ' кг', rx, 29, 10,
-    ld.lvl === 0 ? '#98a2ae' : ld.lvl === 1 ? '#ffb43a' : '#ff5a4a', 'right');
+    ld.lvl === 0 ? '#98a2ae' : ld.lvl === 1 ? '#d8aa5a' : '#d8645a', 'right');
   // болты: важно не «сколько всего», а сколько ТЕХ, что сейчас в жёлобе
   const bsel = STUFF[boltInfo()], bhave = countStack(boltInfo());
-  txt(bsel.ico + ' ' + bsel.n.toLowerCase() + ': ' + bhave, rx, 41, 9, bhave ? '#98a2ae' : '#ff7a6a', 'right');
+  txt(bsel.ico + ' ' + bsel.n.toLowerCase() + ': ' + bhave, rx, 41, 9, bhave ? '#98a2ae' : '#e69a94', 'right');
 
   // где ты и что делаешь. Место читается по ногам, а не по фазе игры
   const here = L().ico + ' ' + L().n;
@@ -4555,7 +4555,7 @@ function drawHUD() {
       if (lx2 + w2 > CW - 10) break;
       ctx.fillStyle = now ? 'rgba(96,78,36,.55)' : 'rgba(30,28,24,.55)';
       ctx.fillRect(lx2 - 4, 43, w2, 14);
-      txt(s2, lx2, 50, 10, now ? '#f2d59a' : '#98a2ae');
+      txt(s2, lx2, 50, 10, now ? '#e6c894' : '#98a2ae');
       lx2 += w2 + 4;
     }
   } else {
@@ -4600,9 +4600,9 @@ function drawHUD() {
       why + ' · клавиша ' + (i + 1);
     ctx.fillStyle = ready ? 'rgba(60,80,110,.55)' : 'rgba(35,32,28,.9)';
     ctx.fillRect(x, y, w, h);
-    ctx.strokeStyle = ready ? '#6aa6e8' : 'rgba(255,255,255,.1)'; ctx.lineWidth = 1; ctx.strokeRect(x + .5, y + .5, w - 1, h - 1);
+    ctx.strokeStyle = ready ? '#5a84d8' : 'rgba(255,255,255,.1)'; ctx.lineWidth = 1; ctx.strokeRect(x + .5, y + .5, w - 1, h - 1);
     txt(clipText(R.ico + ' ' + R.n, w - 8, 10), x + 4, y + 10, 10, ready ? '#cfe3ff' : '#6c7683');
-    txt(clipText((i + 1) + ' · ' + cost + '✨', w - 8, 9), x + 4, y + 22, 9, cost < R.mp ? '#7fd6ff' : '#98a2ae');
+    txt(clipText((i + 1) + ' · ' + cost + '✨', w - 8, 9), x + 4, y + 22, 9, cost < R.mp ? '#94d0e6' : '#98a2ae');
     if (P.runeCd[i] > 0) { ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(x, y, w, h * clamp(P.runeCd[i] / R.cd, 0, 1)); }
   });
 
@@ -4617,9 +4617,9 @@ function drawHUD() {
       : '🏹 Арбалета нет — купи в лавке: ⚒ верстак (U) → «Лавка» → «Арбалеты»';
     ctx.fillStyle = ready ? 'rgba(80,70,40,.55)' : 'rgba(35,32,28,.9)';
     ctx.fillRect(x, y, w, h);
-    ctx.strokeStyle = ready ? '#c9a227' : 'rgba(255,255,255,.1)'; ctx.strokeRect(x + .5, y + .5, w - 1, h - 1);
-    txt(clipText(X ? X.ico + ' ' + X.sn : '🏹 нет', w - 8, 10), x + 4, y + 10, 10, ready ? '#f2d59a' : '#6c7683');
-    txt(clipText(X ? 'ПКМ · взвод ' + X.cd.toFixed(2) : 'купи в лавке', w - 8, 8), x + 4, y + 22, 8, ready ? '#98a2ae' : '#ff7a6a');
+    ctx.strokeStyle = ready ? '#be892d' : 'rgba(255,255,255,.1)'; ctx.strokeRect(x + .5, y + .5, w - 1, h - 1);
+    txt(clipText(X ? X.ico + ' ' + X.sn : '🏹 нет', w - 8, 10), x + 4, y + 10, 10, ready ? '#e6c894' : '#6c7683');
+    txt(clipText(X ? 'ПКМ · взвод ' + X.cd.toFixed(2) : 'купи в лавке', w - 8, 8), x + 4, y + 22, 8, ready ? '#98a2ae' : '#e69a94');
     if (P.boltCd > 0 && X) { ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(x, y, w, h * clamp(P.boltCd / X.cd, 0, 1)); }
   }
 
@@ -4632,7 +4632,7 @@ function drawHUD() {
     ctx.fillRect(x, y, w, h);
     ctx.strokeStyle = bhave ? '#8a9ad8' : 'rgba(255,255,255,.1)'; ctx.strokeRect(x + .5, y + .5, w - 1, h - 1);
     txt(bsel.ico, x + w / 2, y + 11, 13, bhave ? '#dfe4ff' : '#6c7683', 'center');
-    txt('B ×' + bhave, x + w / 2, y + 23, 8, bhave ? '#98a2ae' : '#ff7a6a', 'center');
+    txt('B ×' + bhave, x + w / 2, y + 23, 8, bhave ? '#98a2ae' : '#e69a94', 'center');
   }
 
   // МАСЛО на клинок, что сейчас в руке
@@ -4665,9 +4665,9 @@ function drawHUD() {
       : P.mut > 0
       ? '🩸 СОРВАТЬСЯ ДАЛЬШЕ (R): урон втрое и кровь лечит вдвое, но знаки и зелья отрезаны, а отрава уйдёт на предел и осядет не скоро'
       : '🩸 Кровавая ебатня — копится с убийств. Урон вдвое и чужая кровь лечит, но и по тебе бьёт больнее · клавиша R';
-    ctx.fillStyle = P.mut2 > 0 ? 'rgba(190,20,20,.75)' : P.mut > 0 ? 'rgba(140,30,30,.6)' : ready ? 'rgba(110,40,40,.55)' : 'rgba(35,32,28,.9)';
+    ctx.fillStyle = P.mut2 > 0 ? 'rgba(190,57,45,.75)' : P.mut > 0 ? 'rgba(140,30,30,.6)' : ready ? 'rgba(110,40,40,.55)' : 'rgba(35,32,28,.9)';
     ctx.fillRect(x, y, w, h);
-    ctx.strokeStyle = ready ? '#ff6a5a' : 'rgba(255,255,255,.1)'; ctx.strokeRect(x + .5, y + .5, w - 1, h - 1);
+    ctx.strokeStyle = ready ? '#d8645a' : 'rgba(255,255,255,.1)'; ctx.strokeRect(x + .5, y + .5, w - 1, h - 1);
     txt('🩸 R', x + 4, y + 10, 10, ready ? '#ffb0a8' : '#6c7683');
     txt(clipText(P.mut2 > 0 ? 'ЗВЕРЬ ' + P.mut.toFixed(1) : P.mut > 0 ? P.mut.toFixed(1) + 'с · R!' : Math.round(P.mutGauge) + '/100', w - 8, 8),
         x + 4, y + 22, 8, ready ? '#ffb0a8' : '#98a2ae');
@@ -4685,9 +4685,9 @@ function drawHUD() {
       if (P.potSel === id && have) drink(id); else P.potSel = id;   // повторный клик — выпить
     } });
     if (hov(px2, py2, pw, 20)) hint = Pt.ico + ' ' + Pt.n + ' — ' + Pt.desc + ' · токсичность ' + (Pt.tox > 0 ? '+' : '') + Pt.tox;
-    ctx.fillStyle = sel ? 'rgba(201,162,39,.22)' : 'rgba(35,32,28,.9)';
+    ctx.fillStyle = sel ? 'rgba(190,137,45,.22)' : 'rgba(35,32,28,.9)';
     ctx.fillRect(px2, py2, pw, 20);
-    ctx.strokeStyle = sel ? '#c9a227' : 'rgba(255,255,255,.08)'; ctx.strokeRect(px2 + .5, py2 + .5, pw - 1, 19);
+    ctx.strokeStyle = sel ? '#be892d' : 'rgba(255,255,255,.08)'; ctx.strokeRect(px2 + .5, py2 + .5, pw - 1, 19);
     txt(Pt.ico + ' ' + Pt.n, px2 + 4, py2 + 10, 9, have ? '#e6ebf2' : '#5a616b');
     txt('×' + have, px2 + pw - 5, py2 + 10, 9, have ? '#7fd6a0' : '#5a616b', 'right');
   });
@@ -4708,7 +4708,7 @@ function drawHUD() {
      Место под второй ряд есть: пояс зелий кончается на by+60, а холст на
      by+84. Короткая подсказка при этом остаётся ровно там, где стояла. */
   const hintLines = wrapText(hint, CW - 20, 9, 2);
-  hintLines.forEach((l, i) => txt(l, 10, by + (hintLines.length > 1 ? 67 + i * 10 : 70), 9, '#c9a227'));
+  hintLines.forEach((l, i) => txt(l, 10, by + (hintLines.length > 1 ? 67 + i * 10 : 70), 9, '#be892d'));
 
   // Сообщение — ВНУТРИ поля, над поясом: снаружи оно ложилось прямо
   // на кнопки рун и срезало им верхушки.
@@ -4718,7 +4718,7 @@ function drawHUD() {
     const lines = wrapText(msg, WW - 16, 10, 2);
     const h = 6 + lines.length * 13, y0 = WY1 - 2 - h;
     ctx.fillStyle = 'rgba(0,0,0,.66)'; ctx.fillRect(WX0, y0, WW, h);
-    lines.forEach((l, i) => txt(l, CW / 2, y0 + h / 2 - (lines.length - 1) * 6.5 + i * 13, 10, '#f2d59a', 'center'));
+    lines.forEach((l, i) => txt(l, CW / 2, y0 + h / 2 - (lines.length - 1) * 6.5 + i * 13, 10, '#e6c894', 'center'));
     ctx.globalAlpha = 1;
   }
 }
@@ -4763,7 +4763,7 @@ function panelBox(title, maxW) {
   ctx.fillStyle = 'rgba(8,7,6,.93)'; ctx.fillRect(0, 0, CW, CH);   // затемняем ВЕСЬ экран
   panelStart(maxW);
   ctx.fillStyle = 'rgba(29,26,22,.98)'; ctx.fillRect(14, 24, CW - 28, CH - 60);
-  ctx.strokeStyle = 'rgba(201,162,39,.35)'; ctx.lineWidth = 1; ctx.strokeRect(14.5, 24.5, CW - 29, CH - 61);
+  ctx.strokeStyle = 'rgba(190,137,45,.35)'; ctx.lineWidth = 1; ctx.strokeRect(14.5, 24.5, CW - 29, CH - 61);
   txt(title, CW / 2, 40, 14, '#e8d9a8', 'center');
   txt('вес ' + carried().toFixed(1) + '/' + capacity() + ' кг   ·   💰 ' + gold, CW / 2, 56, 10, '#98a2ae', 'center');
   const bw = 92;
@@ -4778,7 +4778,7 @@ function btn(x, y, w, h, label, fn, col, dim, why) {
                                    : () => { snd('ui'); fn(); } });
   ctx.fillStyle = dim ? 'rgba(40,36,30,.7)' : (col || 'rgba(60,52,40,.95)');
   ctx.fillRect(x, y, w, h);
-  ctx.strokeStyle = dim ? 'rgba(255,255,255,.06)' : 'rgba(201,162,39,.4)'; ctx.lineWidth = 1;
+  ctx.strokeStyle = dim ? 'rgba(255,255,255,.06)' : 'rgba(190,137,45,.4)'; ctx.lineWidth = 1;
   ctx.strokeRect(x + .5, y + .5, w - 1, h - 1);
   txt(label, x + w / 2, y + h / 2, 9, dim ? '#6c7683' : '#e6ebf2', 'center');
 }
@@ -4838,7 +4838,7 @@ function drawBag() {
                    ARMOR[P.armor.type].school ? ARMOR[P.armor.type].c : '#7fd6a0');
   const B = P.bag ? BAGS[P.bag] : BAGS.none;
   txt(B.ico + ' ' + B.n + ' — предел ' + capacity() + ' кг' + (P.bag ? ' (сам весит ' + B.w + ')' : ' · рюкзаки продаются в лавке'),
-      CW - 24, y - 6, 9, P.bag ? '#f2d59a' : '#6c7683', 'right');
+      CW - 24, y - 6, 9, P.bag ? '#e6c894' : '#6c7683', 'right');
   y += 6;
   const top = y + 14, bottom = CH - 56;
   const v = listView(inv.length, top, bottom, 24, bagScroll);
@@ -4875,7 +4875,7 @@ function drawBag() {
     const trackH = v.vis * 24;
     ctx.fillStyle = 'rgba(255,255,255,.06)'; ctx.fillRect(CW - 22, top, 4, trackH);
     const thumb = Math.max(14, trackH * v.vis / inv.length);
-    ctx.fillStyle = 'rgba(201,162,39,.6)';
+    ctx.fillStyle = 'rgba(190,137,45,.6)';
     ctx.fillRect(CW - 22, top + (trackH - thumb) * (v.from / v.max), 4, thumb);
   }
   panelFooter('I или ✕ — закрыть · надетое в сумке не лежит, но вес считается');
@@ -4890,7 +4890,7 @@ function panelFooter(hint) {
      подрезка честная, с многоточием на конце, а не обрубок с обеих сторон. */
   if (msgT > 0) {
     ctx.fillStyle = 'rgba(60,48,20,.75)'; ctx.fillRect(24, CH - 54, CW - 48, 19);
-    txt(clipText(msg, CW - 64, 9), CW / 2, CH - 44, 9, '#f2d59a', 'center');
+    txt(clipText(msg, CW - 64, 9), CW / 2, CH - 44, 9, '#e6c894', 'center');
   } else {
     txt(clipText(hint, CW - 64, 9), CW / 2, CH - 44, 9, '#6c7683', 'center');
   }
@@ -4906,17 +4906,17 @@ function drawBoard() {
   const q = storyNow();
   let y = 68;
   ctx.fillStyle = 'rgba(38,30,18,.92)'; ctx.fillRect(24, y, CW - 48, q ? 92 : 34);
-  ctx.strokeStyle = 'rgba(242,177,52,.55)'; ctx.lineWidth = 1; ctx.strokeRect(24.5, y + .5, CW - 49, (q ? 92 : 34) - 1);
+  ctx.strokeStyle = 'rgba(216,170,90,.55)'; ctx.lineWidth = 1; ctx.strokeRect(24.5, y + .5, CW - 49, (q ? 92 : 34) - 1);
   if (!q) {
-    txt('📖 Сюжет пройден. Остались работы с доски.', CW / 2, y + 17, 10, '#c9a227', 'center');
+    txt('📖 Сюжет пройден. Остались работы с доски.', CW / 2, y + 17, 10, '#be892d', 'center');
     y += 42;
   } else {
     const S = LOCS[q.loc] || LOCS.woods, sp = SPOTS[q.spot];
-    txt('📖 СЮЖЕТ ' + (storyIdx + 1) + '/' + STORY.length + ':  ' + q.t, 34, y + 14, 11, '#f2d59a');
-    txt('💰 ' + q.gold, CW - 34, y + 14, 11, '#f2b134', 'right');
+    txt('📖 СЮЖЕТ ' + (storyIdx + 1) + '/' + STORY.length + ':  ' + q.t, 34, y + 14, 11, '#e6c894');
+    txt('💰 ' + q.gold, CW - 34, y + 14, 11, '#d8aa5a', 'right');
     for (let i = 0; i < q.brief.length && i < 3; i++) txt(q.brief[i], 34, y + 30 + i * 12, 9, '#c2cad2');
     txt((sp ? sp.ico + ' ' + sp.n + '  ·  ' : '') + S.ico + ' ' + S.n + '  ·  целей ' + q.n +
-        (q.unique ? '  ·  ' + q.unique.name : ''), 34, y + 72, 9, '#c9a227');
+        (q.unique ? '  ·  ' + q.unique.name : ''), 34, y + 72, 9, '#be892d');
     // кнопку гасим по той же правде, что и у работ с доски: доска теперь
     // открывается и с полными руками, значит отказ должен быть виден на ней
     const busy = taken.some(c => c.story), full = taken.length >= MAX_JOBS;
@@ -4928,17 +4928,17 @@ function drawBoard() {
   }
   txt(taken.length ? 'Взято работ: ' + taken.length + ' из ' + MAX_JOBS + ' — ' + taken.map(c => c.t).join(', ')
                    : 'Работы с доски. Можно взять до трёх разом.',
-      CW / 2, y, 9, taken.length >= MAX_JOBS ? '#ff7a6a' : '#98a2ae', 'center');
+      CW / 2, y, 9, taken.length >= MAX_JOBS ? '#e69a94' : '#98a2ae', 'center');
   y += 12;
   for (const o of offers) {
     const S = LOCS[o.loc] || LOCS.woods;
     const fam = o.fam === 'monster' ? '⚔ серебро' : o.fam === 'mortal' ? '🗡 сталь' : '⚔🗡 оба меча';
-    const famC = o.fam === 'monster' ? '#a8c6e8' : o.fam === 'mortal' ? '#e8a05a' : '#e8d9a8';
+    const famC = o.fam === 'monster' ? '#a8c6e8' : o.fam === 'mortal' ? '#d8aa5a' : '#e8d9a8';
     ctx.fillStyle = 'rgba(20,18,15,.85)'; ctx.fillRect(24, y, CW - 48, 74);
-    ctx.strokeStyle = 'rgba(201,162,39,.28)'; ctx.lineWidth = 1; ctx.strokeRect(24.5, y + .5, CW - 49, 73);
+    ctx.strokeStyle = 'rgba(190,137,45,.28)'; ctx.lineWidth = 1; ctx.strokeRect(24.5, y + .5, CW - 49, 73);
     txt(o.t, 34, y + 14, 12, '#e8d9a8');
-    txt('💰 ' + o.gold, CW - 34, y + 14, 12, '#f2b134', 'right');
-    txt(S.ico + ' ' + S.n + ' · ' + S.note, 34, y + 30, 9, '#c9a227');
+    txt('💰 ' + o.gold, CW - 34, y + 14, 12, '#d8aa5a', 'right');
+    txt(S.ico + ' ' + S.n + ' · ' + S.note, 34, y + 30, 9, '#be892d');
     // кто там водится — иконками, чтобы не читать, а видеть
     const who = [];
     for (const t of o.pool) if (who.indexOf(t) < 0) who.push(t);
@@ -4996,7 +4996,7 @@ function drawMap() {
   if (!miniCv) bakeMini();
   ctx.imageSmoothingEnabled = true;
   ctx.drawImage(miniCv, 0, 0, TW, TH, x, y, w, h);
-  ctx.strokeStyle = 'rgba(201,162,39,.4)'; ctx.lineWidth = 1; ctx.strokeRect(x - .5, y - .5, w + 1, h + 1);
+  ctx.strokeStyle = 'rgba(190,137,45,.4)'; ctx.lineWidth = 1; ctx.strokeRect(x - .5, y - .5, w + 1, h + 1);
 
   // тропы
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
@@ -5010,10 +5010,10 @@ function drawMap() {
 
   // поселения: где живут люди — их видно раньше приметных мест
   for (const t of TOWNS) {
-    ctx.fillStyle = 'rgba(201,162,39,.14)';
+    ctx.fillStyle = 'rgba(190,137,45,.14)';
     ctx.beginPath(); ctx.arc(px(t.x), py(t.y), t.r * k, 0, 6.3); ctx.fill();
     drawIco(t.ico, 14, px(t.x), py(t.y));
-    txt(t.n, px(t.x), py(t.y) + 13, 9, '#f2d59a', 'center');
+    txt(t.n, px(t.x), py(t.y) + 13, 9, '#e6c894', 'center');
   }
   // приметные места
   for (const key in SPOTS) {
@@ -5035,27 +5035,27 @@ function drawMap() {
     txt(used ? 'пусто' : p.n, px(p.x), py(p.y) + 12, 8, used ? '#6c7683' : '#c9a0ff', 'center');
   }
   // круг лагеря — куда нечисть не заходит
-  ctx.strokeStyle = 'rgba(201,162,39,.35)'; ctx.setLineDash([4, 4]); ctx.lineWidth = 1;
+  ctx.strokeStyle = 'rgba(190,137,45,.35)'; ctx.setLineDash([4, 4]); ctx.lineWidth = 1;
   ctx.beginPath(); ctx.arc(px(SPOTS.camp.x), py(SPOTS.camp.y), CAMP_R * k, 0, 6.3); ctx.stroke();
   ctx.setLineDash([]);
 
   // цель: сюжетное место или край работы
   const aim = questGoal();
   if (aim) {
-    ctx.strokeStyle = '#ff7a5a'; ctx.lineWidth = 2;
+    ctx.strokeStyle = '#d8645a'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(px(aim.mx), py(aim.my), 10, 0, 6.3); ctx.stroke();
-    txt('цель: ' + aim.n, px(aim.mx), py(aim.my) - 16, 9, '#ff9a7a', 'center');
+    txt('цель: ' + aim.n, px(aim.mx), py(aim.my) - 16, 9, '#e69a94', 'center');
   }
   // ты и куда смотришь
-  ctx.fillStyle = '#f2d59a';
+  ctx.fillStyle = '#e6c894';
   ctx.beginPath(); ctx.arc(px(P.x), py(P.y), 4, 0, 6.3); ctx.fill();
-  ctx.strokeStyle = '#f2d59a'; ctx.lineWidth = 2;
+  ctx.strokeStyle = '#e6c894'; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.moveTo(px(P.x), py(P.y));
   ctx.lineTo(px(P.x) + Math.cos(P.face) * 11, py(P.y) + Math.sin(P.face) * 11); ctx.stroke();
 
   // где ты сейчас и что тут за место
   const S = L();
-  txt('Ты в ' + S.ico + ' ' + S.n.toLowerCase() + ' — ' + S.note, CW / 2, 74, 10, '#c9a227', 'center');
+  txt('Ты в ' + S.ico + ' ' + S.n.toLowerCase() + ' — ' + S.note, CW / 2, 74, 10, '#be892d', 'center');
 
   // легенда красками краёв — все пятнадцать, разложены выше (см. mapLegend)
   let ly = CH - 62 - (leg.length - 1) * LEG_ROW;
@@ -5065,7 +5065,7 @@ function drawMap() {
       ctx.fillStyle = G.ground; ctx.fillRect(c.x, ly - 5, 10, 10);
       ctx.strokeStyle = 'rgba(255,255,255,.15)'; ctx.lineWidth = 1; ctx.strokeRect(c.x + .5, ly - 4.5, 9, 9);
       // край, на котором стоишь, отбиваем — иначе в пятнадцати красках себя не найти
-      txt(G.ico + ' ' + G.n, c.x + 14, ly, 9, c.id === curLoc ? '#f2d59a' : '#98a2ae');
+      txt(G.ico + ' ' + G.n, c.x + 14, ly, 9, c.id === curLoc ? '#e6c894' : '#98a2ae');
     }
     ly += LEG_ROW;
   }
@@ -5109,8 +5109,8 @@ function drawBench() {
     ctx.fillStyle = inBag ? 'rgba(20,18,15,.75)' : 'rgba(34,30,22,.85)';
     ctx.fillRect(24, y, CW - 48, 26);
     // надетое отбиваем золотой полосой: глаз находит его раньше, чем читает
-    if (!inBag) { ctx.fillStyle = 'rgba(201,162,39,.7)'; ctx.fillRect(24, y, 3, 26); }
-    const note = inBag ? compareNote(it) : { t: 'на тебе', c: '#c9a227' };
+    if (!inBag) { ctx.fillStyle = 'rgba(190,137,45,.7)'; ctx.fillRect(24, y, 3, 26); }
+    const note = inBag ? compareNote(it) : { t: 'на тебе', c: '#be892d' };
     const noteX = CW - 282;
     ctx.font = '9px Segoe UI';
     const room = noteX - 36 - ctx.measureText(note.t).width;
@@ -5123,8 +5123,8 @@ function drawBench() {
     // кнопка мертва — денег вроде полно, а не хватает руды.
     if (maxed) txt('выше некуда', 30, y + 19, 8, '#6c7683');
     else {
-      txt('⚒ ' + c.gold + '💰', 30, y + 19, 8, мало.gold ? '#ff7a6a' : '#98a2ae');
-      txt('+ ' + c.mat + STUFF[c.matId].ico, 76, y + 19, 8, мало.mat ? '#ff7a6a' : '#98a2ae');
+      txt('⚒ ' + c.gold + '💰', 30, y + 19, 8, мало.gold ? '#e69a94' : '#98a2ae');
+      txt('+ ' + c.mat + STUFF[c.matId].ico, 76, y + 19, 8, мало.mat ? '#e69a94' : '#98a2ae');
       txt('(есть ' + Math.floor(gold) + '💰, ' + countStack(c.matId) + STUFF[c.matId].ico + ')', 122, y + 19, 8, '#6c7683');
     }
     const нетДенегИлиРуды = maxed || мало.gold || мало.mat;
@@ -5211,7 +5211,7 @@ function drawCard(c, x, y, w, h) {
   const hov = mouse.x >= x && mouse.x <= x + w && mouse.y >= y && mouse.y <= y + h;
   ctx.fillStyle = c.mine ? 'rgba(40,58,36,.9)' : hov && !dim ? 'rgba(52,45,32,.95)' : 'rgba(22,20,17,.9)';
   ctx.fillRect(x, y, w, h);
-  ctx.strokeStyle = c.mine ? 'rgba(127,214,160,.55)' : poor ? 'rgba(255,255,255,.07)' : 'rgba(201,162,39,.35)';
+  ctx.strokeStyle = c.mine ? 'rgba(127,214,160,.55)' : poor ? 'rgba(255,255,255,.07)' : 'rgba(190,137,45,.35)';
   ctx.lineWidth = 1; ctx.strokeRect(x + .5, y + .5, w - 1, h - 1);
   ctx.font = '17px serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
   ctx.fillText(c.ico, x + 7, y + 15);
@@ -5222,9 +5222,9 @@ function drawCard(c, x, y, w, h) {
   ctx.fillStyle = c.mine ? 'rgba(60,90,55,.6)' : poor ? 'rgba(40,30,28,.7)' : 'rgba(70,58,30,.75)';
   ctx.fillRect(x + 1, y + h - 17, w - 2, 16);
   txt(c.mine ? '✓ уже твоё' : c.price + '💰', x + 7, y + h - 9, 10,
-      c.mine ? '#9ad9a0' : poor ? '#ff7a6a' : '#f2d59a');
+      c.mine ? '#9ad9a0' : poor ? '#e69a94' : '#e6c894');
   if (c.have != null) txt('в сумке ' + c.have, x + w - 7, y + h - 9, 9, '#98a2ae', 'right');
-  else if (!c.mine) txt(poor ? 'не хватает' : 'купить', x + w - 7, y + h - 9, 9, poor ? '#ff7a6a' : '#c9a227', 'right');
+  else if (!c.mine) txt(poor ? 'не хватает' : 'купить', x + w - 7, y + h - 9, 9, poor ? '#e69a94' : '#be892d', 'right');
   uiHit.push({ x, y, w, h, fn: dim
     ? () => { snd('deny'); message(c.mine ? 'Это уже твоё' : 'Нужно ' + c.price + ' крон, у тебя ' + Math.floor(gold)); }
     : () => { snd('ui'); c.buy(); } });
@@ -5245,7 +5245,7 @@ function drawTrade(vendor) {
   const ord = Object.entries(K.mul).sort((a, b) => a[1] - b[1]);
   txt('дёшево: ' + RU[ord[0][0]] + ' ×' + ord[0][1].toFixed(2) +
       '   ·   дорого: ' + RU[ord[ord.length - 1][0]] + ' ×' + ord[ord.length - 1][1].toFixed(2),
-      CW - 24, 109, 9, '#c9a227', 'right');
+      CW - 24, 109, 9, '#be892d', 'right');
 
   let tx = 24;
   const tw = Math.min(96, Math.floor((CW - 48 - 5 * (tabs.length - 1)) / tabs.length));
@@ -5288,7 +5288,7 @@ function drawTrade(vendor) {
 function drawSellList(y) {
   const H = goodInfo(hotGood);
   txt('Скупщик берёт за 60% цены. Сегодня в цене: ' + H.ico + ' ' + H.n + ' — платит полную.',
-      24, y, 9, '#f2b134');
+      24, y, 9, '#d8aa5a');
   y += 14;
   const rowsAll = inv.filter(i => i.k === 'stack').concat(inv.filter(i => i.k !== 'stack'));
   const v = listView(rowsAll.length, y + 12, CH - 70, 24, benchScroll);
@@ -5301,12 +5301,12 @@ function drawSellList(y) {
     const hot = isStack && it.id === hotGood;
     ctx.fillStyle = hot ? 'rgba(50,42,20,.85)' : 'rgba(20,18,15,.75)';
     ctx.fillRect(24, y, CW - 48, 22);
-    if (hot) { ctx.fillStyle = 'rgba(242,177,52,.75)'; ctx.fillRect(24, y, 3, 22); }
+    if (hot) { ctx.fillStyle = 'rgba(216,170,90,.75)'; ctx.fillRect(24, y, 3, 22); }
     txt(clipText(itemIco(it) + '  ' + fullName(it), CW - 240, 10), 32, y + 11, 10,
-        hot ? '#f2d59a' : isStack ? '#e6ebf2' : TIERS[it.tier].c);
+        hot ? '#e6c894' : isStack ? '#e6ebf2' : TIERS[it.tier].c);
     if (isStack) {
       const one = unitPrice(it.id), all = stackPrice(it.id, it.n);
-      txt(one + '💰 за штуку', CW - 190, y + 11, 9, hot ? '#f2b134' : '#98a2ae', 'right');
+      txt(one + '💰 за штуку', CW - 190, y + 11, 9, hot ? '#d8aa5a' : '#98a2ae', 'right');
       txt(itemWeight(it).toFixed(1) + ' кг', CW - 128, y + 11, 9, '#6c7683', 'right');
       btn(CW - 120, y + 3, 44, 16, '×1', () => sellStack(it.id, 1), 'rgba(70,60,30,.9)');
       btn(CW - 72, y + 3, 48, 16, 'всё ' + all + '💰', () => sellStack(it.id, it.n), 'rgba(70,60,30,.9)');
@@ -5389,7 +5389,7 @@ function drawLook() {
 
   ctx.fillStyle = 'rgba(14,13,11,.9)';
   ctx.fillRect(A.box.x, A.box.y, A.box.w, A.box.h);
-  ctx.strokeStyle = 'rgba(201,162,39,.25)'; ctx.lineWidth = 1;
+  ctx.strokeStyle = 'rgba(190,137,45,.25)'; ctx.lineWidth = 1;
   ctx.strokeRect(A.box.x + .5, A.box.y + .5, A.box.w - 1, A.box.h - 1);
   /* Увеличиваем ОТНОСИТЕЛЬНО середины рамки: ctx.scale тянет от начала
      координат холста, и без этих двух сдвигов фигура уехала бы вчетверо
@@ -5428,8 +5428,8 @@ function drawSkills() {
   const need = xpNeed(P.lvl);
   txt('Ступень ' + P.lvl + '   ·   опыт ' + P.xp + ' / ' + need, 24, 96, 11, '#e8d9a8');
   txt(P.sp > 0 ? '⭐ очков навыка: ' + P.sp : 'очков нет — бей тварей и закрывай работы',
-      CW - 24, 96, 11, P.sp > 0 ? '#f2b134' : '#6c7683', 'right');
-  bar(24, 104, CW - 48, 7, clamp(P.xp / need, 0, 1), '#c9a227');
+      CW - 24, 96, 11, P.sp > 0 ? '#d8aa5a' : '#6c7683', 'right');
+  bar(24, 104, CW - 48, 7, clamp(P.xp / need, 0, 1), '#be892d');
   // откуда ещё берутся очки, кроме ступеней
   txt('🔮 места силы: ' + powerUsed.size + ' из ' + POWER.length +
       (powerUsed.size < POWER.length ? ' — каждый камень даёт очко, но лишь однажды' : ' — все обойдены'),
@@ -5438,20 +5438,20 @@ function drawSkills() {
   const colW = Math.floor((CW - 48 - 12) / 3);
   BRANCHES.forEach((br, bi) => {
     const x = 24 + bi * (colW + 6);
-    txt(br, x + colW / 2, 128, 11, '#f2d59a', 'center');
+    txt(br, x + colW / 2, 128, 11, '#e6c894', 'center');
     let y = 140;
     for (const k of SKILL_KEYS) {
       const S = SKILLS[k]; if (S.br !== br) continue;
       const lv = sk(k), maxed = lv >= S.max, can = P.sp > 0 && !maxed;
       ctx.fillStyle = lv > 0 ? 'rgba(40,44,32,.9)' : 'rgba(20,18,15,.8)';
       ctx.fillRect(x, y, colW, 52);
-      ctx.strokeStyle = maxed ? 'rgba(242,177,52,.6)' : lv > 0 ? 'rgba(201,162,39,.35)' : 'rgba(255,255,255,.08)';
+      ctx.strokeStyle = maxed ? 'rgba(216,170,90,.6)' : lv > 0 ? 'rgba(190,137,45,.35)' : 'rgba(255,255,255,.08)';
       ctx.lineWidth = 1; ctx.strokeRect(x + .5, y + .5, colW - 1, 51);
       txt(clipText(S.ico + ' ' + S.n, colW - 40, 10), x + 5, y + 12, 10, lv > 0 ? '#e8d9a8' : '#98a2ae');
-      txt(lv + '/' + S.max, x + colW - 5, y + 12, 10, maxed ? '#f2b134' : '#98a2ae', 'right');
+      txt(lv + '/' + S.max, x + colW - 5, y + 12, 10, maxed ? '#d8aa5a' : '#98a2ae', 'right');
       // полоска вложенного: видно с одного взгляда, куда уже сыпал
       for (let i = 0; i < S.max; i++) {
-        ctx.fillStyle = i < lv ? '#c9a227' : 'rgba(255,255,255,.10)';
+        ctx.fillStyle = i < lv ? '#be892d' : 'rgba(255,255,255,.10)';
         ctx.fillRect(x + 5 + i * 11, y + 18, 9, 4);
       }
       txt(clipText(S.step, colW - 10, 8), x + 5, y + 32, 8, '#98a2ae');
@@ -5471,7 +5471,7 @@ function drawCraft() {
   panelBox('⚗ ВАРКА В ДОРОГЕ');
   txt('Котелок при себе — варить можно хоть посреди болота.', 24, 96, 10, '#98a2ae');
   txt('⚗ Травничество ' + sk('brew') + '/3   ·   ➶ Болторезка ' + sk('fletch') + '/3',
-      CW - 24, 96, 10, '#c9a227', 'right');
+      CW - 24, 96, 10, '#be892d', 'right');
   txt('🌿 травы ' + countStack('herb') + '   ⛏ руда ' + countStack('ore') + '   ✨ эссенции ' + countStack('essence'),
       24, 112, 10, '#e8d9a8');
 
@@ -5516,8 +5516,8 @@ function render() {
     ctx.fillRect(WX0, WY0, WW, WH);
   }
   if (P.biz > 0) {
-    ctx.fillStyle = 'rgba(220,180,60,.06)'; ctx.fillRect(WX0, WY0, WW, WH);
-    txt('💼 РЕЖИМ БИЗНЕСМЭНА: ' + P.biz.toFixed(1) + ' с · золото ×3 · ЛКМ — договор', CW / 2, WY0 + 12, 10, '#f2d59a', 'center');
+    ctx.fillStyle = 'rgba(216,170,90,.06)'; ctx.fillRect(WX0, WY0, WW, WH);
+    txt('💼 РЕЖИМ БИЗНЕСМЭНА: ' + P.biz.toFixed(1) + ' с · золото ×3 · ЛКМ — договор', CW / 2, WY0 + 12, 10, '#e6c894', 'center');
   }
 
   drawHUD();
@@ -5539,7 +5539,7 @@ function render() {
   }
   if (over) {
     ctx.fillStyle = 'rgba(20,6,6,.9)'; ctx.fillRect(0, 0, CW, CH);
-    txt('☠ ВЕДЬМАК ПАЛ', CW / 2, CH / 2 - 76, 28, '#ff6a4a', 'center');
+    txt('☠ ВЕДЬМАК ПАЛ', CW / 2, CH / 2 - 76, 28, '#d8645a', 'center');
     txt(cause, CW / 2, CH / 2 - 46, 12, '#e6ebf2', 'center');
     txt('Работа сорвана · за лечение отдано ' + downLost + ' крон', CW / 2, CH / 2 - 22, 12, '#c2cad2', 'center');
     txt('Снаряжение, сумка и сюжет (' + storyIdx + '/' + STORY.length + ') остаются при тебе',

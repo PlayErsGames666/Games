@@ -553,11 +553,11 @@ function damageObstacle(z, tx, ty){
   z.hitT = 0.85;
   const hp = (doorHp.get(i) || (t===WIN?WINDOW_HP:DOOR_HP)) - 1;
   doorHp.set(i, hp);
-  makeNoise(tx+0.5, ty+0.5, t===WIN?10:12, '#d9843b', 'z');
+  makeNoise(tx+0.5, ty+0.5, t===WIN?10:12, '#d8aa5a', 'z');
   if(hp<=0){
     tiles[i] = (t===WIN) ? BWIN : ODOOR;
     doorHp.delete(i); locked.delete(i);
-    makeNoise(tx+0.5, ty+0.5, 14, '#ff6b4a', 'z');
+    makeNoise(tx+0.5, ty+0.5, 14, '#d8645a', 'z');
     logMsg(t===WIN ? '🪟 Окно выбито…' : '🚪 Дверь выломана!');
   }
 }
@@ -754,7 +754,7 @@ function climb(tx,ty,t){
   if(solid(tAt(ax,ay))){ logMsg('За препятствием нет места'); return; }
   player.climb = { fx:player.x, fy:player.y, tx:ax+0.5, ty:ay+0.5, t:0 };
   player.stam -= 18;
-  if(t===WIN){ tiles[idx(tx,ty)] = BWIN; tileChanged(idx(tx,ty)); makeNoise(tx+0.5,ty+0.5,12,'#ffd166','player'); logMsg('🪟 Разбил окно — звон на весь двор!'); }
+  if(t===WIN){ tiles[idx(tx,ty)] = BWIN; tileChanged(idx(tx,ty)); makeNoise(tx+0.5,ty+0.5,12,'#e6c894','player'); logMsg('🪟 Разбил окно — звон на весь двор!'); }
   else makeNoise(tx+0.5,ty+0.5,5,'#cfd8e0','player');
   // неловкое приземление при усталости
   if(player.stam<12 && Math.random()<0.30) wound(Math.random()<0.5?'lleg':'rleg','fx');
@@ -806,7 +806,7 @@ function attack(){
       const dmg = w.breach ? 2 : 1;
       const hp = (doorHp.get(i)!=null ? doorHp.get(i) : base) - dmg;
       doorHp.set(i,hp);
-      makeNoise(f.x+0.5,f.y+0.5,15,'#ff9f1c','player');
+      makeNoise(f.x+0.5,f.y+0.5,15,'#d8aa5a','player');
       if(hp<=0){ tiles[i] = (t===WIN)?BWIN:ODOOR; locked.delete(i); doorHp.delete(i);
         logMsg(t===WIN?'🪟 Окно выбито':'🚪 Дверь выбита — тебя слышал весь квартал'); }
       else logMsg('💥 БАМ! Слышно далеко…');
@@ -853,7 +853,7 @@ function shoot(){
   }
   if(!hitAt) hitAt = { x, y };
   shots.push({ x0:player.x, y0:player.y, x1:hitAt.x, y1:hitAt.y, t:0 });
-  makeNoise(player.x, player.y, w.noise, '#ffd166', 'player');
+  makeNoise(player.x, player.y, w.noise, '#e6c894', 'player');
   logMsg('💥 ВЫСТРЕЛ — на звук идёт весь квартал');
   if(hitZ){ hitZ.hp -= w.dmg; if(hitZ.hp<=0) killZombie(hitZ); else { hitZ.state='chase'; hitZ.tx=player.x; hitZ.ty=player.y; hitZ.repath=0; } }
 }
@@ -1276,7 +1276,7 @@ function drawTile(x,y,sx,sy,t,bright){
   } else if(t===DOOR){
     ctx.fillStyle = '#6d4c26'; ctx.fillRect(sx+2,sy+2,T-4,T-4);
     ctx.fillStyle = '#d8c07a'; ctx.fillRect(sx+T-8,sy+T/2-2,4,4);
-    if(locked.has(idx(x,y))){ ctx.fillStyle='#e0b24a'; ctx.font='9px Segoe UI'; ctx.textAlign='center'; ctx.fillText('🔒',sx+T/2,sy+T/2+3); }
+    if(locked.has(idx(x,y))){ ctx.fillStyle='#d8aa5a'; ctx.font='9px Segoe UI'; ctx.textAlign='center'; ctx.fillText('🔒',sx+T/2,sy+T/2+3); }
     const hp = doorHp.get(idx(x,y));
     if(hp!=null && hp<DOOR_HP){ ctx.strokeStyle='rgba(0,0,0,.6)'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(sx+3,sy+4); ctx.lineTo(sx+T-6,sy+T-5); ctx.stroke(); }
   } else if(t===ODOOR){
@@ -1302,7 +1302,7 @@ function drawTile(x,y,sx,sy,t,bright){
     ctx.fillStyle = c && c.searched ? '#4d3d28' : '#8a6a3c'; ctx.fillRect(sx+2,sy+4,T-4,T-8);
     ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(sx+2,sy+T/2); ctx.lineTo(sx+T-2,sy+T/2); ctx.stroke();
-    if(c && !c.searched){ ctx.fillStyle = '#e8d9a0'; ctx.fillRect(sx+T/2-1,sy+T/2-1,2,2); }
+    if(c && !c.searched){ ctx.fillStyle = '#e6c894'; ctx.fillRect(sx+T/2-1,sy+T/2-1,2,2); }
   } else if(t===TREE){
     ctx.fillStyle = '#2b3a2c'; ctx.fillRect(sx,sy,T,T);
     ctx.fillStyle = '#1e3a22'; ctx.beginPath(); ctx.arc(sx+T/2,sy+T/2,T*0.46,0,6.3); ctx.fill();
@@ -1312,7 +1312,7 @@ function drawTile(x,y,sx,sy,t,bright){
     ctx.fillStyle = '#31343a'; ctx.fillRect(sx,sy,T,T);
     ctx.fillStyle = isExit ? '#b23a48' : '#4a4f57'; ctx.fillRect(sx+2,sy+1,T-4,T-2);
     ctx.fillStyle = '#8fb8cc'; ctx.fillRect(sx+4,sy+4,T-8,6); ctx.fillRect(sx+4,sy+T-10,T-8,6);
-    if(isExit){ ctx.fillStyle='#ffd166'; ctx.font='11px serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('🚗',sx+T/2,sy+T/2); }
+    if(isExit){ ctx.fillStyle='#e6c894'; ctx.font='11px serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('🚗',sx+T/2,sy+T/2); }
   } else if(t===FLOOR){
     ctx.strokeStyle = 'rgba(0,0,0,.12)'; ctx.lineWidth = 1; ctx.strokeRect(sx+0.5,sy+0.5,T-1,T-1);
   }
@@ -1347,7 +1347,7 @@ function drawZombie(z){
   ctx.lineTo(p.x+Math.cos(a+0.25)*13, p.y+Math.sin(a+0.25)*13);
   ctx.stroke();
   // взгляд
-  ctx.fillStyle = z.state==='chase' ? '#ff5a4a' : '#c9d6a8';
+  ctx.fillStyle = z.state==='chase' ? '#d8645a' : '#c9d6a8';
   ctx.beginPath(); ctx.arc(p.x+Math.cos(a)*3.5, p.y+Math.sin(a)*3.5, 2, 0, 6.3); ctx.fill();
   if(z.climb){ ctx.strokeStyle='#e0d090'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(p.x,p.y,12,0,6.3); ctx.stroke(); }
 }
@@ -1403,11 +1403,11 @@ function bar(x,y,w,h,v,max,col,bg){
 
 function partColor(b){
   if(b.hp<=0) return '#5a1e1e';
-  if(b.bite) return '#a02020';
-  if(b.bleed>0 && b.band<=0) return '#c8402f';
-  if(b.fx) return '#c98a2a';
+  if(b.bite) return '#be392d';
+  if(b.bleed>0 && b.band<=0) return '#be392d';
+  if(b.fx) return '#be892d';
   if(b.inf>25) return '#a05fc0';
-  if(b.hp<60) return '#c8a02f';
+  if(b.hp<60) return '#be892d';
   return '#5f9a52';
 }
 
@@ -1419,7 +1419,7 @@ function drawBody(x,y,s){
     ctx.fillRect(x+bx*s, y+by*s, bw*s, bh*s);
     const b = P(id);
     if(b.band>0){ ctx.strokeStyle='#eae0d0'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(x+bx*s,y+(by+bh/2)*s); ctx.lineTo(x+(bx+bw)*s,y+(by+bh/2)*s); ctx.stroke(); }
-    if(b.fx){ ctx.fillStyle='#ffd166'; ctx.fillRect(x+(bx+bw/2)*s-1, y+by*s, 2, bh*s); }
+    if(b.fx){ ctx.fillStyle='#e6c894'; ctx.fillRect(x+(bx+bw/2)*s-1, y+by*s, 2, bh*s); }
   };
   ctx.fillStyle = partColor(P('head'));
   ctx.beginPath(); ctx.arc(x+3*s, y+1.6*s, 1.5*s, 0, 6.3); ctx.fill();
@@ -1457,7 +1457,7 @@ function drawMinimap(){
     ctx.fillStyle = c; ctx.fillRect(x0+x*S, y0+y*S, S, S);
   }
   // машина всегда известна
-  ctx.fillStyle = '#ff4d5e'; ctx.fillRect(x0+exitPos.x*S-1.5, y0+exitPos.y*S-1.5, S+3, S+3);
+  ctx.fillStyle = '#d8645a'; ctx.fillRect(x0+exitPos.x*S-1.5, y0+exitPos.y*S-1.5, S+3, S+3);
   // зомби только видимые
   ctx.fillStyle = '#9ec25a';
   for(const z of zombies) if(!z.dead && visible(z.x|0,z.y|0)) ctx.fillRect(x0+z.x*S-1, y0+z.y*S-1, 2.4, 2.4);
@@ -1472,11 +1472,11 @@ function drawHUD(){
   const bx = 48;
   ctx.font = '10px Segoe UI'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = '#c8ccd2';
-  ctx.fillText('🩸 Кровь', bx, 14); bar(bx+52, 6, 78, 8, player.blood, BLOOD_MAX, player.blood<40?'#c8402f':'#b8353a');
-  ctx.fillText('💪 Силы', bx, 28);  bar(bx+52, 20, 78, 8, player.stam, 100, player.stam<25?'#c98a2a':'#5f9a52');
+  ctx.fillText('🩸 Кровь', bx, 14); bar(bx+52, 6, 78, 8, player.blood, BLOOD_MAX, player.blood<40?'#be392d':'#b8353a');
+  ctx.fillText('💪 Силы', bx, 28);  bar(bx+52, 20, 78, 8, player.stam, 100, player.stam<25?'#be892d':'#5f9a52');
   const w8 = weight();
   ctx.fillText('🎒 '+w8.toFixed(1)+'/'+CAP+'кг', bx, 42);
-  bar(bx+52, 34, 78, 8, Math.min(w8,CAP*1.6), CAP*1.6, w8>CAP?'#c8402f':'#4b7fa8');
+  bar(bx+52, 34, 78, 8, Math.min(w8,CAP*1.6), CAP*1.6, w8>CAP?'#be392d':'#4b7fa8');
   ctx.strokeStyle = '#e6ebef'; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(bx+52+78/1.6, 34); ctx.lineTo(bx+52+78/1.6, 42); ctx.stroke();
 
@@ -1490,21 +1490,21 @@ function drawHUD(){
   ctx.fillText((countItem('keys')>0?'🔑':'🔒')+' ключи   '+(countItem('fuel')>0?'⛽':'🚫')+' бензин', CW-10, 42);
   // индикатор шума
   ctx.fillStyle = '#aab3bb'; ctx.textAlign='left'; ctx.fillText('🔊', 186, 54);
-  bar(202, 47, CW-202-104, 7, noiseLevel, 46, noiseLevel>20?'#ff8c42':'#6a9ec9');
+  bar(202, 47, CW-202-104, 7, noiseLevel, 46, noiseLevel>20?'#d8aa5a':'#6a9ec9');
 
   // статусы
   let sx = 8, sy = 66;
   ctx.font = '11px Segoe UI'; ctx.textAlign = 'left';
   const st = [];
-  if(player.virusOn) st.push(['☣ ЗАРАЖЕНИЕ '+Math.floor(player.virus)+'%','#ff4d5e']);
+  if(player.virusOn) st.push(['☣ ЗАРАЖЕНИЕ '+Math.floor(player.virus)+'%','#d8645a']);
   const mi = maxInf();
-  if(mi>15) st.push(['🦠 Инфекция '+Math.floor(mi)+'%', mi>60?'#ff4d5e':'#c07fd0']);
-  if(totalBleed()>0) st.push(['🩸 Кровотечение','#ff6b5e']);
-  for(const p of PARTS) if(body[p.id].fx && !body[p.id].splint){ st.push(['🦴 Перелом: '+p.name,'#ffc14d']); break; }
-  if(encum()>1) st.push(['⚓ Перегруз','#ffb04d']);
-  if(painLevel()>45) st.push(['😖 Сильная боль','#ffa07a']);
-  if(player.hunger<20) st.push(['🍽 Голод','#ffc14d']);
-  if(player.thirst<20) st.push(['💧 Жажда','#7fd0ff']);
+  if(mi>15) st.push(['🦠 Инфекция '+Math.floor(mi)+'%', mi>60?'#d8645a':'#c07fd0']);
+  if(totalBleed()>0) st.push(['🩸 Кровотечение','#e69a94']);
+  for(const p of PARTS) if(body[p.id].fx && !body[p.id].splint){ st.push(['🦴 Перелом: '+p.name,'#d8aa5a']); break; }
+  if(encum()>1) st.push(['⚓ Перегруз','#d8aa5a']);
+  if(painLevel()>45) st.push(['😖 Сильная боль','#e69a94']);
+  if(player.hunger<20) st.push(['🍽 Голод','#d8aa5a']);
+  if(player.thirst<20) st.push(['💧 Жажда','#94d0e6']);
   for(const s of st){
     ctx.fillStyle = 'rgba(8,11,15,.7)';
     const w = ctx.measureText(s[0]).width + 10;
@@ -1550,7 +1550,7 @@ function drawHUD(){
   // режим передвижения
   ctx.textAlign='center'; ctx.textBaseline='middle';
   const mode = crouch ? '🐈 крадусь' : (runHeld ? '🏃 бегу' : '🚶 иду');
-  ctx.font = '11px Segoe UI'; ctx.fillStyle = crouch ? '#8ab547' : (runHeld ? '#ff9f6b' : '#c8ccd2');
+  ctx.font = '11px Segoe UI'; ctx.fillStyle = crouch ? '#8ab547' : (runHeld ? '#e6c894' : '#c8ccd2');
   ctx.fillText(mode, 244, CH-30);
   ctx.fillStyle = '#8f98a1'; ctx.font='10px Segoe UI';
   ctx.fillText('E — действие · Q — перевязка', 244, CH-14);
@@ -1565,7 +1565,7 @@ function drawInvPanel(){
   ctx.fillStyle = '#e6ebef'; ctx.font = 'bold 15px Segoe UI'; ctx.textAlign='left'; ctx.textBaseline='alphabetic';
   ctx.fillText('🎒 РЮКЗАК', x+14, y+24);
   const w8 = weight();
-  ctx.font = '12px Segoe UI'; ctx.fillStyle = w8>CAP ? '#ff6b5e' : '#a9b3bd';
+  ctx.font = '12px Segoe UI'; ctx.fillStyle = w8>CAP ? '#e69a94' : '#a9b3bd';
   ctx.fillText(w8.toFixed(2)+' / '+CAP+' кг'+(w8>CAP?'  — ПЕРЕГРУЗ: медленно, не перелезть':''), x+14, y+42);
   ctx.fillStyle = '#7f8a94'; ctx.font='10px Segoe UI';
   ctx.fillText('мир вокруг движется медленно, но движется · Esc / I — закрыть', x+14, y+h-12);
@@ -1591,14 +1591,14 @@ function drawInvPanel(){
 function drawMedPanel(){
   const w = 452, h = 400, x = (CW-w)/2, y = (CH-h)/2 - 10;
   ctx.fillStyle = 'rgba(8,11,15,.95)'; ctx.fillRect(x,y,w,h);
-  ctx.strokeStyle = '#c8402f'; ctx.lineWidth = 2; ctx.strokeRect(x+1,y+1,w-2,h-2);
+  ctx.strokeStyle = '#be392d'; ctx.lineWidth = 2; ctx.strokeRect(x+1,y+1,w-2,h-2);
   ctx.fillStyle = '#e6ebef'; ctx.font = 'bold 15px Segoe UI'; ctx.textAlign='left'; ctx.textBaseline='alphabetic';
   ctx.fillText('🩹 МЕДКАРТА', x+14, y+24);
   ctx.font = '11px Segoe UI'; ctx.fillStyle = '#a9b3bd'; ctx.textAlign = 'right';
   ctx.fillText('🩹'+countItem('bandage')+'   🧴'+countItem('antiseptic')+'   🦯'+countItem('splint')+'   💉'+countItem('antibio')+'   💊'+countItem('pills'), x+w-14, y+24);
   ctx.textAlign = 'left';
   ctx.fillText('Кровь '+Math.floor(player.blood)+'%   Боль '+Math.floor(painLevel()), x+14, y+41);
-  if(player.virusOn){ ctx.fillStyle='#ff4d5e'; ctx.fillText('☣ ЗАРАЖЕНИЕ ОТ УКУСА '+Math.floor(player.virus)+'% — не лечится', x+180, y+41); }
+  if(player.virusOn){ ctx.fillStyle='#d8645a'; ctx.fillText('☣ ЗАРАЖЕНИЕ ОТ УКУСА '+Math.floor(player.virus)+'% — не лечится', x+180, y+41); }
   ctx.fillStyle = '#7f8a94'; ctx.font='10px Segoe UI';
   ctx.fillText('Esc / H — закрыть · мир вокруг движется медленно', x+14, y+h-12);
 
@@ -1609,7 +1609,7 @@ function drawMedPanel(){
     ctx.fillStyle = partColor(b); ctx.fillRect(x+10, ry, 3, 46);
     ctx.font = '12px Segoe UI'; ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillStyle = '#e6ebef';
     ctx.fillText(p.name, x+20, ry+13);
-    bar(x+110, ry+7, 70, 8, b.hp, 100, b.hp<40?'#c8402f':'#5f9a52');
+    bar(x+110, ry+7, 70, 8, b.hp, 100, b.hp<40?'#be392d':'#5f9a52');
     const tags = [];
     if(b.bleed>0) tags.push(b.band>0 ? '🩹перевязано' : (b.bleed>1.2?'🩸ГЛУБОКАЯ РАНА':'🩸кровит'));
     if(b.bite) tags.push('🦷укус');
@@ -1693,7 +1693,7 @@ function render(){
 
   for(const s of shots){
     const a = worldToScreen(s.x0,s.y0), b = worldToScreen(s.x1,s.y1);
-    ctx.strokeStyle = 'rgba(255,230,150,.9)'; ctx.lineWidth = 1.6;
+    ctx.strokeStyle = 'rgba(230,200,148,.9)'; ctx.lineWidth = 1.6;
     ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
   }
 
@@ -1705,7 +1705,7 @@ function render(){
     const q = worldToScreen(sv.player.x, sv.player.y);
     ctx.fillStyle = 'rgba(0,0,0,.45)';
     ctx.beginPath(); ctx.ellipse(q.x, q.y+7, 8, 3.5, 0, 0, 6.3); ctx.fill();
-    ctx.fillStyle = sv.player.dead ? '#6a5a5a' : ['#cfd8e0','#8ef0a0','#7fd0ff','#ffb0c0'][i%4];
+    ctx.fillStyle = sv.player.dead ? '#6a5a5a' : ['#cfd8e0','#94e6b6','#94d0e6','#ffb0c0'][i%4];
     ctx.beginPath(); ctx.arc(q.x, q.y, sv.crouch?7:8.5, 0, 6.3); ctx.fill();
     ctx.strokeStyle = '#2b3038'; ctx.lineWidth = 2; ctx.stroke();
     ctx.fillStyle = '#e7edf4'; ctx.font = '9px Segoe UI'; ctx.textAlign = 'center';

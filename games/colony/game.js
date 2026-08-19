@@ -122,7 +122,7 @@ function preview(side, on) {
   for (const k of KEYS) {
     if (!on || !e[k]) { arrows[k].innerHTML = '&nbsp;'; continue; }
     arrows[k].textContent = e[k] > 0 ? '▲' : '▼';
-    arrows[k].style.color = e[k] > 0 ? '#06d6a0' : '#ef476f';
+    arrows[k].style.color = e[k] > 0 ? '#2dbe69' : '#d8645a';
   }
 }
 

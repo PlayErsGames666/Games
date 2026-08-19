@@ -3,7 +3,7 @@
     --panel: #3a3d5c;
     --panel2: #4a4e73;
     --text: #edf2f4;
-    --accent: #06d6a0;
+    --accent: #2dbe69;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -39,7 +39,7 @@
   button:hover:not(:disabled), select:hover { background: var(--panel2); }
   button:disabled { opacity: .45; cursor: not-allowed; }
   button.primary { background: var(--accent); color: #0d1a14; font-weight: bold; }
-  button.primary:hover:not(:disabled) { background: #08f5b4; }
+  button.primary:hover:not(:disabled) { background: #2dbe69; }
   .status {
     display: flex;
     gap: 22px;
@@ -75,7 +75,7 @@
     animation: dealin .22s ease;
   }
   @keyframes dealin { from { opacity: 0; transform: translateY(-10px) scale(.9); } to { opacity: 1; transform: none; } }
-  .card.red { color: #d21f3c; }
+  .card.red { color: #be392d; }
   .card .r { font-size: 16px; line-height: 1; font-weight: bold; }
   .card .s { font-size: 26px; text-align: center; }
   .card.back { background: repeating-linear-gradient(45deg, #3f43a0, #3f43a0 6px, #2c2f76 6px, #2c2f76 12px); }

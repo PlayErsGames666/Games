@@ -128,17 +128,17 @@ function drawBranch(bx, y, dir, danger) {
   // подсветка опасной стороны на нижнем блоке (сюда бить НЕЛЬЗЯ)
   if (danger) {
     const p = 0.3 + 0.28 * (0.5 + 0.5 * Math.sin(anim * 8));
-    ctx.fillStyle = 'rgba(239,71,111,' + p + ')';
+    ctx.fillStyle = 'rgba(216,100,90,' + p + ')';
     const hx = dir < 0 ? bx - len - 20 : bx;
     ctx.fillRect(hx, y - 2, len + 20, LOG_H);
   }
   ctx.fillStyle = '#6f4520';
   ctx.fillRect(dir < 0 ? bx - len : bx, cy - th / 2, len, th);
   // листва на конце
-  ctx.fillStyle = '#2fbf71';
+  ctx.fillStyle = '#2dbe69';
   const ex = dir < 0 ? bx - len : bx + len;
   ctx.beginPath(); ctx.arc(ex, cy, 16, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#27a862';
+  ctx.fillStyle = '#2dbe69';
   ctx.beginPath(); ctx.arc(ex + dir * 8, cy - 8, 10, 0, Math.PI * 2); ctx.fill();
 }
 
@@ -158,11 +158,11 @@ function drawJack() {
   ctx.fillStyle = '#3a3d5c';
   ctx.fillRect(cx - 10, feet - 22, 8, 22); ctx.fillRect(cx + 2, feet - 22, 8, 22);
   // тело (рубашка)
-  ctx.fillStyle = '#ef476f'; ctx.fillRect(cx - 12, feet - 52, 24, 32);
+  ctx.fillStyle = '#d8645a'; ctx.fillRect(cx - 12, feet - 52, 24, 32);
   // голова
   ctx.fillStyle = '#ffd6a5'; ctx.beginPath(); ctx.arc(cx, feet - 62, 11, 0, Math.PI * 2); ctx.fill();
   // шапка
-  ctx.fillStyle = '#e63946'; ctx.fillRect(cx - 12, feet - 74, 24, 7);
+  ctx.fillStyle = '#d8645a'; ctx.fillRect(cx - 12, feet - 74, 24, 7);
   // руки + топор (замах по chopAnim)
   const swing = -0.9 + chopAnim * 1.6; // угол
   ctx.save();
@@ -172,7 +172,7 @@ function drawJack() {
   ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(dir * 20, -6); ctx.stroke();
   // топор
   ctx.translate(dir * 20, -6);
-  ctx.strokeStyle = '#c9a227'; ctx.lineWidth = 4;
+  ctx.strokeStyle = '#be892d'; ctx.lineWidth = 4;
   ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(dir * 22, -14); ctx.stroke();
   ctx.fillStyle = '#bfc7d5';
   ctx.beginPath(); ctx.moveTo(dir * 22, -22); ctx.lineTo(dir * 34, -18); ctx.lineTo(dir * 26, -4); ctx.closePath(); ctx.fill();
@@ -183,7 +183,7 @@ function drawTimer() {
   const m = 20, y = 88, w = W - m * 2, h = 12;
   ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(m, y, w, h);
   const t = Math.max(0, Math.min(1, timer));
-  const col = t > 0.5 ? '#2fbf71' : t > 0.25 ? '#ffd166' : '#ef476f';
+  const col = t > 0.5 ? '#2dbe69' : t > 0.25 ? '#e6c894' : '#d8645a';
   ctx.fillStyle = col; ctx.fillRect(m, y, w * t, h);
   ctx.strokeStyle = 'rgba(255,255,255,.25)'; ctx.lineWidth = 2; ctx.strokeRect(m, y, w, h);
 }

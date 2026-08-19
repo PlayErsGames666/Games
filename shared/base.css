@@ -26,7 +26,7 @@
    подгонка успевала померить колонку, пока заголовок с подсказками ещё
    занимали место. «Лишние» двести пикселей превращали масштаб в единицу,
    и игра оставалась крошечной с чёрными полями по краям. */
-.fsbtn.on { background:#06d6a0; color:#10121f; }
+.fsbtn.on { background:#2dbe69; color:#10121f; }
 
 :fullscreen { background:#07080f; overflow:hidden; }
 html.fs-on { background:#07080f; overflow:hidden; }

@@ -4,7 +4,7 @@ const ctx = canvas.getContext('2d');
 const CW = 9, CH = 10;                 // ячеек лабиринта
 const TW = 2 * CW + 1, TH = 2 * CH + 1; // тайлов (стены между ячейками)
 const CELL = 22;
-const GHOST_COLORS = ['#ef476f', '#4cc9f0', '#ff9f1c', '#b388ff'];
+const GHOST_COLORS = ['#d8645a', '#5ab7d8', '#d8aa5a', '#ba94e6'];
 
 const el = {
   score: document.getElementById('score'), leveln: document.getElementById('leveln'),
@@ -243,25 +243,25 @@ function draw() {
   // стены
   for (let r = 0; r < TH; r++) for (let c = 0; c < TW; c++) {
     if (tiles[r][c] === 1) {
-      ctx.fillStyle = '#2340c0';
+      ctx.fillStyle = '#2d5dbe';
       ctx.fillRect(c * CELL + 2, r * CELL + 2, CELL - 4, CELL - 4);
-      ctx.fillStyle = '#3a5be0';
+      ctx.fillStyle = '#5a84d8';
       ctx.fillRect(c * CELL + 2, r * CELL + 2, CELL - 4, 3);
     }
   }
 
   // монетки
-  ctx.fillStyle = '#ffd166';
+  ctx.fillStyle = '#e6c894';
   for (const k of pellets) { const [c, r] = k.split(',').map(Number); ctx.beginPath(); ctx.arc(c * CELL + CELL / 2, r * CELL + CELL / 2, 2.5, 0, Math.PI * 2); ctx.fill(); }
   // энерджайзеры (пульсируют)
   const pr = 5 + Math.sin(anim * 6) * 1.5;
-  ctx.fillStyle = '#ff6b6b';
+  ctx.fillStyle = '#e69a94';
   for (const k of powers) { const [c, r] = k.split(',').map(Number); ctx.beginPath(); ctx.arc(c * CELL + CELL / 2, r * CELL + CELL / 2, pr, 0, Math.PI * 2); ctx.fill(); }
 
   drawPac();
   for (const g of ghosts) drawGhost(g);
 
-  if (readyTimer > 0 && !over) bannerText(readyMsg, '#ffd166');
+  if (readyTimer > 0 && !over) bannerText(readyMsg, '#e6c894');
   if (paused && !over) overlay('⏸ ПАУЗА', 'P / Esc — продолжить');
   if (over) overlay('💀 Игра окончена', 'Счёт ' + score + ' · Enter / тап — заново');
 }
@@ -272,7 +272,7 @@ function drawPac() {
   let ang = 0;
   if (pac.dc === 1) ang = 0; else if (pac.dc === -1) ang = Math.PI;
   else if (pac.dr === 1) ang = Math.PI / 2; else if (pac.dr === -1) ang = -Math.PI / 2;
-  ctx.fillStyle = '#ffd166';
+  ctx.fillStyle = '#e6c894';
   ctx.beginPath();
   ctx.moveTo(x, y);
   ctx.arc(x, y, CELL * 0.42, ang + open, ang + Math.PI * 2 - open);
@@ -282,7 +282,7 @@ function drawPac() {
 function drawGhost(g) {
   const x = pxc(g), y = pyc(g), rad = CELL * 0.4;
   const blink = g.frightened && frightTimer < 2 && Math.floor(anim * 8) % 2 === 0;
-  ctx.fillStyle = g.frightened ? (blink ? '#edf2f4' : '#3a5bff') : g.color;
+  ctx.fillStyle = g.frightened ? (blink ? '#edf2f4' : '#5a84d8') : g.color;
   ctx.beginPath();
   ctx.arc(x, y - 1, rad, Math.PI, 0);
   ctx.lineTo(x + rad, y + rad);
@@ -295,7 +295,7 @@ function drawGhost(g) {
     ctx.fillStyle = '#1a1c2e';
     ctx.beginPath(); ctx.arc(x - 4 + g.dc * 1.5, y - 2 + g.dr * 1.5, 1.6, 0, Math.PI * 2); ctx.arc(x + 4 + g.dc * 1.5, y - 2 + g.dr * 1.5, 1.6, 0, Math.PI * 2); ctx.fill();
   } else {
-    ctx.fillStyle = blink ? '#ff5d73' : '#edf2f4';
+    ctx.fillStyle = blink ? '#e69a94' : '#edf2f4';
     ctx.fillRect(x - 5, y - 3, 3, 3); ctx.fillRect(x + 2, y - 3, 3, 3);
   }
 }

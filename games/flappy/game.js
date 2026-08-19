@@ -153,7 +153,7 @@ function draw() {
   for (const p of pipes) drawPipe(p);
 
   // земля
-  ctx.fillStyle = '#c9a227';
+  ctx.fillStyle = '#be892d';
   ctx.fillRect(0, H - GROUND, W, GROUND);
   ctx.fillStyle = '#8f6f1f';
   ctx.fillRect(0, H - GROUND, W, 8);
@@ -206,17 +206,17 @@ function drawBird() {
   ctx.rotate(bird.rot);
 
   // тело
-  ctx.fillStyle = '#ffd166';
+  ctx.fillStyle = '#e6c894';
   ctx.beginPath();
   ctx.arc(0, 0, BIRD_R, 0, Math.PI * 2);
   ctx.fill();
   // крыло
-  ctx.fillStyle = '#f4a300';
+  ctx.fillStyle = '#be892d';
   ctx.beginPath();
   ctx.ellipse(-3, 3, 9, 6, -0.3, 0, Math.PI * 2);
   ctx.fill();
   // клюв
-  ctx.fillStyle = '#ef233c';
+  ctx.fillStyle = '#d8645a';
   ctx.beginPath();
   ctx.moveTo(BIRD_R - 2, -2);
   ctx.lineTo(BIRD_R + 9, 2);

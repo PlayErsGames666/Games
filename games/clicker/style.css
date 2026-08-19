@@ -3,8 +3,8 @@
     --panel: #3a3d5c;
     --panel2: #4a4e73;
     --text: #edf2f4;
-    --accent: #ffd166;
-    --good: #06d6a0;
+    --accent: #e6c894;
+    --good: #2dbe69;
     --bad: #8d99ae;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }

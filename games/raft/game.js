@@ -288,8 +288,8 @@ function buildPanels() {
 function updateUI() {
   document.getElementById('time').textContent = Math.floor(time);
   document.getElementById('best').textContent = best;
-  const bar = (id, v, danger) => { const f = document.getElementById(id); f.style.width = Math.max(0, v) + '%'; f.style.background = v < 22 ? '#ef476f' : danger; };
-  bar('fThirst', thirst, '#4cc9f0'); bar('fHunger', hunger, '#ffd166'); bar('fRaft', integrity, '#2fbf71');
+  const bar = (id, v, danger) => { const f = document.getElementById(id); f.style.width = Math.max(0, v) + '%'; f.style.background = v < 22 ? '#d8645a' : danger; };
+  bar('fThirst', thirst, '#5ab7d8'); bar('fHunger', hunger, '#e6c894'); bar('fRaft', integrity, '#2dbe69');
   document.getElementById('rWood').textContent = res.wood;
   document.getElementById('rPlastic').textContent = res.plastic;
   document.getElementById('rFood').textContent = res.food;
@@ -334,7 +334,7 @@ function render() {
   }
 
   // выжившие: свой жёлтый, остальные — своими цветами, чтобы не путаться
-  const COLS = ['#ffd166', '#4cc9f0', '#2fbf71', '#ef476f'];
+  const COLS = ['#e6c894', '#5ab7d8', '#2dbe69', '#d8645a'];
   players.forEach((p, i) => {
     if (p.gone) return;
     ctx.fillStyle = '#0d1b26'; ctx.beginPath(); ctx.ellipse(p.px, p.py + 9, 8, 3, 0, 0, 7); ctx.fill();
@@ -347,18 +347,18 @@ function render() {
   if (shark) {
     const inReach = dist(shark.x, shark.y, player.px, player.py) <= SPEAR_REACH;
     ctx.font = '26px serif'; ctx.fillText('🦈', shark.x, shark.y);
-    if (inReach) { ctx.strokeStyle = '#ff5c7a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(shark.x, shark.y, 17, 0, 7); ctx.stroke(); }
+    if (inReach) { ctx.strokeStyle = '#e69a94'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(shark.x, shark.y, 17, 0, 7); ctx.stroke(); }
   }
 
-  if (hurtT > 0) { const a = Math.min(0.5, hurtT * 1.4); const vg = ctx.createRadialGradient(CX, CY, CH * 0.15, CX, CY, CH * 0.8); vg.addColorStop(0, 'rgba(200,20,35,0)'); vg.addColorStop(1, 'rgba(200,20,35,' + a + ')'); ctx.fillStyle = vg; ctx.fillRect(0, 0, CW, CH); }
+  if (hurtT > 0) { const a = Math.min(0.5, hurtT * 1.4); const vg = ctx.createRadialGradient(CX, CY, CH * 0.15, CX, CY, CH * 0.8); vg.addColorStop(0, 'rgba(190,57,45,0)'); vg.addColorStop(1, 'rgba(190,57,45,' + a + ')'); ctx.fillStyle = vg; ctx.fillRect(0, 0, CW, CH); }
 
   if (paused && !over) { ctx.fillStyle = 'rgba(8,20,30,.6)'; ctx.fillRect(0, 0, CW, CH); ctx.fillStyle = '#eaf6ff'; ctx.textAlign = 'center'; ctx.font = 'bold 28px Segoe UI'; ctx.fillText('⏸ ПАУЗА', CX, CY - 4); ctx.font = '14px Segoe UI'; ctx.fillText('P / Esc — продолжить', CX, CY + 20); }
   if (over) {
     ctx.fillStyle = 'rgba(5,15,25,.72)'; ctx.fillRect(0, 0, CW, CH);
-    ctx.textAlign = 'center'; ctx.fillStyle = '#4cc9f0'; ctx.font = 'bold 34px Georgia, serif'; ctx.fillText('ПЛОТ ПОТЕРЯН', CX, CY - 26);
+    ctx.textAlign = 'center'; ctx.fillStyle = '#5ab7d8'; ctx.font = 'bold 34px Georgia, serif'; ctx.fillText('ПЛОТ ПОТЕРЯН', CX, CY - 26);
     ctx.fillStyle = '#eaf6ff'; ctx.font = '17px Segoe UI'; ctx.fillText(overCause, CX, CY + 4);
     ctx.font = '15px Segoe UI'; ctx.fillText('Продержался ' + Math.floor(time) + 'с · рекорд ' + best + 'с', CX, CY + 28);
-    ctx.fillStyle = '#9fd6e8'; ctx.fillText('Enter / тап — заново', CX, CY + 54);
+    ctx.fillStyle = '#94d0e6'; ctx.fillText('Enter / тап — заново', CX, CY + 54);
   }
 }
 

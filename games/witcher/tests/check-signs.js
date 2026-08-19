@@ -184,7 +184,7 @@ head('Потолок частиц');
   /* Длина массива сама по себе ничего не обещает: важно, что рисовалка ходит
      ПО ТОМУ ЖЕ массиву. Кровь красится единственным на всю игру цветом —
      по нему и считаем нарисованное. */
-  const drawnBlood = paints(() => W.render()).filter(c => c === '#a4222a').length;
+  const drawnBlood = paints(() => W.render()).filter(c => c === '#be392d').length;
   note('брызг нарисовано за кадр: ' + drawnBlood + ', в массиве: ' + W.getParts().length);
   ok(drawnBlood === W.getParts().length, 'сколько частиц в массиве — столько и нарисовано');
 
@@ -217,7 +217,7 @@ head('Потолок частиц');
      заваливаем сверху: старое правило «режем с начала» убило бы её первой. */
   f = pin();
   W.getParts().length = 0;
-  const bounds = [{ edge: true, x: 0, y: 0, a: 0, w: 0.7, len: 120, c: '#ffc45a', t: 0, life: 0.3 },
+  const bounds = [{ edge: true, x: 0, y: 0, a: 0, w: 0.7, len: 120, c: '#d8aa5a', t: 0, life: 0.3 },
                   { scorch: true, x: 0, y: 0, a: 0, w: 0.7, len: 120, c: '#0a0705', t: 0, life: 2 }];
   for (const b of bounds) W.getParts().push(b);
   for (let i = 0; i < HITS; i++) W.hurtFoe(f, 1, 'sword');
@@ -233,7 +233,7 @@ head('Потолок частиц');
   W.getParts().length = 0;
   const many = [];
   for (let i = 0; i < W.PART_CAP + 40; i++) {
-    many.push({ edge: true, x: 0, y: 0, a: 0, w: 0.7, len: 120, c: '#ffc45a', t: 0, life: 0.3, mark: i });
+    many.push({ edge: true, x: 0, y: 0, a: 0, w: 0.7, len: 120, c: '#d8aa5a', t: 0, life: 0.3, mark: i });
     W.getParts().push(many[i]);
   }
   W.hurtFoe(f, 1, 'sword');
@@ -638,13 +638,13 @@ head('Отложенная частица ждёт на месте, а не ле
    считали по середине частицы, а съедал его нарисованный размер. */
 /* НАСТОЯЩАЯ густота мазка. Прозрачность в игре живёт в двух разных местах:
    у обода и рун — в globalAlpha, а у паутины и разрядов она вписана прямо
-   в краску (`rgba(196,150,255,.44)`), и globalAlpha при этом единица.
+   в краску (`rgba(186,148,230,.44)`), и globalAlpha при этом единица.
    Спрашивать одно globalAlpha значит считать нить в 0.44 такой же густой,
    как обод, — мерка называлась бы громче, чем меряет. Перемножаем. */
 function ink(m) {
   const g = m.a === undefined ? 1 : m.a;
   const rgba = /^rgba?\(([^)]*)\)/.exec(m.c);
-  if (!rgba) return g;                                 // '#c496ff' и прочие непрозрачные
+  if (!rgba) return g;                                 // '#ba94e6' и прочие непрозрачные
   const parts = rgba[1].split(',');
   return g * (parts.length > 3 ? parseFloat(parts[3]) : 1);
 }
@@ -710,7 +710,7 @@ head('Квен копит трещины, но не бесконечно');
     let least = Infinity;
     for (let i = 0; i < 30; i++) {
       for (const a of arcs(() => W.render())) {
-        if (a.k === 'stroke' && a.c === '#7fd6ff') least = Math.min(least, a.r);
+        if (a.k === 'stroke' && a.c === '#94d0e6') least = Math.min(least, a.r);
       }
       W.update(0.016);
     }
@@ -771,7 +771,7 @@ head('Купол Квена — гранёный, а не круг');
 
   /* Волна света по граням: у каждой свой сдвиг фазы. Постоянная краска
      означала бы мёртвый купол — и это ровно то, что было у кольца. */
-  const cols = new Set(paints(() => W.drawQuenDome(0, 0)).filter(c => c.indexOf('rgba(150,225,255') === 0));
+  const cols = new Set(paints(() => W.drawQuenDome(0, 0)).filter(c => c.indexOf('rgba(148,208,230') === 0));
   ok(cols.size >= 3, 'грани горят по-разному — по куполу бежит волна: разных красок ' + cols.size);
 }
 
@@ -867,7 +867,7 @@ head('Купол не закрывает ведьмака');
   const dome = [];
   seq.forEach((c, i) => {
     if (c === eye) eyes.push(i);
-    if (c.indexOf('rgba(150,225,255') === 0) dome.push(i);
+    if (c.indexOf('rgba(148,208,230') === 0) dome.push(i);
   });
   ok(eyes.length === 2, 'глаза пешки в кадре нашлись и только они: мазков цвета ' + eye + ' — ' + eyes.length);
   ok(dome.length >= 6, 'грани купола в том же кадре нашлись: ' + dome.length);
@@ -1023,7 +1023,7 @@ head('Ирден: нарисованный обод и есть граница �
   note('чем печать мажет: ' + all.length + ' мазков; самые густые — ' +
        all.slice().sort((x, y) => ink(y) - ink(x)).slice(0, 4)
           .map(m => m.k + ' ' + m.c + ' → ' + ink(m).toFixed(2)).join(', '));
-  ok(loud.length === 1 && loud[0].k === 'stroke' && loud[0].c === '#c496ff',
+  ok(loud.length === 1 && loud[0].k === 'stroke' && loud[0].c === '#ba94e6',
      'в полную густоту на печати идёт ТОЛЬКО обод — ни нить, ни волна, ни метка с ним не спорят');
   /* И ни единой НАДПИСИ: печать рисуется отрезками, а не знаками. Знак
      потребовал бы шрифта, которого в системе может не оказаться, — а на

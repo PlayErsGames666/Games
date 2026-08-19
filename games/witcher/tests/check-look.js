@@ -259,7 +259,7 @@ head('Тяжёлый доспех виден пластинами, средни�
 
 head('Мутация видна на фигуре');
 {
-  const VEIN1 = 'rgba(200,60,50,.6)', VEIN2 = 'rgba(255,60,40,.9)';
+  const VEIN1 = 'rgba(190,57,45,.6)', VEIN2 = 'rgba(216,100,90,.9)';
   const CLAW = '#ffd0a0', RAGE = '#5a2020', FACE2 = '#c98a7a';
   const L = W.LOOK_DEF;                                   // кожа fair, чтобы было с чем сравнивать
   const calm = paints(() => W.drawPawn(0, 0, 0, { armor: 'heavy', look: L }));
@@ -289,7 +289,7 @@ head('Зверь горбится и горит контуром');
   const L = W.LOOK_DEF;
   const base = { armor: 'heavy', look: L, mut: true };
   const beast = { armor: 'heavy', look: L, mut: true, mut2: true };
-  const FIRE = 'rgba(255,120,36,';
+  const FIRE = 'rgba(216,170,90,';
 
   const calm = paints(() => W.drawPawn(0, 0, 0, base));
   const hot  = paints(() => W.drawPawn(0, 0, 0, beast));
@@ -439,7 +439,7 @@ head('Зелье в силе видно ободком своего цвета')
     W.update(0.016);
     for (const m of paintsFull(() => W.drawPawn(0, 0, 0, { armor: 'heavy', potion: c, mut: true, mut2: true }))) {
       if (m.c === c) { seenRim++; rimLoud = Math.max(rimLoud, ink(m)); }
-      if (String(m.c).indexOf('rgba(255,120,36,') === 0) { seenFire++; fireQuiet = Math.min(fireQuiet, ink(m)); }
+      if (String(m.c).indexOf('rgba(216,170,90,') === 0) { seenFire++; fireQuiet = Math.min(fireQuiet, ink(m)); }
     }
   }
   note('за круг колебаний: самый густой мазок ободка ' + rimLoud.toFixed(2) +
@@ -1111,7 +1111,7 @@ head('Кольцо одно и стоит вокруг ведьмака');
   W.reset(); W.setPhase('HUNT'); W.setPanel(null);
   const P = W.getP();
   W.update(0.016);
-  const GOLD = 'rgba(201,162,39,.22)';
+  const GOLD = 'rgba(190,137,45,.22)';
   const rings = arcs(() => W.render()).filter(m => m.k === 'stroke' && m.c === GOLD);
   note('колец в кадре: ' + rings.length);
   ok(rings.length === 1, 'кольцо ровно одно — метка про ведьмака, а не про всех подряд');
@@ -1125,7 +1125,7 @@ head('Кольцо одно и стоит вокруг ведьмака');
 head('Метка не гаснет вместе с уклонением');
 {
   W.reset(); W.setPhase('HUNT'); W.setPanel(null);
-  const P = W.getP(), GOLD = 'rgba(201,162,39,.22)';
+  const P = W.getP(), GOLD = 'rgba(190,137,45,.22)';
   const ringAlpha = () => {
     const m = paintsFull(() => W.render()).find(k => k.c === GOLD);
     return m ? (m.a === undefined ? 1 : m.a) : null;
@@ -1158,7 +1158,7 @@ head('Метка не перекрикивает то, что вокруг пе�
     return g * (p.length > 3 ? parseFloat(p[3]) : 1);
   };
   W.reset(); W.setPhase('HUNT'); W.setPanel(null);
-  const GOLD = 'rgba(201,162,39,.22)', c = W.POTIONS.swallow.c;
+  const GOLD = 'rgba(190,137,45,.22)', c = W.POTIONS.swallow.c;
   const P = W.getP();
   let mark = 0, rimLoud = 0, fireLoud = 0, seenRim = 0, seenFire = 0;
   for (let i = 0; i < 130; i++) {
@@ -1167,7 +1167,7 @@ head('Метка не перекрикивает то, что вокруг пе�
     for (const m of paintsFull(() => W.drawPawn(0, 0, 0,
         { armor: 'heavy', look: W.LOOK_DEF, potion: c, mut: true, mut2: true }))) {
       if (m.c === c) { seenRim++; rimLoud = Math.max(rimLoud, ink(m)); }
-      if (String(m.c).indexOf('rgba(255,120,36,') === 0) { seenFire++; fireLoud = Math.max(fireLoud, ink(m)); }
+      if (String(m.c).indexOf('rgba(216,170,90,') === 0) { seenFire++; fireLoud = Math.max(fireLoud, ink(m)); }
     }
   }
   note('за круг колебаний: метка ' + mark.toFixed(2) + ', ободок в пике ' +

@@ -123,7 +123,7 @@ function die() {
 
 // --- отрисовка ---
 function draw() {
-  const bg = dark ? '#0d0e1a' : '#e9ecf5';
+  const bg = dark ? '#0d0e1a' : '#dcdad2';
   const fg = dark ? '#edf2f4' : '#2b2d42';
   ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
   if (milestoneFlash > 0 && Math.floor(milestoneFlash * 10) % 2 === 0) { ctx.fillStyle = dark ? '#1b1d33' : '#ffffff'; ctx.fillRect(0, 0, W, H); }
@@ -170,7 +170,7 @@ function drawDino(fg) {
     ctx.fillRect(x, gy + 20, 10, 10);       // хвост-основание
     ctx.fillRect(x - 4, gy + 24, 8, 6);     // хвост
     // глаз
-    ctx.fillStyle = dark ? '#0d0e1a' : '#e9ecf5';
+    ctx.fillStyle = dark ? '#0d0e1a' : '#dcdad2';
     ctx.fillRect(x + 32, gy + 5, 4, 4);
     ctx.fillStyle = fg;
     if (dino.onGround) {
@@ -184,7 +184,7 @@ function drawDino(fg) {
 }
 
 function drawCactus(o, fg) {
-  ctx.fillStyle = dark ? '#2fbf71' : '#1f7a4d';
+  ctx.fillStyle = dark ? '#2dbe69' : '#1f7a4d';
   for (let i = 0; i < o.n; i++) {
     const bx = o.x + i * (o.cw + 3);
     ctx.fillRect(bx, o.y, o.cw, o.ch);
@@ -195,7 +195,7 @@ function drawCactus(o, fg) {
 }
 
 function drawBird(o, fg) {
-  ctx.fillStyle = dark ? '#b388ff' : '#6a3fd0';
+  ctx.fillStyle = dark ? '#ba94e6' : '#955ad8';
   const up = Math.floor(wingTimer * 8) % 2 === 0;
   ctx.fillRect(o.x + 10, o.y + 10, 24, 8);      // тело
   ctx.fillRect(o.x + 30, o.y + 8, 12, 6);       // голова/клюв

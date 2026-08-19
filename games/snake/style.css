@@ -3,9 +3,9 @@
     --panel: #3a3d5c;
     --panel2: #4a4e73;
     --text: #edf2f4;
-    --snake: #06d6a0;
-    --snake-head: #08f5b4;
-    --food: #ef233c;
+    --snake: #2dbe69;
+    --snake-head: #2dbe69;
+    --food: #d8645a;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {

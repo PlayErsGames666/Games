@@ -126,7 +126,7 @@ function draw() {
   }
 
   if (perfectFlash > 0) {
-    ctx.fillStyle = 'rgba(76,201,240,' + (perfectFlash) + ')';
+    ctx.fillStyle = 'rgba(90,183,216,' + (perfectFlash) + ')';
     ctx.textAlign = 'center'; ctx.font = 'bold 22px Segoe UI, sans-serif';
     ctx.fillText('ПЕРФЕКТ!' + (combo > 1 ? ' ×' + combo : ''), W / 2, screenY(blocks.length) - 14);
   }

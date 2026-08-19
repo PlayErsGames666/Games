@@ -1,4 +1,4 @@
-:root { --bg:#0e2233; --panel:#123449; --panel2:#1b4a66; --text:#eaf6ff; --accent:#22b3d6; }
+:root { --bg:#0e2233; --panel:#123449; --panel2:#1b4a66; --text:#eaf6ff; --accent:#2d97be; }
   * { box-sizing:border-box; margin:0; padding:0; }
   body { font-family:'Segoe UI',Tahoma,sans-serif; background:linear-gradient(180deg,#0e2233,#0a1826); color:var(--text); min-height:100vh;
     display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px; user-select:none; }
@@ -23,10 +23,10 @@
   .slot { min-width:78px; background:var(--panel); border:2px solid rgba(255,255,255,.08); border-radius:9px; padding:7px 8px; display:flex; flex-direction:column; align-items:center; cursor:pointer; position:relative; }
   .slot:hover:not(.dim) { background:var(--panel2); }
   .slot.dim { opacity:.42; cursor:not-allowed; }
-  .slot.done { border-color:var(--accent); box-shadow:0 0 0 2px rgba(34,179,214,.3); }
+  .slot.done { border-color:var(--accent); box-shadow:0 0 0 2px rgba(45,151,190,.3); }
   .slot .si { font-size:22px; line-height:1; }
   .slot .sn { font-size:11px; margin-top:3px; }
-  .slot .sc { font-size:10px; color:#ffd166; margin-top:2px; min-height:12px; }
+  .slot .sc { font-size:10px; color:#e6c894; margin-top:2px; min-height:12px; }
   .slot .key { position:absolute; top:2px; left:5px; font-size:9px; opacity:.5; }
 
   .hint { margin-top:10px; font-size:13px; opacity:.6; text-align:center; max-width:520px; }

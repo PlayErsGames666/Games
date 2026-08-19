@@ -55,10 +55,10 @@ const NEED = { iron:9, titan:5, cryst:2 }, NEED_FUEL = 50;
 
 const ORE = {
   rego:  { ico:'🪨', name:'Щебень',   col:'#8f8f99' },
-  ice:   { ico:'🧊', name:'Лёд',      col:'#7fc7e8' },
+  ice:   { ico:'🧊', name:'Лёд',      col:'#94d0e6' },
   iron:  { ico:'⚙️', name:'Железо',   col:'#c08050' },
   titan: { ico:'🔩', name:'Титан',    col:'#c3ccd6' },
-  cryst: { ico:'💎', name:'Кристалл', col:'#c07fe8' },
+  cryst: { ico:'💎', name:'Кристалл', col:'#ba94e6' },
 };
 
 // --- состояние ---
@@ -205,7 +205,7 @@ function impact(v){
   const dmg = (s-HIT_SPEED)*HIT_DMG;
   player.hull = Math.max(0, player.hull - dmg);
   player.hurt = 0.35; shake = Math.min(9, shake + dmg*0.5);
-  for(let i=0;i<6;i++) sparks(player.x, player.y, '#ffb454');
+  for(let i=0;i<6;i++) sparks(player.x, player.y, '#d8aa5a');
   if(dmg > 6) message('💥 Удар о породу! Скафандр −'+Math.round(dmg));
 }
 
@@ -237,7 +237,7 @@ function breakTile(tx,ty){
       const nx=tx+ox, ny=ty+oy;
       if(inb(nx,ny) && tiles[gi(nx,ny)]!==PAD && tiles[gi(nx,ny)]!==HARD && Math.random()<0.7){ tiles[gi(nx,ny)] = EMPTY; tileChanged(gi(nx,ny)); }
     }
-    for(let i=0;i<26;i++) sparks(cx, cy, '#8ef0a0');
+    for(let i=0;i<26;i++) sparks(cx, cy, '#94e6b6');
     message('💥 ГАЗОВЫЙ КАРМАН! Скафандр −22');
     return;
   }
@@ -382,7 +382,7 @@ function update(dt){
     // его собственное тело, даже если модуль запустил напарник
     const lp = players[launchWho] || player;
     lp.y -= (40 + launchT*220)*dt;
-    for(let i=0;i<3;i++) sparks(lp.x+(Math.random()-0.5)*8, lp.y+10, '#ffb454');
+    for(let i=0;i<3;i++) sparks(lp.x+(Math.random()-0.5)*8, lp.y+10, '#d8aa5a');
     if(launchT > 1.6) endGame(true, 'Модуль ушёл с астероида. Ты выжил');
     return;
   }
@@ -462,7 +462,7 @@ function simulateOne(dt){
     player.thr.x = tx; player.thr.y = ty;
     for(let i=0;i<2;i++) if(Math.random()<0.6)
       parts.push({ x:player.x-tx*7, y:player.y-ty*7, vx:-tx*90+(Math.random()-0.5)*30, vy:-ty*90+(Math.random()-0.5)*30,
-                   life:0.16+Math.random()*0.2, t:0, col: fine?'#7fd0ff':'#ffb454' });
+                   life:0.16+Math.random()*0.2, t:0, col: fine?'#94d0e6':'#d8aa5a' });
     if(player.fuel<=0) message('⛽ ГАЗ КОНЧИЛСЯ! R — расщепить что есть в рюкзаке');
   }
 
@@ -492,7 +492,7 @@ function simulateOne(dt){
       // отдача бура отталкивает — приходится подрабатывать ранцем
       const a = Math.atan2((tgt.y+0.5)*T-player.y, (tgt.x+0.5)*T-player.x);
       player.vx -= Math.cos(a)*RECOIL*dt; player.vy -= Math.sin(a)*RECOIL*dt;
-      if(Math.random()<0.4) sparks((tgt.x+0.5)*T, (tgt.y+0.5)*T, '#ffd08a');
+      if(Math.random()<0.4) sparks((tgt.x+0.5)*T, (tgt.y+0.5)*T, '#e6c894');
       if(drillT >= HARDNESS[t]){ drillT = 0; breakTile(tgt.x, tgt.y); }
     }
   } else drillT = 0;
@@ -544,7 +544,7 @@ function drawTile(g,x,y,sx,sy,t){
     if(t===HARD){ g.fillStyle='rgba(255,255,255,.13)'; g.fillRect(sx+3,sy+3,2,2); g.fillRect(sx+8,sy+9,2,2); }
   } else if(t===PAD){
     g.fillStyle = '#3f8fb4'; g.fillRect(sx,sy,T,3);
-    g.fillStyle = ((anim*3|0)%2) ? '#ffd166' : '#8a6a2a'; g.fillRect(sx+T/2-1, sy+5, 2, 2);
+    g.fillStyle = ((anim*3|0)%2) ? '#e6c894' : '#8a6a2a'; g.fillRect(sx+T/2-1, sy+5, 2, 2);
   } else {
     // руда: порода с вкраплениями — не пёстрый леденец, но заметно
     g.fillStyle = '#44434b'; g.fillRect(sx,sy,T,T);
@@ -603,21 +603,21 @@ function drawModule(){
   if(prog >= 1){
     ctx.fillStyle = '#c9d4e0';
     ctx.beginPath(); ctx.moveTo(p.x-9,p.y+8-h); ctx.lineTo(p.x,p.y-6-h); ctx.lineTo(p.x+9,p.y+8-h); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = ((anim*4|0)%2) ? '#8ef0a0' : '#2f6f4f';
+    ctx.fillStyle = ((anim*4|0)%2) ? '#94e6b6' : '#2f6f4f';
     ctx.fillRect(p.x-3, p.y+2, 6, 4);
   }
   ctx.fillStyle = 'rgba(255,255,255,.22)';
   ctx.fillRect(p.x-13, p.y+9, 26, 2);
 }
 
-const SUITS = ['#e7ecf3', '#7fd0ff', '#8ef0a0', '#ffb0c0'];   // свой белый, напарники цветные
+const SUITS = ['#e7ecf3', '#94d0e6', '#94e6b6', '#ffb0c0'];   // свой белый, напарники цветные
 function drawPlayer(m, mine){
   m = m || player; if(m.gone) return;
   const p = { x:m.x-camX, y:m.y-camY };
   // факел ранца
   if(m.thr.x || m.thr.y){
     const f = 10+Math.random()*7;
-    ctx.fillStyle = m.fine ? 'rgba(127,208,255,.85)' : 'rgba(255,180,84,.9)';
+    ctx.fillStyle = m.fine ? 'rgba(148,208,230,.85)' : 'rgba(216,170,90,.9)';
     ctx.beginPath();
     ctx.moveTo(p.x - m.thr.x*4 - m.thr.y*3, p.y - m.thr.y*4 + m.thr.x*3);
     ctx.lineTo(p.x - m.thr.x*4 + m.thr.y*3, p.y - m.thr.y*4 - m.thr.x*3);
@@ -636,21 +636,21 @@ function drawPlayer(m, mine){
   if(drillTile){
     const tx = (drillTile.x+0.5)*T-camX, ty = (drillTile.y+0.5)*T-camY;
     if(drilling){
-      ctx.strokeStyle = 'rgba(255,209,102,.9)'; ctx.lineWidth = 2;
+      ctx.strokeStyle = 'rgba(230,200,148,.9)'; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(tx,ty); ctx.stroke();
       const t = tiles[gi(drillTile.x,drillTile.y)];
       const k = HARDNESS[t] ? clamp(drillT/HARDNESS[t],0,1) : 0;
       ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(tx-T/2, ty-T/2-5, T, 3);
-      ctx.fillStyle = '#ffd166'; ctx.fillRect(tx-T/2, ty-T/2-5, T*k, 3);
+      ctx.fillStyle = '#e6c894'; ctx.fillRect(tx-T/2, ty-T/2-5, T*k, 3);
     }
-    ctx.strokeStyle = 'rgba(255,209,102,.5)'; ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(230,200,148,.5)'; ctx.lineWidth = 1;
     ctx.strokeRect(tx-T/2+0.5, ty-T/2+0.5, T-1, T-1);
   }
   // вектор скорости — без него инерцию не почувствовать
   const sp = len(player.vx, player.vy);
   if(sp > 6){
     const k = Math.min(46, sp*0.42);
-    ctx.strokeStyle = sp>HIT_SPEED ? 'rgba(255,90,74,.9)' : 'rgba(127,208,255,.75)';
+    ctx.strokeStyle = sp>HIT_SPEED ? 'rgba(216,100,90,.9)' : 'rgba(148,208,230,.75)';
     ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(p.x,p.y);
     ctx.lineTo(p.x+player.vx/sp*k, p.y+player.vy/sp*k); ctx.stroke();
@@ -672,14 +672,14 @@ function drawHUD(){
   const mm = Math.floor(gm/60), ss = Math.floor(gm%60);
   ctx.textAlign='left'; ctx.textBaseline='alphabetic';
   ctx.font = 'bold 20px Consolas, monospace';
-  ctx.fillStyle = timeLeft < TOTAL_TIME*0.17 ? (((anim*3)|0)%2 ? '#ff5a4a' : '#ff9a8a') : '#e7ecf3';
+  ctx.fillStyle = timeLeft < TOTAL_TIME*0.17 ? (((anim*3)|0)%2 ? '#d8645a' : '#e69a94') : '#e7ecf3';
   ctx.fillText('T−'+mm+':'+(ss<10?'0':'')+ss, 10, 24);
   ctx.font = '10px Segoe UI'; ctx.fillStyle = '#8f98a1';
   ctx.fillText('до входа в звезду', 10, 38);
 
   ctx.font = '10px Segoe UI'; ctx.fillStyle = '#c8ccd2';
-  ctx.fillText('⛽ ГАЗ', 108, 15);  bar(150, 7, 92, 9, player.fuel, FUEL_MAX, player.fuel<25?'#ff5a4a':'#ffb454');
-  ctx.fillText('🧑‍🚀 СКАФ', 108, 30); bar(150, 22, 92, 9, player.hull, 100, player.hull<35?'#ff5a4a':'#7fd0ff');
+  ctx.fillText('⛽ ГАЗ', 108, 15);  bar(150, 7, 92, 9, player.fuel, FUEL_MAX, player.fuel<25?'#d8645a':'#d8aa5a');
+  ctx.fillText('🧑‍🚀 СКАФ', 108, 30); bar(150, 22, 92, 9, player.hull, 100, player.hull<35?'#d8645a':'#94d0e6');
   const c = cargoCount();
   ctx.fillText('📦 ГРУЗ '+c+'/'+CARGO_CAP+'  ·  '+Math.round(mass())+' кг', 108, 45);
   bar(150+92+6, 7, 0, 0, 0, 1, '#000');   // выравниватель, ничего не рисует
@@ -690,10 +690,10 @@ function drawHUD(){
   let ry = 15;
   for(const [k,n] of need){
     const done = built[k]>=n;
-    ctx.fillStyle = done ? '#8ef0a0' : '#c8ccd2';
+    ctx.fillStyle = done ? '#94e6b6' : '#c8ccd2';
     ctx.fillText(ORE[k].ico+' '+built[k]+'/'+n, CW-10, ry); ry += 14;
   }
-  ctx.fillStyle = reserve>=NEED_FUEL ? '#8ef0a0' : '#c8ccd2';
+  ctx.fillStyle = reserve>=NEED_FUEL ? '#94e6b6' : '#c8ccd2';
   ctx.fillText('⛽ склад '+Math.round(reserve)+'/'+NEED_FUEL, CW-10, ry);
 
   // груз по видам
@@ -709,12 +709,12 @@ function drawHUD(){
   // предупреждения
   ctx.textAlign='center'; ctx.font='bold 13px Segoe UI';
   if(lostT > 0.35){
-    ctx.fillStyle = ((anim*4)|0)%2 ? '#ff5a4a' : '#ffb0a0';
+    ctx.fillStyle = ((anim*4)|0)%2 ? '#d8645a' : '#ffb0a0';
     ctx.fillText('⚠️ ЗА ГРАНИЦЕЙ ПРИТЯЖЕНИЯ — ТЯГУ К АСТЕРОИДУ!', CW/2, 76);
   } else if(player.fuel<=0){
-    ctx.fillStyle = '#ff5a4a'; ctx.fillText('⛽ ГАЗ НА НУЛЕ', CW/2, 76);
+    ctx.fillStyle = '#d8645a'; ctx.fillText('⛽ ГАЗ НА НУЛЕ', CW/2, 76);
   } else if(moduleReady()){
-    ctx.fillStyle = '#8ef0a0'; ctx.fillText('🚀 МОДУЛЬ ГОТОВ — СДАЙ ГРУЗ И ЖМИ E НА ПЛОЩАДКЕ', CW/2, 76);
+    ctx.fillStyle = '#94e6b6'; ctx.fillText('🚀 МОДУЛЬ ГОТОВ — СДАЙ ГРУЗ И ЖМИ E НА ПЛОЩАДКЕ', CW/2, 76);
   }
 
   // сообщение
@@ -735,7 +735,7 @@ function drawHUD(){
   ctx.textAlign='left'; ctx.font='11px Segoe UI'; ctx.fillStyle='#9aa4ae';
   ctx.fillText('WASD — импульс · Shift — точный · ЛКМ/Space — бур · E — док', 10, CH-24);
   ctx.fillText('R — расщепить ресурс в газ · Q — сбросить груз · P — пауза', 10, CH-9);
-  ctx.textAlign='right'; ctx.fillStyle = docked() ? '#8ef0a0' : '#6d7681';
+  ctx.textAlign='right'; ctx.fillStyle = docked() ? '#94e6b6' : '#6d7681';
   ctx.font='bold 12px Segoe UI';
   ctx.fillText(docked()?'🛰 В ДОКЕ':'в поле', CW-10, CH-24);
   ctx.font='11px Segoe UI'; ctx.fillStyle='#9aa4ae';
@@ -755,7 +755,7 @@ function drawMinimap(){
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(miniCv, 0,0, GW,GH, x0,y0, MW,MH);
   ctx.imageSmoothingEnabled = true;
-  ctx.fillStyle='#ffd166'; ctx.fillRect(x0+padX/T*S-2, y0+padY/T*S-2, 4, 4);
+  ctx.fillStyle='#e6c894'; ctx.fillRect(x0+padX/T*S-2, y0+padY/T*S-2, 4, 4);
   ctx.fillStyle='#ffffff'; ctx.fillRect(x0+player.x/T*S-1.5, y0+player.y/T*S-1.5, 3, 3);
 }
 
@@ -768,10 +768,10 @@ function drawPadArrow(){
   const r = Math.min(CW,CH)*0.36;
   const x = cx+Math.cos(a)*r, y = cy+Math.sin(a)*r;
   ctx.save(); ctx.translate(x,y); ctx.rotate(a);
-  ctx.fillStyle = 'rgba(255,209,102,.9)';
+  ctx.fillStyle = 'rgba(230,200,148,.9)';
   ctx.beginPath(); ctx.moveTo(11,0); ctx.lineTo(-7,6); ctx.lineTo(-7,-6); ctx.closePath(); ctx.fill();
   ctx.restore();
-  ctx.fillStyle = 'rgba(255,209,102,.9)'; ctx.font='10px Segoe UI'; ctx.textAlign='center';
+  ctx.fillStyle = 'rgba(230,200,148,.9)'; ctx.font='10px Segoe UI'; ctx.textAlign='center';
   ctx.fillText('док '+Math.round(len(padX-player.x, padY-player.y)/T)+'кл', x, y+20);
 }
 
@@ -798,13 +798,13 @@ function render(){
   const starX = WCX - camX, starY = WCY + R_LOST*1.5 - camY;
   const sr = 260 + heat*520;
   const sg = ctx.createRadialGradient(starX, starY, 10, starX, starY, sr);
-  sg.addColorStop(0, 'rgba(255,220,150,'+(0.40+heat*0.45).toFixed(2)+')');
-  sg.addColorStop(0.30, 'rgba(255,140,60,'+(0.09+heat*0.26).toFixed(2)+')');
-  sg.addColorStop(1, 'rgba(255,80,30,0)');
+  sg.addColorStop(0, 'rgba(230,200,148,'+(0.40+heat*0.45).toFixed(2)+')');
+  sg.addColorStop(0.30, 'rgba(216,170,90,'+(0.09+heat*0.26).toFixed(2)+')');
+  sg.addColorStop(1, 'rgba(216,100,90,0)');
   ctx.fillStyle = sg; ctx.fillRect(0,0,CW,CH);
 
   // граница притяжения
-  ctx.strokeStyle = 'rgba(255,120,90,.30)'; ctx.setLineDash([6,8]); ctx.lineWidth = 2;
+  ctx.strokeStyle = 'rgba(216,100,90,.30)'; ctx.setLineDash([6,8]); ctx.lineWidth = 2;
   ctx.beginPath(); ctx.arc(WCX-camX, WCY-camY, R_GRAV, 0, 6.3); ctx.stroke();
   ctx.setLineDash([]);
 
@@ -841,7 +841,7 @@ function render(){
   // краснота от удара
   if(player.hurt>0){
     player.hurt -= 0.02;
-    ctx.fillStyle = 'rgba(180,30,30,'+(player.hurt*0.5).toFixed(2)+')'; ctx.fillRect(0,0,CW,CH);
+    ctx.fillStyle = 'rgba(190,57,45,'+(player.hurt*0.5).toFixed(2)+')'; ctx.fillRect(0,0,CW,CH);
   }
 
   drawHUD();
@@ -859,7 +859,7 @@ function drawEnd(){
   ctx.fillStyle = win ? 'rgba(6,18,14,.86)' : 'rgba(20,8,6,.88)';
   ctx.fillRect(0,0,CW,CH);
   ctx.textAlign='center'; ctx.textBaseline='alphabetic';
-  ctx.fillStyle = win ? '#8ef0a0' : '#ff6a4a';
+  ctx.fillStyle = win ? '#94e6b6' : '#d8645a';
   ctx.font = 'bold 32px Georgia, serif';
   ctx.fillText(win ? 'ЭВАКУИРОВАН' : 'КОНЕЦ СМЕНЫ', CW/2, CH/2-72);
   ctx.fillStyle = '#e7ecf3'; ctx.font='15px Segoe UI';
@@ -871,7 +871,7 @@ function drawEnd(){
   ctx.fillText('Модуль: ⚙️'+built.iron+'/'+NEED.iron+'  🔩'+built.titan+'/'+NEED.titan+'  💎'+built.cryst+'/'+NEED.cryst+'  ⛽'+Math.round(reserve)+'/'+NEED_FUEL, CW/2, CH/2+10);
   const bl = best.bestLeft, bm = Math.floor(bl/TOTAL_TIME*3600/60), bs = Math.floor((bl/TOTAL_TIME*3600)%60);
   ctx.fillText('Успешных эвакуаций: '+best.wins+(best.wins?('   ·   лучший запас времени '+bm+':'+(bs<10?'0':'')+bs):''), CW/2, CH/2+34);
-  ctx.fillStyle = '#ffb454'; ctx.font='14px Segoe UI';
+  ctx.fillStyle = '#d8aa5a'; ctx.font='14px Segoe UI';
   ctx.fillText('Enter / тап — новый астероид', CW/2, CH/2+72);
 }
 

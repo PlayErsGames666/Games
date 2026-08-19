@@ -3,7 +3,7 @@
     --panel: #3a3d5c;
     --cell: #8d99ae;
     --cell-open: #edf2f4;
-    --accent: #ef233c;
+    --accent: #d8645a;
     --text: #edf2f4;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -84,12 +84,12 @@
   }
   .cell.mine { background: var(--accent); }
   .cell.flag { color: var(--accent); }
-  .c1 { color: #3a86ff; }
+  .c1 { color: #5a84d8; }
   .c2 { color: #2a9d8f; }
-  .c3 { color: #e63946; }
-  .c4 { color: #7209b7; }
-  .c5 { color: #d00000; }
-  .c6 { color: #0096c7; }
+  .c3 { color: #d8645a; }
+  .c4 { color: #702dbe; }
+  .c5 { color: #be392d; }
+  .c6 { color: #2d97be; }
   .c7 { color: #212529; }
   .c8 { color: #6c757d; }
   .message {
@@ -98,7 +98,7 @@
     font-weight: bold;
     height: 28px;
   }
-  .win { color: #06d6a0; }
+  .win { color: #2dbe69; }
   .lose { color: var(--accent); }
   .hint { margin-top: 10px; font-size: 13px; opacity: .6; }
   

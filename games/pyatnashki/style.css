@@ -4,7 +4,7 @@
     --tile: #8d99ae;
     --tile-hover: #a2adc0;
     --text: #edf2f4;
-    --accent: #ef233c;
+    --accent: #d8645a;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -74,14 +74,14 @@
     background: transparent;
     cursor: default;
   }
-  .tile.correct { color: #06d6a0; }
+  .tile.correct { color: #2dbe69; }
   .message {
     margin-top: 16px;
     font-size: 22px;
     font-weight: bold;
     height: 28px;
   }
-  .win { color: #06d6a0; }
+  .win { color: #2dbe69; }
   .hint { margin-top: 10px; font-size: 13px; opacity: .6; text-align:center; }
   
   

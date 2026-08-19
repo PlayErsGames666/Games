@@ -28,20 +28,20 @@ el.best.textContent = best;
 
 // --- корпус (SKINS) и след/пламя (TRAILS) — независимо, можно миксовать ---
 const SKINS = [
-  { id: 'classic', name: 'Классика', price: 0,   body: '#e9ecf5', window: '#4cc9f0', wing: '#ef476f' },
-  { id: 'neon',    name: 'Неон',     price: 30,  body: '#06d6a0', window: '#0d0e1a', wing: '#ffd166' },
-  { id: 'red',     name: 'Алый',     price: 40,  body: '#ef476f', window: '#ffd166', wing: '#7a1020' },
-  { id: 'ice',     name: 'Лёд',      price: 40,  body: '#4cc9f0', window: '#edf2f4', wing: '#2b6ca3' },
-  { id: 'violet',  name: 'Аметист',  price: 60,  body: '#b388ff', window: '#edf2f4', wing: '#5a2fb0' },
-  { id: 'gold',    name: 'Золото',   price: 100, body: '#ffd166', window: '#8a5a2b', wing: '#b8860b' },
+  { id: 'classic', name: 'Классика', price: 0,   body: '#e9ecf5', window: '#5ab7d8', wing: '#d8645a' },
+  { id: 'neon',    name: 'Неон',     price: 30,  body: '#2dbe69', window: '#0d0e1a', wing: '#e6c894' },
+  { id: 'red',     name: 'Алый',     price: 40,  body: '#d8645a', window: '#e6c894', wing: '#7a1020' },
+  { id: 'ice',     name: 'Лёд',      price: 40,  body: '#5ab7d8', window: '#edf2f4', wing: '#2b6ca3' },
+  { id: 'violet',  name: 'Аметист',  price: 60,  body: '#ba94e6', window: '#edf2f4', wing: '#5a2fb0' },
+  { id: 'gold',    name: 'Золото',   price: 100, body: '#e6c894', window: '#8a5a2b', wing: '#be892d' },
 ];
 const TRAILS = [
-  { id: 'classic', name: 'Классика', price: 0,   flameA: '#ffd166', flameB: '#ef476f' },
-  { id: 'neon',    name: 'Неон',     price: 25,  flameA: '#5ffbf1', flameB: '#06d6a0' },
-  { id: 'fire',    name: 'Огонь',    price: 30,  flameA: '#ffd166', flameB: '#ef233c' },
-  { id: 'ice',     name: 'Лёд',      price: 30,  flameA: '#bfeaff', flameB: '#4cc9f0' },
-  { id: 'violet',  name: 'Аметист',  price: 45,  flameA: '#e0c3ff', flameB: '#7b2ff7' },
-  { id: 'gold',    name: 'Золото',   price: 70,  flameA: '#fff3b0', flameB: '#ff9f1c' },
+  { id: 'classic', name: 'Классика', price: 0,   flameA: '#e6c894', flameB: '#d8645a' },
+  { id: 'neon',    name: 'Неон',     price: 25,  flameA: '#5ab7d8', flameB: '#2dbe69' },
+  { id: 'fire',    name: 'Огонь',    price: 30,  flameA: '#e6c894', flameB: '#d8645a' },
+  { id: 'ice',     name: 'Лёд',      price: 30,  flameA: '#bfeaff', flameB: '#5ab7d8' },
+  { id: 'violet',  name: 'Аметист',  price: 45,  flameA: '#e0c3ff', flameB: '#955ad8' },
+  { id: 'gold',    name: 'Золото',   price: 70,  flameA: '#fff3b0', flameB: '#d8aa5a' },
   { id: 'rainbow', name: 'Радуга',   price: 120, rainbow: true },
 ];
 let coins = parseInt(localStorage.getItem('copterCoins') || '0', 10);

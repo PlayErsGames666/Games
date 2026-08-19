@@ -1,4 +1,4 @@
-:root { --bg:#2b2d42; --panel:#3a3d5c; --panel2:#4a4e73; --text:#edf2f4; --accent:#06d6a0; }
+:root { --bg:#2b2d42; --panel:#3a3d5c; --panel2:#4a4e73; --text:#edf2f4; --accent:#2dbe69; }
   * { box-sizing:border-box; margin:0; padding:0; }
   body { font-family:'Segoe UI',Tahoma,sans-serif; background:var(--bg); color:var(--text); min-height:100vh;
     display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px; user-select:none; }

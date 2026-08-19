@@ -3,8 +3,8 @@
     --panel: #3a3d5c;
     --cell: #8d99ae;
     --text: #edf2f4;
-    --x: #ef233c;
-    --o: #3a86ff;
+    --x: #d8645a;
+    --o: #5a84d8;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -73,7 +73,7 @@
   .cell:active:not(.taken) { transform: scale(0.95); }
   .cell.x { color: var(--x); }
   .cell.o { color: var(--o); }
-  .cell.win { background: #06d6a0; color: #fff; }
+  .cell.win { background: #2dbe69; color: #fff; }
   .scoreboard {
     display: flex;
     gap: 24px;

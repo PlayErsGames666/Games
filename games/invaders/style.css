@@ -3,7 +3,7 @@
     --panel: #3a3d5c;
     --panel2: #4a4e73;
     --text: #edf2f4;
-    --accent: #b388ff;
+    --accent: #ba94e6;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -76,7 +76,7 @@
   .shop[hidden] { display: none; }
   .shop h2 { text-align: center; font-size: 22px; margin-bottom: 2px; }
   .shop .sub { text-align: center; opacity: .75; font-size: 13px; margin-bottom: 12px; }
-  .shop .credits { text-align: center; font-size: 18px; font-weight: bold; color: #ffd166; margin-bottom: 12px; }
+  .shop .credits { text-align: center; font-size: 18px; font-weight: bold; color: #e6c894; margin-bottom: 12px; }
   .secname { font-size: 13px; font-weight: bold; opacity: .7; text-transform: uppercase; letter-spacing: 1px; margin: 10px 2px 6px; }
   .upgrades { display: flex; flex-direction: column; gap: 8px; }
   .up.equipped { outline: 2px solid var(--accent); background: var(--panel2); }
@@ -95,13 +95,13 @@
   .up .lvl { display: flex; gap: 3px; margin-top: 4px; }
   .up .pip { width: 14px; height: 6px; border-radius: 3px; background: rgba(255,255,255,.15); }
   .up .pip.on { background: var(--accent); }
-  .up .cost { font-weight: bold; color: #ffd166; white-space: nowrap; }
-  .up .max { font-weight: bold; color: #06d6a0; font-size: 13px; }
+  .up .cost { font-weight: bold; color: #e6c894; white-space: nowrap; }
+  .up .max { font-weight: bold; color: #2dbe69; font-size: 13px; }
   .shop .go {
-    margin-top: 12px; background: #06d6a0; color: #0d0e1a; font-weight: bold;
+    margin-top: 12px; background: #2dbe69; color: #0d0e1a; font-weight: bold;
     font-size: 17px; padding: 12px; border-radius: 10px;
   }
-  .shop .go:hover { background: #08f5b4; }
+  .shop .go:hover { background: #2dbe69; }
 
   
   

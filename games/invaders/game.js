@@ -9,13 +9,13 @@ const MARGIN = 14, DROP = 20;
 
 // типы врагов
 const TYPES = {
-  grunt:   { hp: 1, w: 28, h: 20, points: 10, credits: 1, color: '#06d6a0', form: true },
-  shooter: { hp: 2, w: 28, h: 20, points: 25, credits: 2, color: '#ffd166', form: true, shoots: true },
-  tank:    { hp: 4, w: 34, h: 24, points: 40, credits: 4, color: '#ef476f', form: true },
-  darter:  { hp: 1, w: 24, h: 18, points: 20, credits: 3, color: '#4cc9f0', form: false },
+  grunt:   { hp: 1, w: 28, h: 20, points: 10, credits: 1, color: '#2dbe69', form: true },
+  shooter: { hp: 2, w: 28, h: 20, points: 25, credits: 2, color: '#e6c894', form: true, shoots: true },
+  tank:    { hp: 4, w: 34, h: 24, points: 40, credits: 4, color: '#d8645a', form: true },
+  darter:  { hp: 1, w: 24, h: 18, points: 20, credits: 3, color: '#5ab7d8', form: false },
 };
 
-const ROW_COLORS = ['#ef476f', '#ffd166', '#06d6a0', '#4cc9f0', '#b388ff'];
+const ROW_COLORS = ['#d8645a', '#e6c894', '#2dbe69', '#5ab7d8', '#ba94e6'];
 
 // апгрейды: base/step — стоимость, max — макс. уровень
 const UPGRADES = [
@@ -36,7 +36,7 @@ function mkBullet(cx, y, angDeg, dmg, o) {
   const w = o.w || 4, h = o.h || 12;
   return {
     x: cx - w / 2, y, vx: Math.sin(rad) * sp, vy: -Math.cos(rad) * sp, speed: sp,
-    dmg, w, h, homing: !!o.homing, pierce: !!o.pierce, color: o.color || '#ffd166',
+    dmg, w, h, homing: !!o.homing, pierce: !!o.pierce, color: o.color || '#e6c894',
     life: o.homing ? 3.2 : 4, hit: new Set(),
   };
 }
@@ -51,11 +51,11 @@ const WEAPONS = [
   { key: 'sniper',  name: 'Снайпер',        em: '🎯', cost: 120, cd: 0.7,  desc: 'мощный пробивающий выстрел',
     fire: (cx, y, db) => [ mkBullet(cx, y, 0, 5 + db, { speed: 900, w: 3, h: 22, pierce: true, color: '#ffffff' }) ] },
   { key: 'tank',    name: 'Танк',           em: '💣', cost: 130, cd: 0.6,  desc: 'тяжёлые крупные снаряды',
-    fire: (cx, y, db) => [-7, 7].map(a => mkBullet(cx, y, a, 4 + db, { speed: 420, w: 10, h: 16, color: '#ff9f1c' })) },
+    fire: (cx, y, db) => [-7, 7].map(a => mkBullet(cx, y, a, 4 + db, { speed: 420, w: 10, h: 16, color: '#d8aa5a' })) },
   { key: 'homing',  name: 'Самонаведение',  em: '🧲', cost: 150, cd: 0.4,  desc: 'пули догоняют врагов',
-    fire: (cx, y, db) => [-8, 8].map(a => mkBullet(cx, y, a, 2 + db, { speed: 480, homing: true, color: '#4cc9f0' })) },
+    fire: (cx, y, db) => [-8, 8].map(a => mkBullet(cx, y, a, 2 + db, { speed: 480, homing: true, color: '#5ab7d8' })) },
   { key: 'emperor', name: 'Император',      em: '👑', cost: 300, cd: 0.3,  desc: 'веер самонаводящихся мощных пуль',
-    fire: (cx, y, db) => [-25, 0, 25].map(a => mkBullet(cx, y, a, 3 + db, { speed: 520, homing: true, w: 5, h: 14, color: '#ffd166' })) },
+    fire: (cx, y, db) => [-25, 0, 25].map(a => mkBullet(cx, y, a, 3 + db, { speed: 520, homing: true, w: 5, h: 14, color: '#e6c894' })) },
 ];
 function weaponByKey(k) { return WEAPONS.find(w => w.key === k); }
 
@@ -199,7 +199,7 @@ function spawnBoss(n) {
   enemies.push({
     id: enemyId++, type: 'boss', x: W / 2 - 60, y: 46, w: 120, h: 70,
     hp: bossHp, maxHp: bossHp, points: 500, credits: 40,
-    color: '#b388ff', form: false, shoots: true, row: 0,
+    color: '#ba94e6', form: false, shoots: true, row: 0,
     vx: (70 + n * 3) * diff, vy: 0, fireAcc: 0, phase: 0,
   });
 }
@@ -468,7 +468,7 @@ function renderWeapons() {
     btn.disabled = !owned && credits < wp.cost;
     let right;
     if (equipped) right = '<span class="max">★ в бою</span>';
-    else if (owned) right = '<span class="cost" style="color:#06d6a0">выбрать</span>';
+    else if (owned) right = '<span class="cost" style="color:#2dbe69">выбрать</span>';
     else right = `<span class="cost">💰${wp.cost}</span>`;
     btn.innerHTML = `
       <span class="em">${wp.em}</span>
@@ -526,7 +526,7 @@ function draw() {
   for (const e of enemies) drawEnemy(e);
 
   for (const b of pBullets) { ctx.fillStyle = b.color; ctx.fillRect(b.x, b.y, b.w, b.h); }
-  ctx.fillStyle = '#ff5d73';
+  ctx.fillStyle = '#e69a94';
   for (const b of eBullets) ctx.fillRect(b.x, b.y, 4, 12);
 
   for (const p of pickups) drawPickup(p);
@@ -566,7 +566,7 @@ function drawEnemy(e) {
   // полоска HP для «толстых» врагов
   if (e.maxHp > 1 && e.hp < e.maxHp) {
     ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(e.x, e.y - 5, e.w, 3);
-    ctx.fillStyle = '#06d6a0'; ctx.fillRect(e.x, e.y - 5, e.w * e.hp / e.maxHp, 3);
+    ctx.fillStyle = '#2dbe69'; ctx.fillRect(e.x, e.y - 5, e.w * e.hp / e.maxHp, 3);
   }
 }
 
@@ -577,31 +577,31 @@ function drawBoss(e) {
   ctx.fillStyle = '#0d0e1a';
   ctx.fillRect(e.x + 26, e.y + 26, 16, 12);
   ctx.fillRect(e.x + e.w - 42, e.y + 26, 16, 12);
-  ctx.fillStyle = '#ff5d73';
+  ctx.fillStyle = '#e69a94';
   ctx.fillRect(e.x + 30, e.y + 30, 6, 5);
   ctx.fillRect(e.x + e.w - 36, e.y + 30, 6, 5);
   // HP бар
   ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(e.x, e.y - 9, e.w, 5);
-  ctx.fillStyle = '#b388ff'; ctx.fillRect(e.x, e.y - 9, e.w * e.hp / e.maxHp, 5);
+  ctx.fillStyle = '#ba94e6'; ctx.fillRect(e.x, e.y - 9, e.w * e.hp / e.maxHp, 5);
 }
 
 function drawPickup(p) {
   if (p.kind === 'coin') {
-    ctx.fillStyle = '#ffd166'; ctx.beginPath(); ctx.arc(p.x + 9, p.y + 9, 9, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#e6c894'; ctx.beginPath(); ctx.arc(p.x + 9, p.y + 9, 9, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = '#0d0e1a'; ctx.font = 'bold 12px Segoe UI'; ctx.textAlign = 'center'; ctx.fillText('$', p.x + 9, p.y + 13);
   } else {
-    ctx.fillStyle = '#ef476f'; ctx.font = '18px Segoe UI'; ctx.textAlign = 'center'; ctx.fillText('❤', p.x + 9, p.y + 15);
+    ctx.fillStyle = '#d8645a'; ctx.font = '18px Segoe UI'; ctx.textAlign = 'center'; ctx.fillText('❤', p.x + 9, p.y + 15);
   }
 }
 
 function drawPlayer() {
   const x = player.x, y = PLAYER_Y, cx = x + PLAYER_W / 2, wk = activeWeapon;
   if (player.shield >= 1) {
-    ctx.strokeStyle = 'rgba(76,201,240,.8)'; ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(90,183,216,.8)'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(cx, y + PLAYER_H / 2, PLAYER_W * 0.75, 0, Math.PI * 2); ctx.stroke();
   }
   // корпус (цвет зависит от пушки)
-  const body = wk === 'emperor' ? '#ffd166' : wk === 'tank' ? '#8a9a5b' : '#06d6a0';
+  const body = wk === 'emperor' ? '#e6c894' : wk === 'tank' ? '#8a9a5b' : '#2dbe69';
   ctx.fillStyle = body;
   ctx.beginPath();
   ctx.moveTo(cx, y);
@@ -614,7 +614,7 @@ function drawPlayer() {
   if (wk === 'blaster') {
     ctx.fillRect(cx - 2, y - 7, 4, 7);
   } else if (wk === 'rapid') {
-    ctx.fillStyle = '#ffd166';
+    ctx.fillStyle = '#e6c894';
     ctx.fillRect(cx - 7, y - 6, 3, 6); ctx.fillRect(cx + 4, y - 6, 3, 6);
   } else if (wk === 'spread') {
     ctx.fillRect(cx - 2, y - 6, 4, 6);
@@ -625,11 +625,11 @@ function drawPlayer() {
     ctx.fillStyle = '#3a3d2a'; ctx.fillRect(cx - 6, y - 9, 12, 9);
   } else if (wk === 'homing') {
     ctx.fillRect(cx - 2, y - 7, 4, 7);
-    ctx.fillStyle = '#4cc9f0'; ctx.beginPath(); ctx.arc(cx, y - 9, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#5ab7d8'; ctx.beginPath(); ctx.arc(cx, y - 9, 3, 0, Math.PI * 2); ctx.fill();
   } else if (wk === 'emperor') {
     ctx.fillRect(cx - 2, y - 8, 4, 8);
     ctx.fillRect(cx - 8, y - 5, 3, 6); ctx.fillRect(cx + 5, y - 5, 3, 6);
-    ctx.fillStyle = '#ffcc00'; // корона
+    ctx.fillStyle = '#be892d'; // корона
     ctx.fillRect(cx - 6, y - 14, 12, 3);
     ctx.fillRect(cx - 6, y - 17, 3, 3); ctx.fillRect(cx - 1.5, y - 18, 3, 4); ctx.fillRect(cx + 3, y - 17, 3, 3);
   }

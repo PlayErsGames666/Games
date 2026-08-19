@@ -161,9 +161,9 @@ function draw(t) {
   }
 
   // еда (с лёгким свечением)
-  ctx.shadowColor = '#ef233c';
+  ctx.shadowColor = '#d8645a';
   ctx.shadowBlur = 14;
-  ctx.fillStyle = '#ef233c';
+  ctx.fillStyle = '#d8645a';
   roundRect(food.x * SIZE + 3, food.y * SIZE + 3, SIZE - 6, SIZE - 6, 6);
   ctx.shadowBlur = 0;
 
@@ -171,10 +171,10 @@ function draw(t) {
   for (let i = snake.length - 1; i >= 0; i--) {
     const p = segPos(i, t);
     if (i === 0) {
-      ctx.fillStyle = '#08f5b4';   // голова ярче
+      ctx.fillStyle = '#2dbe69';   // голова ярче
     } else {
       const k = 1 - i / snake.length * 0.5; // тело плавно темнеет к хвосту
-      ctx.fillStyle = `rgba(6,214,160,${k})`;
+      ctx.fillStyle = `rgba(45,190,105,${k})`;
     }
     drawCell(p.x, p.y, 1, 5);
   }

@@ -15,11 +15,11 @@ const ITEMS = {
   ironOre:  { n:'Железная руда', c:'#8f9aa6', s:'circle' },
   copperOre:{ n:'Медная руда',   c:'#c8763c', s:'circle' },
   coal:     { n:'Уголь',         c:'#3f4148', s:'circle' },
-  sulfur:   { n:'Сера',          c:'#d9c93c', s:'circle' },
-  water:    { n:'Вода',          c:'#4aa6d9', s:'drop'   },
+  sulfur:   { n:'Сера',          c:'#d8aa5a', s:'circle' },
+  water:    { n:'Вода',          c:'#5ab7d8', s:'drop'   },
   bullet:   { n:'Патроны',       c:'#dfe6ee', s:'square' },
-  incend:   { n:'Зажигательные', c:'#ff7a3a', s:'square' },
-  copper:   { n:'Медь (деньги)', c:'#ffb43a', s:'square' },
+  incend:   { n:'Зажигательные', c:'#d8645a', s:'square' },
+  copper:   { n:'Медь (деньги)', c:'#d8aa5a', s:'square' },
 };
 const RECIPES = [
   { in:{ ironOre:1 },            out:'bullet', time:0.9 },
@@ -467,7 +467,7 @@ function drawCell(i){
     ctx.fillStyle = 'rgba(255,255,255,.3)'; ctx.font = '10px Segoe UI'; ctx.fillText(ARROW[c.dir], x+T/2, y+T/2);
   } else if(b === NODE){
     ctx.fillStyle = '#2b3a2e'; ctx.fillRect(x+3,y+3,T-6,T-6);
-    ctx.fillStyle = poweredNet(i) ? '#8ef0a0' : '#5a6a5e'; ctx.font = '11px Segoe UI'; ctx.fillText('〰', x+T/2, y+T/2);
+    ctx.fillStyle = poweredNet(i) ? '#94e6b6' : '#5a6a5e'; ctx.font = '11px Segoe UI'; ctx.fillText('〰', x+T/2, y+T/2);
   } else {
     const col = { [DRILL]:'#4a4231', [SMELT]:'#3b3550', [GUN]:'#3a4450', [FLAME]:'#50372c', [LASER]:'#2f4450', [GEN]:'#4a3a2c', [WALL]:'#3c4048', [CORE]:'#2f5a44' }[b] || '#333';
     ctx.fillStyle = col; ctx.fillRect(x+1,y+1,T-2,T-2);
@@ -478,16 +478,16 @@ function drawCell(i){
   // индикаторы: патроны, вода, ток, крафт
   if(b === GUN || b === FLAME){
     const k = c.ammo / AMMO_CAP;
-    ctx.fillStyle = c.ammo > 0 ? '#8ef0a0' : '#ff5a4a';
+    ctx.fillStyle = c.ammo > 0 ? '#94e6b6' : '#d8645a';
     ctx.fillRect(x+2, y+T-4, (T-4)*Math.max(k, c.ammo>0?0.08:1), 2);
     ctx.fillStyle='rgba(255,255,255,.3)'; ctx.font='8px Segoe UI'; ctx.fillText(ARROW[c.dir], x+T-5, y+5);
   }
   if(b === LASER){
-    ctx.fillStyle = powered(i) ? '#ffd166' : '#ff5a4a'; ctx.fillRect(x+2, y+2, 4, 2);
-    ctx.fillStyle = c.wat >= WATER_PER_SHOT ? '#4aa6d9' : '#ff5a4a'; ctx.fillRect(x+2, y+T-4, (T-4)*clamp(c.wat/AMMO_CAP,0.08,1), 2);
+    ctx.fillStyle = powered(i) ? '#e6c894' : '#d8645a'; ctx.fillRect(x+2, y+2, 4, 2);
+    ctx.fillStyle = c.wat >= WATER_PER_SHOT ? '#5ab7d8' : '#d8645a'; ctx.fillRect(x+2, y+T-4, (T-4)*clamp(c.wat/AMMO_CAP,0.08,1), 2);
   }
-  if(b === GEN){ ctx.fillStyle = c.craft > 0 ? '#ffd166' : '#5a4a3a'; ctx.fillRect(x+2, y+2, T-4, 2); }
-  if(b === SMELT && c.craft > 0){ const r = RECIPES.find(r=>r.out===c.made); ctx.fillStyle='#ffb43a'; ctx.fillRect(x+2, y+2, (T-4)*(r?1-c.craft/r.time:0), 2); }
+  if(b === GEN){ ctx.fillStyle = c.craft > 0 ? '#e6c894' : '#5a4a3a'; ctx.fillRect(x+2, y+2, T-4, 2); }
+  if(b === SMELT && c.craft > 0){ const r = RECIPES.find(r=>r.out===c.made); ctx.fillStyle='#d8aa5a'; ctx.fillRect(x+2, y+2, (T-4)*(r?1-c.craft/r.time:0), 2); }
   if(b === DRILL){ ctx.fillStyle='rgba(255,255,255,.3)'; ctx.font='8px Segoe UI'; ctx.fillText(ARROW[c.dir], x+T-5, y+T-5); }
   if(b === SMELT){ ctx.fillStyle='rgba(255,255,255,.3)'; ctx.font='8px Segoe UI'; ctx.fillText(ARROW[c.dir], x+T-5, y+T-5); }
   if(c.out) drawItem(x+5, y+5, c.out, 2.6);
@@ -495,7 +495,7 @@ function drawCell(i){
   // прочность
   if(b !== CORE && c.hp < B[b].hp){
     ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(x+2, y+T-7, T-4, 2);
-    ctx.fillStyle = '#ff7a5a'; ctx.fillRect(x+2, y+T-7, (T-4)*clamp(c.hp/B[b].hp,0,1), 2);
+    ctx.fillStyle = '#d8645a'; ctx.fillRect(x+2, y+T-7, (T-4)*clamp(c.hp/B[b].hp,0,1), 2);
   }
   if(c.item){
     const d = DIRS[c.dir], k = (c.item.p-0.5)*T;
@@ -506,9 +506,9 @@ function poweredNet(i){ const c = cells[i]; return c.net >= 0 && nets[c.net] && 
 
 function uiBtn(x,y,w,h,fn,active,dim){
   uiHit.push({x,y,w,h,fn});
-  ctx.fillStyle = active ? 'rgba(255,180,58,.28)' : 'rgba(37,44,54,.95)';
+  ctx.fillStyle = active ? 'rgba(216,170,90,.28)' : 'rgba(37,44,54,.95)';
   ctx.fillRect(x,y,w,h);
-  ctx.strokeStyle = active ? '#ffb43a' : 'rgba(255,255,255,.12)'; ctx.lineWidth = 1;
+  ctx.strokeStyle = active ? '#d8aa5a' : 'rgba(255,255,255,.12)'; ctx.lineWidth = 1;
   ctx.strokeRect(x+0.5,y+0.5,w-1,h-1);
   if(dim){ ctx.fillStyle = 'rgba(8,10,14,.55)'; ctx.fillRect(x,y,w,h); }
 }
@@ -517,7 +517,7 @@ function drawHUD(){
   uiHit = [];
   ctx.fillStyle = 'rgba(8,10,14,.92)'; ctx.fillRect(0,0,CW,GY-2);
   ctx.textAlign='left'; ctx.textBaseline='alphabetic';
-  ctx.font='bold 15px Consolas, monospace'; ctx.fillStyle='#ffb43a';
+  ctx.font='bold 15px Consolas, monospace'; ctx.fillStyle='#d8aa5a';
   ctx.fillText('🔶 ' + Math.floor(money), 8, 20);
   ctx.font='10px Segoe UI'; ctx.fillStyle='#98a2ae';
   ctx.fillText('убито ' + kills, 8, 34);
@@ -527,19 +527,19 @@ function drawHUD(){
   ctx.fillText('ЯДРО', CW/2-60, 16);
   const w = 96, bx = CW/2-108;
   ctx.fillStyle='rgba(0,0,0,.5)'; ctx.fillRect(bx, 21, w, 8);
-  ctx.fillStyle = coreHP < 70 ? '#ff5a4a' : '#8ef0a0';
+  ctx.fillStyle = coreHP < 70 ? '#d8645a' : '#94e6b6';
   ctx.fillRect(bx+1, 22, (w-2)*clamp(coreHP/B[CORE].hp,0,1), 6);
   ctx.font='10px Segoe UI'; ctx.fillStyle='#98a2ae';
   ctx.fillText(Math.max(0,Math.ceil(coreHP)) + ' / ' + B[CORE].hp, CW/2-60, 40);
 
   // волна
-  ctx.textAlign='right'; ctx.font='bold 13px Segoe UI'; ctx.fillStyle = spawnQ.length || enemies.length ? '#ff7a5a' : '#e4ebf2';
+  ctx.textAlign='right'; ctx.font='bold 13px Segoe UI'; ctx.fillStyle = spawnQ.length || enemies.length ? '#d8645a' : '#e4ebf2';
   ctx.fillText(spawnQ.length || enemies.length ? 'ВОЛНА ' + wave + ' ИДЁТ' : 'ВОЛНА ' + (wave+1) + ' через ' + Math.ceil(waveT) + 'с', CW-8, 18);
   ctx.font='10px Segoe UI'; ctx.fillStyle='#98a2ae';
   ctx.fillText('врагов: ' + enemies.length + ' · рекорд ' + best + ' волн', CW-8, 32);
   // энергия
   let sup=0, dem=0; for(const k in nets){ sup += nets[k].sup; dem += nets[k].dem; }
-  ctx.fillStyle = dem === 0 ? '#98a2ae' : (sup >= dem ? '#8ef0a0' : '#ff5a4a');
+  ctx.fillStyle = dem === 0 ? '#98a2ae' : (sup >= dem ? '#94e6b6' : '#d8645a');
   ctx.fillText('⚡ ' + sup + '/' + dem, CW-8, 44);
 
   // панель зданий: два ряда
@@ -552,17 +552,17 @@ function drawHUD(){
     ctx.textAlign='center'; ctx.textBaseline='middle';
     ctx.font='12px serif'; ctx.fillStyle='#e4ebf2'; ctx.fillText(B[id].ico, x+bw/2, y+10);
     ctx.font='8px Segoe UI'; ctx.fillStyle='#98a2ae'; ctx.fillText(B[id].n, x+bw/2, y+21);
-    ctx.fillStyle='#ffb43a'; ctx.fillText(B[id].cost + '🔶', x+bw/2, y+28);
+    ctx.fillStyle='#d8aa5a'; ctx.fillText(B[id].cost + '🔶', x+bw/2, y+28);
     ctx.textAlign='left'; ctx.fillStyle='rgba(255,255,255,.3)'; ctx.fillText(k+1, x+2, y+7);
   });
   uiBtn(CW-108, BAR+4, 48, 30, ()=>{ dir = (dir+1)%4; }, false, false);
   ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.font='12px Segoe UI'; ctx.fillStyle='#e4ebf2';
   ctx.fillText(ARROW[dir], CW-84, BAR+15); ctx.font='8px Segoe UI'; ctx.fillStyle='#98a2ae'; ctx.fillText('R поворот', CW-84, BAR+26);
   uiBtn(CW-56, BAR+4, 50, 30, ()=>{ delMode = !delMode; }, delMode, false);
-  ctx.font='12px Segoe UI'; ctx.fillStyle = delMode ? '#ff7a5a' : '#e4ebf2'; ctx.fillText('❌', CW-31, BAR+15);
+  ctx.font='12px Segoe UI'; ctx.fillStyle = delMode ? '#d8645a' : '#e4ebf2'; ctx.fillText('❌', CW-31, BAR+15);
   ctx.font='8px Segoe UI'; ctx.fillStyle='#98a2ae'; ctx.fillText('X снос', CW-31, BAR+26);
   uiBtn(CW-108, BAR+37, 102, 26, ()=>{ if(!spawnQ.length && !enemies.length){ money += 20 + wave*6; waveT = 0.1; } }, false, spawnQ.length>0);
-  ctx.font='9px Segoe UI'; ctx.fillStyle='#ffb43a'; ctx.fillText('⏩ волна раньше (V)', CW-57, BAR+50);
+  ctx.font='9px Segoe UI'; ctx.fillStyle='#d8aa5a'; ctx.fillText('⏩ волна раньше (V)', CW-57, BAR+50);
 
   // рецепты и подсказка
   ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.font='9px Segoe UI'; ctx.fillStyle='#98a2ae';
@@ -573,7 +573,7 @@ function drawHUD(){
     ctx.fillStyle='#98a2ae'; ctx.fillText('→', rx, ry); rx += 9;
     drawItem(rx, ry, r.out, 3.2); rx += 15;
   }
-  ctx.font='9px Segoe UI'; ctx.fillStyle = msgT > 0 ? '#ffb43a' : '#6c7683';
+  ctx.font='9px Segoe UI'; ctx.fillStyle = msgT > 0 ? '#d8aa5a' : '#6c7683';
   ctx.fillText(msgT > 0 ? msg : 'медь → ядро = деньги · патроны → турели · лазеру нужны ⚡ и 💧', 8, BAR+86);
 }
 
@@ -588,7 +588,7 @@ function render(){
     const hx = sx(hover%GW)+T/2, hy = sy((hover/GW)|0)+T/2;
     const spec = B[sel];
     if(spec.range || spec.radius){
-      ctx.strokeStyle = spec.radius ? 'rgba(142,240,160,.35)' : 'rgba(255,180,58,.3)';
+      ctx.strokeStyle = spec.radius ? 'rgba(148,230,182,.35)' : 'rgba(216,170,90,.3)';
       ctx.setLineDash([4,5]); ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.arc(hx, hy, (spec.range || spec.radius)*T, 0, 6.3); ctx.stroke();
       ctx.setLineDash([]);
@@ -598,22 +598,22 @@ function render(){
   // враги
   for(const e of enemies){
     const ex = GX + e.x*T, ey = GY + e.y*T;
-    ctx.fillStyle = e.hit > 0 ? '#ffffff' : (e.kind === 'tank' ? '#c05a5a' : '#d98a4a');
+    ctx.fillStyle = e.hit > 0 ? '#ffffff' : (e.kind === 'tank' ? '#c05a5a' : '#d8aa5a');
     if(e.kind === 'tank'){ ctx.fillRect(ex-6, ey-6, 12, 12); }
     else { ctx.beginPath(); ctx.moveTo(ex, ey-6); ctx.lineTo(ex+5, ey+4); ctx.lineTo(ex-5, ey+4); ctx.closePath(); ctx.fill(); }
     ctx.fillStyle='rgba(0,0,0,.6)'; ctx.fillRect(ex-7, ey-10, 14, 2);
-    ctx.fillStyle='#ff6a5a'; ctx.fillRect(ex-7, ey-10, 14*clamp(e.hp/e.max,0,1), 2);
+    ctx.fillStyle='#d8645a'; ctx.fillRect(ex-7, ey-10, 14*clamp(e.hp/e.max,0,1), 2);
   }
   // выстрелы
   for(const s of shots){
-    ctx.strokeStyle = s.laser ? 'rgba(120,220,255,.9)' : (s.fire ? 'rgba(255,140,60,.9)' : 'rgba(255,230,160,.8)');
+    ctx.strokeStyle = s.laser ? 'rgba(148,208,230,.9)' : (s.fire ? 'rgba(216,170,90,.9)' : 'rgba(255,230,160,.8)');
     ctx.lineWidth = s.laser ? 2.5 : 1.4;
     ctx.beginPath(); ctx.moveTo(GX+s.x1*T, GY+s.y1*T); ctx.lineTo(GX+s.x2*T, GY+s.y2*T); ctx.stroke();
   }
 
   if(hover >= 0 && !over){
     const p = { x:sx(hover%GW), y:sy((hover/GW)|0) };
-    ctx.strokeStyle = delMode ? '#ff5a4a' : '#ffb43a'; ctx.lineWidth = 2;
+    ctx.strokeStyle = delMode ? '#d8645a' : '#d8aa5a'; ctx.lineWidth = 2;
     ctx.strokeRect(p.x+1, p.y+1, T-2, T-2);
   }
   ctx.strokeStyle='rgba(255,255,255,.10)'; ctx.lineWidth=1;
@@ -630,13 +630,13 @@ function render(){
   if(over){
     ctx.fillStyle='rgba(20,6,6,.9)'; ctx.fillRect(0,0,CW,CH);
     ctx.textAlign='center'; ctx.textBaseline='alphabetic';
-    ctx.fillStyle='#ff6a4a'; ctx.font='bold 30px Georgia, serif';
+    ctx.fillStyle='#d8645a'; ctx.font='bold 30px Georgia, serif';
     ctx.fillText('РУБЕЖ ПАЛ', CW/2, CH/2-60);
     ctx.fillStyle='#e4ebf2'; ctx.font='14px Segoe UI'; ctx.fillText(cause, CW/2, CH/2-30);
     ctx.font='13px Segoe UI'; ctx.fillStyle='#c2cad2';
     ctx.fillText('Отбито волн: ' + Math.max(0,wave-1) + '   ·   уничтожено: ' + kills, CW/2, CH/2+2);
     ctx.fillText('Рекорд: ' + best + ' волн', CW/2, CH/2+26);
-    ctx.fillStyle='#ffb43a'; ctx.font='14px Segoe UI';
+    ctx.fillStyle='#d8aa5a'; ctx.font='14px Segoe UI';
     ctx.fillText('Enter / тап — новая карта', CW/2, CH/2+64);
   }
 }

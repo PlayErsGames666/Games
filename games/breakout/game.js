@@ -7,15 +7,15 @@ const COLS = 10, MARGIN = 24, GAP = 4, BRICK_H = 20, TOP = 60;
 const BRICK_W = (W - 2 * MARGIN - (COLS - 1) * GAP) / COLS;
 const PADDLE_Y = H - 30, PADDLE_H = 14, PADDLE_BASE_W = 88, PADDLE_WIDE_W = 140;
 const PADDLE_SPEED = 460, BALL_R = 7;
-const HP_COLORS = { 1: '#06d6a0', 2: '#ffd166', 3: '#ff9f1c', 4: '#ef476f' };
+const HP_COLORS = { 1: '#2dbe69', 2: '#e6c894', 3: '#d8aa5a', 4: '#d8645a' };
 
 // бонусы
 const POWERS = [
-  { kind: 'wide',  color: '#ff9f1c', weight: 3 },
-  { kind: 'multi', color: '#b388ff', weight: 2 },
-  { kind: 'slow',  color: '#4cc9f0', weight: 2 },
-  { kind: 'laser', color: '#ffd166', weight: 2 },
-  { kind: 'life',  color: '#ef476f', weight: 1 },
+  { kind: 'wide',  color: '#d8aa5a', weight: 3 },
+  { kind: 'multi', color: '#ba94e6', weight: 2 },
+  { kind: 'slow',  color: '#5ab7d8', weight: 2 },
+  { kind: 'laser', color: '#e6c894', weight: 2 },
+  { kind: 'life',  color: '#d8645a', weight: 1 },
 ];
 
 const el = {
@@ -263,11 +263,11 @@ function draw() {
   }
 
   // лазеры
-  ctx.fillStyle = '#ffd166';
+  ctx.fillStyle = '#e6c894';
   for (const l of lasers) ctx.fillRect(l.x - 1.5, l.y, 3, 12);
 
   // платформа
-  ctx.fillStyle = laserTime > 0 ? '#ffd166' : '#06d6a0';
+  ctx.fillStyle = laserTime > 0 ? '#e6c894' : '#2dbe69';
   roundRect(paddle.x, PADDLE_Y, paddle.w, PADDLE_H, 6);
 
   // мячи

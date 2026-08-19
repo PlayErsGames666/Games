@@ -1,4 +1,4 @@
-:root { --bg:#2b2d42; --panel:#3a3d5c; --panel2:#4a4e73; --text:#edf2f4; --accent:#4cc9f0; }
+:root { --bg:#2b2d42; --panel:#3a3d5c; --panel2:#4a4e73; --text:#edf2f4; --accent:#5ab7d8; }
   * { box-sizing:border-box; margin:0; padding:0; }
   body { font-family:'Segoe UI',Tahoma,sans-serif; background:var(--bg); color:var(--text); min-height:100vh;
     display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px; user-select:none; }
@@ -26,8 +26,8 @@
   .choices { display:flex; gap:12px; width:420px; max-width:100%; margin-top:16px; }
   .choices button { flex:1; padding:14px 12px; font-size:16px; font-weight:bold; border-radius:12px; background:var(--panel); }
   .choices button:hover { background:var(--panel2); }
-  #left:hover { box-shadow:inset 0 0 0 2px #ef476f; }
-  #right:hover { box-shadow:inset 0 0 0 2px #06d6a0; }
+  #left:hover { box-shadow:inset 0 0 0 2px #d8645a; }
+  #right:hover { box-shadow:inset 0 0 0 2px #2dbe69; }
 
   .over { width:420px; max-width:100%; background:#1c1f33; border-radius:16px; padding:22px; text-align:center; box-shadow:0 10px 26px rgba(0,0,0,.5); }
   .over .cause { font-size:19px; font-weight:bold; margin-bottom:8px; }

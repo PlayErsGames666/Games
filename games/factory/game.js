@@ -17,7 +17,7 @@ const ITEMS = {
   copperOre:{ name:'Медная руда',   col:'#c07a45', shape:'circle', ore:true,  pay:2 },
   coal:     { name:'Уголь',         col:'#4a4a52', shape:'circle', ore:true,  pay:2 },
   iron:     { name:'Железный слиток',col:'#d5dae0', shape:'square', pay:5 },
-  copper:   { name:'Медный слиток', col:'#e08a4a', shape:'square', pay:5 },
+  copper:   { name:'Медный слиток', col:'#d8aa5a', shape:'square', pay:5 },
   gear:     { name:'Шестерня',      col:'#7fb0d8', shape:'gear',   pay:14 },
   chip:     { name:'Схема',         col:'#7fd6a0', shape:'chip',   pay:34 },
 };
@@ -389,7 +389,7 @@ function drawCell(i){
     if(c.b === SPLIT){ ctx.fillStyle='rgba(255,255,255,.22)'; ctx.fillText('⑂', x+5, y+6); }
   } else if(c.b === MINER){
     ctx.fillStyle = '#4a4030'; ctx.fillRect(x+1, y+1, T-2, T-2);
-    ctx.fillStyle = '#e0c070'; ctx.font = '12px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillStyle = '#d8aa5a'; ctx.font = '12px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
     ctx.fillText('⛏', x+T/2, y+T/2);
     ctx.fillStyle='rgba(255,255,255,.35)'; ctx.font='10px Segoe UI'; ctx.fillText(ARROW[c.dir], x+T-6, y+T-6);
   } else if(c.b === FACT){
@@ -399,7 +399,7 @@ function drawCell(i){
     // что лежит в приёмном бункере
     let bx = x+3; for(const k in c.buf){ for(let n=0;n<Math.min(c.buf[k],3);n++){ drawItem(bx, y+T-4, k, 2.2); bx += 5; } }
     if(c.craft > 0){ const r = RECIPES.find(r=>r.out===c.made); const k = r ? 1-c.craft/r.time : 0;
-      ctx.fillStyle='#f2b134'; ctx.fillRect(x+2, y+2, (T-4)*k, 2); }
+      ctx.fillStyle='#d8aa5a'; ctx.fillRect(x+2, y+2, (T-4)*k, 2); }
     if(c.out) drawItem(x+T-6, y+6, c.out, 3);
     ctx.fillStyle='rgba(255,255,255,.35)'; ctx.font='10px Segoe UI'; ctx.fillText(ARROW[c.dir], x+5, y+6);
   } else if(c.b === HUB){
@@ -416,16 +416,16 @@ function drawCell(i){
   }
 
   if(c.jam > 0.05){
-    ctx.strokeStyle = 'rgba(255,80,70,' + (0.25 + c.jam*0.55).toFixed(2) + ')';
+    ctx.strokeStyle = 'rgba(216,100,90,' + (0.25 + c.jam*0.55).toFixed(2) + ')';
     ctx.lineWidth = 2; ctx.strokeRect(x+1.5, y+1.5, T-3, T-3);
   }
 }
 
 function uiBtn(x,y,w,h,fn,active,dim){
   uiHit.push({ x,y,w,h,fn });
-  ctx.fillStyle = active ? 'rgba(242,177,52,.28)' : 'rgba(38,44,56,.95)';
+  ctx.fillStyle = active ? 'rgba(216,170,90,.28)' : 'rgba(38,44,56,.95)';
   ctx.fillRect(x,y,w,h);
-  ctx.strokeStyle = active ? '#f2b134' : 'rgba(255,255,255,.12)';
+  ctx.strokeStyle = active ? '#d8aa5a' : 'rgba(255,255,255,.12)';
   ctx.lineWidth = 1; ctx.strokeRect(x+0.5,y+0.5,w-1,h-1);
   if(dim){ ctx.fillStyle = 'rgba(10,12,16,.55)'; ctx.fillRect(x,y,w,h); }
 }
@@ -435,7 +435,7 @@ function drawHUD(){
   // верхняя строка
   ctx.fillStyle = 'rgba(10,12,17,.9)'; ctx.fillRect(0,0,CW,GY-2);
   ctx.textAlign='left'; ctx.textBaseline='alphabetic';
-  ctx.font = 'bold 15px Consolas, monospace'; ctx.fillStyle = '#f2b134';
+  ctx.font = 'bold 15px Consolas, monospace'; ctx.fillStyle = '#d8aa5a';
   ctx.fillText('💰 ' + Math.floor(money), 8, 19);
   ctx.font = '10px Segoe UI'; ctx.fillStyle = '#98a2ae';
   ctx.fillText('сдано ' + delivered + ' · заработано ' + income, 8, 33);
@@ -450,12 +450,12 @@ function drawHUD(){
     ctx.fillStyle = '#7fd6a0'; ctx.fillRect(x+1, 23, (w-2)*clamp(c.done/c.need,0,1), 5);
     const tk = clamp(c.time/c.max,0,1);
     ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(x, 31, w, 5);
-    ctx.fillStyle = c.time < 25 ? '#ff5a4a' : '#6a8fb8'; ctx.fillRect(x+1, 32, (w-2)*tk, 3);
-    ctx.font = '10px Segoe UI'; ctx.fillStyle = c.time < 25 ? '#ff8a7a' : '#98a2ae';
+    ctx.fillStyle = c.time < 25 ? '#d8645a' : '#6a8fb8'; ctx.fillRect(x+1, 32, (w-2)*tk, 3);
+    ctx.font = '10px Segoe UI'; ctx.fillStyle = c.time < 25 ? '#e69a94' : '#98a2ae';
     ctx.fillText('осталось ' + Math.ceil(c.time) + 'с', CW/2, 43);
   }
   ctx.textAlign='right'; ctx.font='11px Segoe UI';
-  ctx.fillStyle = jamCount ? '#ff7a6a' : '#7fd6a0';
+  ctx.fillStyle = jamCount ? '#e69a94' : '#7fd6a0';
   ctx.fillText((jamCount ? '⚠ заторов: ' + jamCount : '✓ линия идёт'), CW-8, 18);
   ctx.fillStyle = '#98a2ae'; ctx.font='10px Segoe UI';
   ctx.fillText('скорость ×' + speed + ' · рекорд ' + best.contracts + ' контр.', CW-8, 33);
@@ -469,7 +469,7 @@ function drawHUD(){
     ctx.textAlign='center'; ctx.textBaseline='middle';
     ctx.font='13px serif'; ctx.fillStyle='#e6ebf2'; ctx.fillText(b.ico, x+w/2, y+11);
     ctx.font='9px Segoe UI'; ctx.fillStyle='#98a2ae'; ctx.fillText(b.name, x+w/2, y+23);
-    ctx.font='9px Segoe UI'; ctx.fillStyle='#f2b134'; ctx.fillText(b.cost + 'кр', x+w/2, y+32);
+    ctx.font='9px Segoe UI'; ctx.fillStyle='#d8aa5a'; ctx.fillText(b.cost + 'кр', x+w/2, y+32);
     ctx.textAlign='left'; ctx.font='8px Segoe UI'; ctx.fillStyle='rgba(255,255,255,.35)'; ctx.fillText(b.key, x+3, y+8);
     x += w+4;
   }
@@ -478,7 +478,7 @@ function drawHUD(){
   ctx.fillText(ARROW[dir], CW-82, BAR+21);
   ctx.font='8px Segoe UI'; ctx.fillStyle='#98a2ae'; ctx.fillText('R поворот', CW-82, BAR+35);
   uiBtn(CW-56, BAR+8, 48, 34, ()=>{ delMode = !delMode; }, delMode, false);
-  ctx.font='13px Segoe UI'; ctx.fillStyle= delMode ? '#ff7a6a' : '#e6ebf2'; ctx.fillText('❌', CW-32, BAR+21);
+  ctx.font='13px Segoe UI'; ctx.fillStyle= delMode ? '#e69a94' : '#e6ebf2'; ctx.fillText('❌', CW-32, BAR+21);
   ctx.font='8px Segoe UI'; ctx.fillStyle='#98a2ae'; ctx.fillText('X снос', CW-32, BAR+35);
 
   // рецепты
@@ -494,7 +494,7 @@ function drawHUD(){
   // Над полем плашку не вешаем: она накрывала нижний ряд с приёмником
   if(msgT > 0){
     ctx.globalAlpha = clamp(msgT,0,1);
-    ctx.font='10px Segoe UI'; ctx.fillStyle='#f2b134';
+    ctx.font='10px Segoe UI'; ctx.fillStyle='#d8aa5a';
     ctx.fillText(msg, 10, BAR+76);
     ctx.globalAlpha = 1;
   } else {
@@ -513,7 +513,7 @@ function render(){
   for(const p of pops){
     const r = cellRect(p.i);
     ctx.globalAlpha = clamp(1 - p.t/1.1, 0, 1);
-    ctx.fillStyle = '#f2b134'; ctx.font = 'bold 11px Segoe UI'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#d8aa5a'; ctx.font = 'bold 11px Segoe UI'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText(p.txt, r.x + T/2, r.y + T/2 - 6 - p.t*16);
     ctx.globalAlpha = 1;
   }
@@ -521,10 +521,10 @@ function render(){
   // курсор-призрак
   if(hover >= 0 && !over){
     const p = cellRect(hover);
-    ctx.strokeStyle = delMode ? '#ff5a4a' : '#f2b134'; ctx.lineWidth = 2;
+    ctx.strokeStyle = delMode ? '#d8645a' : '#d8aa5a'; ctx.lineWidth = 2;
     ctx.strokeRect(p.x+1, p.y+1, T-2, T-2);
     if(!delMode){
-      ctx.globalAlpha = 0.35; ctx.fillStyle='#f2b134';
+      ctx.globalAlpha = 0.35; ctx.fillStyle='#d8aa5a';
       ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.font='11px Segoe UI';
       ctx.fillText(ARROW[dir], p.x+T/2, p.y+T/2); ctx.globalAlpha = 1;
     }
@@ -544,14 +544,14 @@ function render(){
   if(over){
     ctx.fillStyle='rgba(18,6,8,.88)'; ctx.fillRect(0,0,CW,CH);
     ctx.textAlign='center'; ctx.textBaseline='alphabetic';
-    ctx.fillStyle='#ff6a4a'; ctx.font='bold 30px Georgia, serif';
+    ctx.fillStyle='#d8645a'; ctx.font='bold 30px Georgia, serif';
     ctx.fillText('ЛИНИЯ ОСТАНОВЛЕНА', CW/2, CH/2-60);
     ctx.fillStyle='#e6ebf2'; ctx.font='14px Segoe UI'; ctx.fillText(cause, CW/2, CH/2-30);
     ctx.font='13px Segoe UI'; ctx.fillStyle='#c2cad2';
     ctx.fillText('Контрактов сдано: ' + (contract ? contract.n : 0) + '   ·   кредитов: ' + Math.floor(money), CW/2, CH/2);
     ctx.fillText('Деталей собрано: ' + madeTotal + '   ·   доставлено: ' + delivered, CW/2, CH/2+22);
     ctx.fillText('Рекорд: ' + best.contracts + ' контрактов', CW/2, CH/2+48);
-    ctx.fillStyle='#f2b134'; ctx.font='14px Segoe UI';
+    ctx.fillStyle='#d8aa5a'; ctx.font='14px Segoe UI';
     ctx.fillText('Enter / тап — новая фабрика', CW/2, CH/2+84);
   }
 }
