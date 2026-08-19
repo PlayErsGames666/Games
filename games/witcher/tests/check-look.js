@@ -143,17 +143,27 @@ head('Мечи за спиной идут в +Y, назад, а не на мак
 {
   W.reset(); W.setPhase('HUNT'); W.setPanel(null);
 
-  const steelT = traces(() => W.drawPawn(0, 0, 0, { steel: true }));
-  const steelHilt = steelT.find(p => p.k === 'moveTo' && p.x === -4);
-  const steelTip  = steelT.find(p => p.k === 'lineTo' && p.x === -7);
-  ok(!!steelHilt && steelHilt.y === 6, 'сталь у плеча лежит на +6 — за спиной, не перед лицом');
-  ok(!!steelTip && steelTip.y === 14, 'остриё стали на +14 — дальше по спине, не выше макушки (-12.2)');
-
-  const silverT = traces(() => W.drawPawn(0, 0, 0, { silver: true }));
-  const silverHilt = silverT.find(p => p.k === 'moveTo' && p.x === 4);
-  const silverTip  = silverT.find(p => p.k === 'lineTo' && p.x === 7);
-  ok(!!silverHilt && silverHilt.y === 6, 'серебро у плеча лежит на +6 — за спиной');
-  ok(!!silverTip && silverTip.y === 14, 'остриё серебра на +14 — за спиной, не спереди');
+  /* Числа не вписываем в мерку: она стережёт не их, а СТОРОНУ и МЕРУ. Клинок
+     обязан идти назад (+Y), рукоять — прятаться под плащом, остриё — выходить
+     за него, но недалеко: меч не должен оказаться длиннее самого тела. */
+  const bodyEnd = W.PAWN_BODY.y + W.PAWN_BODY.ry;
+  const sword = (st, sx) => {
+    const t = traces(() => W.drawPawn(0, 0, 0, st));
+    return { hilt: t.find(p => p.k === 'moveTo' && Math.sign(p.x) === sx && p.y > 0),
+             tip:  t.find(p => p.k === 'lineTo' && Math.sign(p.x) === sx && p.y > 0) };
+  };
+  for (const [nm, st, sx] of [['сталь', { steel: true }, -1], ['серебро', { silver: true }, 1]]) {
+    const s = sword(st, sx);
+    ok(!!s.hilt && !!s.tip, nm + ': меч нашёлся в пути отрисовки');
+    if (!s.hilt || !s.tip) continue;
+    note(nm + ': рукоять на +' + s.hilt.y + ', остриё на +' + s.tip.y +
+         ' при конце тела +' + bodyEnd.toFixed(1));
+    ok(s.hilt.y > 0 && s.tip.y > s.hilt.y, nm + ' идёт НАЗАД, в +Y, а не на макушку');
+    ok(s.hilt.y < bodyEnd, nm + ': рукоять спрятана под плащом');
+    ok(s.tip.y > bodyEnd, nm + ': остриё выходит за плащ — иначе меча не видно');
+    ok(s.tip.y - bodyEnd < bodyEnd - s.hilt.y,
+       nm + ': наружу торчит остриё, а не весь клинок');
+  }
 }
 
 /* Хвост-причёска — тот же трюк: голова круг радиусом 5.2 с серединой в -7,
@@ -849,6 +859,45 @@ head('Превью правда нарисовано в своей рамке, �
   ok(rmax <= W.PAWN_R, 'заявленный радиус пешки не занижен — рамка не обманывает сама себя');
 }
 
+/* Одних точек пути мало: тело, голова и ободок зелья — ДУГИ, и в trace их нет
+   вовсе. Пока PAWN_R стоял с большим запасом, это сходило с рук; теперь он
+   подогнан под фигуру, и занижение срезало бы её рамкой молча. Меряем всё, во
+   всех доспехах, при всех причёсках и во всех состояниях сразу. */
+head('Радиус пешки сверен со ВСЕЙ фигурой, а не с одними отрезками');
+{
+  W.reset();
+  const looks = [];
+  for (const h of Object.keys(W.HAIRS)) looks.push(Object.assign({}, W.LOOK_DEF, { hair: h }));
+  for (const b of Object.keys(W.BEARDS)) looks.push(Object.assign({}, W.LOOK_DEF, { beard: b }));
+  for (const s of Object.keys(W.SCARS)) looks.push(Object.assign({}, W.LOOK_DEF, { scar: s }));
+  const states = [{}, { steel: true, silver: true, xbow: true },
+                  { mut: true, mut2: true }, { potion: '#7fd6a0' }];
+  let far = 0, who = '', n = 0;
+  for (const L of looks) for (const ar of Object.keys(W.ARMOR)) for (const ex of states) {
+    // покачивание берём в самой дальней его точке: 0.175 даёт sin(1.57) = 1
+    const st = Object.assign({ look: L, armor: ar, walk: 0.175 }, ex);
+    const tag = W.ARMOR[ar].n + ' · ' + L.hair + '/' + L.beard + '/' + L.scar +
+                ' · ' + (Object.keys(ex).join('+') || 'налегке');
+    n++;
+    for (const p of traces(() => W.drawPawn(0, 0, 0, st))) {
+      const d = Math.hypot(p.x, p.y); if (d > far) { far = d; who = tag; }
+    }
+    for (const m of arcs(() => W.drawPawn(0, 0, 0, st))) {
+      const rx = m.rx == null ? m.r : m.rx, ry = m.ry == null ? m.r : m.ry;
+      for (let i = 0; i < 64; i++) {                    // дальняя точка овала лежит наискось
+        const t = i / 64 * Math.PI * 2;
+        const d = Math.hypot(m.x + rx * Math.cos(t), m.y + ry * Math.sin(t));
+        if (d > far) { far = d; who = tag; }
+      }
+    }
+  }
+  note('по ' + n + ' сочетаниям дальше всех ' + far.toFixed(2) + ' — ' + who +
+       ' · заявлено ' + W.PAWN_R);
+  ok(far <= W.PAWN_R, 'ни одно сочетание облика, доспеха и состояния не вылезло за PAWN_R');
+  ok(far > W.PAWN_R - 2,
+     'и радиус не завышен — иначе ведьмак болтается в рамке зеркала мельче, чем мог бы');
+}
+
 /* Полный экран: холст становится вдвое шире, а панель сама сужается в колонку
    посередине (panelStart) и сдвигает вместе с собой попадания. Посчитай
    раскладку по НЕсуженной ширине — и стрелки уедут за правый край панели.
@@ -959,6 +1008,86 @@ head('Облик у зеркала меняется даром и время п�
   ok(W.getGold() === gold0, 'золото не тронуто: облик даром');
   ok(P.hp === hp0, 'здоровье не тронуто');
   ok(P.mut === mut0 && P.tox === tox0, 'почти секунда с открытой панелью — а мутация и отрава стоят');
+}
+
+/* =====================  ТЕЛО ПЕШКИ  =====================
+   Плащ был прямоугольником длиннее своей ширины — фигура читалась палочкой
+   с головой. Стал приплюснутым овалом, на который налезает голова: те же два
+   круга, что у жителя, только этот поворачивается вместе с ведьмаком.
+
+   У прямоугольника бока шли отвесно, и всё навешенное попадало на край на
+   ЛЮБОЙ высоте; у овала бока заваливаются, и та же высота уводит край
+   внутрь. Поэтому ниже меряется не только сама пара кругов, но и то, что
+   наплечники, пластины и арбалет всё ещё лежат НА плаще. */
+head('Тело пешки — приплюснутый овал, а не палочка');
+{
+  const A = W.ARMOR, keys = Object.keys(A);
+  const bodyOf = k => {
+    const st = { armor: k, look: W.LOOK_DEF };
+    return arcs(() => W.drawPawn(0, 0, 0, st)).find(m => m.k === 'fill' && m.c === A[k].c && m.oval);
+  };
+  const bad = [];
+  for (const k of keys) {
+    const b = bodyOf(k);
+    if (!b) { bad.push(A[k].n + ': тела не нашлось'); continue; }
+    if (!(b.rx > b.ry)) bad.push(A[k].n + ': ' + b.rx + '×' + b.ry);
+  }
+  const light = bodyOf(keys.find(k => A[k].w < 12)), heavyB = bodyOf(keys.find(k => A[k].w >= 20));
+  note('лёгкий ' + (light ? light.rx + '×' + light.ry : '—') +
+       ', тяжёлый ' + (heavyB ? heavyB.rx + '×' + heavyB.ry : '—') + ' (поперёк×вдоль)');
+  ok(bad.length === 0, 'тело площе своей ширины во ВСЕХ ' + keys.length + ' доспехах' +
+     (bad.length ? ': ' + bad.join(', ') : ''));
+  ok(!!light && !!heavyB && heavyB.rx > light.rx,
+     'тяжёлый по-прежнему шире лёгкого — силуэт говорит, во что ты одет');
+}
+
+head('Голова налезает на тело, а не стоит на нём');
+{
+  const st = { armor: 'heavy', look: W.LOOK_DEF };
+  const a = arcs(() => W.drawPawn(0, 0, 0, st));
+  const body = a.find(m => m.k === 'fill' && m.c === W.ARMOR.heavy.c && m.oval);
+  const head_ = a.find(m => m.k === 'fill' && m.c === W.SKINS.fair.c && !m.oval);
+  ok(!!body && !!head_, 'тело и голова нашлись');
+  if (body && head_) {
+    /* «Вперёд» у пешки — это −Y, значит голова лежит в минусе от тела, а её
+       ЗАДНИЙ край обязан зайти внутрь ПЕРЕДНЕГО края тела. */
+    const over = (head_.y + head_.r) - (body.y - body.ry);
+    note('голова заходит в тело на ' + over.toFixed(1) + ' при её радиусе ' + head_.r);
+    ok(head_.y < body.y, 'голова подана вперёд относительно тела');
+    ok(over > 0, 'круги перекрываются, а не стоят встык');
+    ok(over > head_.r * 0.3, 'нахлёст не в волосок: ' + (over / head_.r).toFixed(2) + ' от радиуса головы');
+  }
+}
+
+head('Навешенное на плащ лежит НА плаще, а не рядом с ним');
+{
+  const st = { armor: 'heavy', xbow: true, look: W.LOOK_DEF };
+  const a = arcs(() => W.drawPawn(0, 0, 0, st));
+  const body = a.find(m => m.k === 'fill' && m.c === W.ARMOR.heavy.c && m.oval);
+  ok(!!body, 'тело нашлось — есть с чем сверять');
+  /* Полуширина овала на данной высоте. Вне тела возвращаем 0: тогда любая
+     точка снаружи честно окажется «за краем». */
+  const half = y => {
+    const t = (y - body.y) / body.ry;
+    return Math.abs(t) >= 1 ? 0 : body.rx * Math.sqrt(1 - t * t);
+  };
+  // наплечники: овалы краски наплечника, их середины обязаны сидеть на краю
+  const pads = a.filter(m => m.c === 'rgba(0,0,0,.3)' && m.oval);
+  ok(pads.length === 2, 'наплечника два');
+  const padOff = pads.map(p => Math.abs(Math.abs(p.x) - half(p.y)));
+  note('наплечники отстоят от края тела на ' + padOff.map(v => v.toFixed(2)).join(' и '));
+  ok(padOff.every(v => v < 0.01), 'оба сидят ровно на самом широком месте тела');
+  // пластины и арбалет — отрезками, их и меряем по точкам пути
+  const pts = traces(() => W.drawPawn(0, 0, 0, st));
+  const out = pts.filter(p => Math.abs(p.x) > half(p.y) + 0.01 && Math.abs(p.x) <= W.ARMOR.heavy.w);
+  const plates = pts.filter(p => Math.abs(Math.abs(p.x) - (16 / 2 - 1)) < 1e-9);
+  ok(plates.length > 0, 'пластины нашлись в пути');
+  const platesOut = plates.filter(p => Math.abs(p.x) > half(p.y) + 0.01);
+  note('концов пластин за краем тела: ' + platesOut.length + ' из ' + plates.length);
+  ok(platesOut.length === 0, 'ни один конец пластины не висит в воздухе за плащом');
+  const xb = pts.filter(p => p.x === 16 / 2 - 1);
+  ok(xb.length > 0 && xb.every(p => Math.abs(p.x) <= half(p.y) + 0.01),
+     'арбалет держится за пояс, а не висит рядом с ним');
 }
 
 /* =====================  ЖИТЕЛИ ДЕРЕВНИ  =====================
