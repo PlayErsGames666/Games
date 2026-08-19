@@ -555,14 +555,14 @@ function drawHUD(){
     ctx.fillStyle='#d8aa5a'; ctx.fillText(B[id].cost + '🔶', x+bw/2, y+28);
     ctx.textAlign='left'; ctx.fillStyle='rgba(255,255,255,.3)'; ctx.fillText(k+1, x+2, y+7);
   });
-  uiBtn(CW-108, BAR+4, 48, 30, ()=>{ dir = (dir+1)%4; }, false, false);
+  uiBtn(CW-122, BAR+4, 58, 30, ()=>{ dir = (dir+1)%4; }, false, false);
   ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.font='11px Segoe UI'; ctx.fillStyle='#e4ebf2';
-  ctx.fillText(ARROW[dir], CW-84, BAR+15); ctx.font='9px Segoe UI'; ctx.fillStyle='#98a2ae'; ctx.fillText('R поворот', CW-84, BAR+26);
-  uiBtn(CW-56, BAR+4, 50, 30, ()=>{ delMode = !delMode; }, delMode, false);
-  ctx.font='11px Segoe UI'; ctx.fillStyle = delMode ? '#d8645a' : '#e4ebf2'; ctx.fillText('❌', CW-31, BAR+15);
-  ctx.font='9px Segoe UI'; ctx.fillStyle='#98a2ae'; ctx.fillText('X снос', CW-31, BAR+26);
-  uiBtn(CW-108, BAR+37, 102, 26, ()=>{ if(!spawnQ.length && !enemies.length){ money += 20 + wave*6; waveT = 0.1; } }, false, spawnQ.length>0);
-  ctx.font='9px Segoe UI'; ctx.fillStyle='#d8aa5a'; ctx.fillText('⏩ волна раньше (V)', CW-57, BAR+50);
+  ctx.fillText(ARROW[dir], CW-93, BAR+15); ctx.font='9px Segoe UI'; ctx.fillStyle='#98a2ae'; ctx.fillText('поворот (R)', CW-93, BAR+26);
+  uiBtn(CW-60, BAR+4, 54, 30, ()=>{ delMode = !delMode; }, delMode, false);
+  ctx.font='11px Segoe UI'; ctx.fillStyle = delMode ? '#d8645a' : '#e4ebf2'; ctx.fillText('❌', CW-33, BAR+15);
+  ctx.font='9px Segoe UI'; ctx.fillStyle='#98a2ae'; ctx.fillText('снос (X)', CW-33, BAR+26);
+  uiBtn(CW-122, BAR+37, 116, 26, ()=>{ if(!spawnQ.length && !enemies.length){ money += 20 + wave*6; waveT = 0.1; } }, false, spawnQ.length>0);
+  ctx.font='9px Segoe UI'; ctx.fillStyle='#d8aa5a'; ctx.fillText('⏩ волна раньше (V)', CW-64, BAR+50);
 
   // рецепты и подсказка
   ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.font='9px Segoe UI'; ctx.fillStyle='#98a2ae';

@@ -11,6 +11,7 @@ if ! command -v node >/dev/null 2>&1; then
   echo "      node tools/version.js check"
   echo "      node tools/palette.js check"
   echo "      node tools/type.js check"
+  echo "      node tools/keys.js check"
   exit 0
 fi
 
@@ -22,5 +23,8 @@ node tools/palette.js check >/dev/null || { node tools/palette.js check; exit 1;
 
 # Кегль: текста мельче девяти пикселей в HUD быть не должно.
 node tools/type.js check >/dev/null || { node tools/type.js check; exit 1; }
+
+# Клавиши: в подсказках «R — поворот», на кнопке «поворот (R)», впритык нельзя.
+node tools/keys.js check >/dev/null || { node tools/keys.js check; exit 1; }
 
 exit 0

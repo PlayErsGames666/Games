@@ -4505,7 +4505,7 @@ function drawHUD() {
   bar(mx, 10, 92, 9, P.mut > 0 ? P.mut / (P.mut2 > 0 ? MUT2_TIME : 10) : P.mutGauge / 100,
       P.mut2 > 0 ? '#d8645a' : P.mut > 0 ? '#d8645a' : '#8a2a30');
   txt(P.mut2 > 0 ? '🩸 ЗВЕРЬ ' + P.mut.toFixed(1) + 'с'
-    : P.mut > 0 ? '🩸 ЕБАТНЯ ' + P.mut.toFixed(1) + 'с · R дальше'
+    : P.mut > 0 ? '🩸 ЕБАТНЯ ' + P.mut.toFixed(1) + 'с · R — дальше'
     : '🩸 ' + Math.round(P.mutGauge) + '/100 (R)',
     mx + 2, 15, 9, P.mut2 > 0 ? '#fff0a8' : '#ffb0a8');
 

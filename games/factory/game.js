@@ -473,13 +473,13 @@ function drawHUD(){
     ctx.textAlign='left'; ctx.font='9px Segoe UI'; ctx.fillStyle='rgba(255,255,255,.35)'; ctx.fillText(b.key, x+3, y+8);
     x += w+4;
   }
-  uiBtn(CW-104, BAR+8, 44, 34, ()=>{ dir = (dir+1)%4; }, false, false);
+  uiBtn(CW-118, BAR+8, 56, 34, ()=>{ dir = (dir+1)%4; }, false, false);
   ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.font='14px Segoe UI'; ctx.fillStyle='#e6ebf2';
-  ctx.fillText(ARROW[dir], CW-82, BAR+21);
-  ctx.font='9px Segoe UI'; ctx.fillStyle='#98a2ae'; ctx.fillText('R поворот', CW-82, BAR+35);
-  uiBtn(CW-56, BAR+8, 48, 34, ()=>{ delMode = !delMode; }, delMode, false);
-  ctx.font='14px Segoe UI'; ctx.fillStyle= delMode ? '#e69a94' : '#e6ebf2'; ctx.fillText('❌', CW-32, BAR+21);
-  ctx.font='9px Segoe UI'; ctx.fillStyle='#98a2ae'; ctx.fillText('X снос', CW-32, BAR+35);
+  ctx.fillText(ARROW[dir], CW-90, BAR+21);
+  ctx.font='9px Segoe UI'; ctx.fillStyle='#98a2ae'; ctx.fillText('поворот (R)', CW-90, BAR+35);
+  uiBtn(CW-58, BAR+8, 50, 34, ()=>{ delMode = !delMode; }, delMode, false);
+  ctx.font='14px Segoe UI'; ctx.fillStyle= delMode ? '#e69a94' : '#e6ebf2'; ctx.fillText('❌', CW-33, BAR+21);
+  ctx.font='9px Segoe UI'; ctx.fillStyle='#98a2ae'; ctx.fillText('снос (X)', CW-33, BAR+35);
 
   // рецепты
   ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.font='9px Segoe UI'; ctx.fillStyle='#98a2ae';
@@ -499,7 +499,7 @@ function drawHUD(){
     ctx.globalAlpha = 1;
   } else {
     ctx.font='9px Segoe UI'; ctx.fillStyle='#6c7683';
-    ctx.fillText('ЛКМ ставить · протянуть — дорожка · ПКМ снести · клик по 🔻 — фильтр · T скорость · P пауза', 10, BAR+76);
+    ctx.fillText('ЛКМ — ставить · протянуть — дорожка · ПКМ — снести · клик по 🔻 — фильтр · T — скорость · P — пауза', 10, BAR+76);
   }
 }
 
