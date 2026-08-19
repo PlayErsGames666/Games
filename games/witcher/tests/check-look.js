@@ -1078,8 +1078,10 @@ head('Навешенное на плащ лежит НА плаще, а не р�
   note('наплечники отстоят от края тела на ' + padOff.map(v => v.toFixed(2)).join(' и '));
   ok(padOff.every(v => v < 0.01), 'оба сидят ровно на самом широком месте тела');
   // пластины и арбалет — отрезками, их и меряем по точкам пути
+  /* Огулом «ни одна точка пути не вышла за плащ» спросить нельзя: мечи за
+     спиной обязаны выходить за него остриём, и такая мерка ловила бы их же.
+     Поэтому спрашиваем поимённо — про пластины и про арбалет. */
   const pts = traces(() => W.drawPawn(0, 0, 0, st));
-  const out = pts.filter(p => Math.abs(p.x) > half(p.y) + 0.01 && Math.abs(p.x) <= W.ARMOR.heavy.w);
   const plates = pts.filter(p => Math.abs(Math.abs(p.x) - (16 / 2 - 1)) < 1e-9);
   ok(plates.length > 0, 'пластины нашлись в пути');
   const platesOut = plates.filter(p => Math.abs(p.x) > half(p.y) + 0.01);
@@ -1220,34 +1222,87 @@ head('Житель — два круга внахлёст, а не палка');
   ok(a.filter(m => m.k === 'stroke').length === 2, 'обведены оба круга');
 }
 
-head('Фигура не вырастает молча');
+head('Фигура не вырастает молча — ни в покое, ни на качке');
 {
-  const a = arcs(() => W.drawFolk(0, 0, 'trader'));
   /* Меряем по трём сторонам отдельно, а не одним радиусом от середины: тень
      плоская и сдвинута вниз, и её дальняя точка лежит наискось — круговая
-     мерка требовала бы объявить 12.8 там, где фигура занимает 12.4.
-     Полуоси берём порознь: у круга rx и ry равны, у овала — нет. */
+     мерка требовала бы объявить больше, чем фигура занимает. Полуоси берём
+     порознь: у круга rx и ry равны, у овала — нет.
+
+     И меряем НА ВСЕХ КАЧКАХ, а не в покое. Ровно на этом мерка однажды и
+     соврала: drawWorld всегда качает человека, в покое его не бывает ни
+     кадра, а стенд звал рисовалку без качка и отчитывался, что фигура
+     кончается выше подписи, — пока в игре тень заезжала под неё на 1.2. */
   const B = W.FOLK_BOX;
   let up = 0, down = 0, side = 0;
-  for (const m of a) {
-    const rx = m.rx == null ? m.r : m.rx, ry = m.ry == null ? m.r : m.ry;
-    up = Math.max(up, -(m.y - ry)); down = Math.max(down, m.y + ry);
-    side = Math.max(side, Math.abs(m.x) + rx);
+  for (const bob of [-W.FOLK_BOB, 0, W.FOLK_BOB]) {
+    for (const m of arcs(() => W.drawFolk(0, 0, 'trader', bob))) {
+      const rx = m.rx == null ? m.r : m.rx, ry = m.ry == null ? m.r : m.ry;
+      up = Math.max(up, -(m.y - ry)); down = Math.max(down, m.y + ry);
+      side = Math.max(side, Math.abs(m.x) + rx);
+    }
   }
   note('фигура берёт вверх ' + up.toFixed(1) + ', вниз ' + down.toFixed(1) +
        ', вбок ' + side.toFixed(1) + ' при обещанных ' + B.up + ' / ' + B.down + ' / ' + B.side);
-  ok(up <= B.up && down <= B.down && side <= B.side,
+  // допуск в 1e-9: 4.4 + 6.2 + 1.5 в двоичной дроби даёт 12.900000000000002
+  ok(up <= B.up + 1e-9 && down <= B.down + 1e-9 && side <= B.side + 1e-9,
      'ни один мазок не вылез за обещанный габарит');
   ok(Math.abs(up - B.up) < 0.05 && Math.abs(down - B.down) < 0.05 &&
      Math.abs(side - B.side) < 0.05,
      'и габарит не завышен — фигура правда достаёт до него со всех трёх сторон');
   /* Подпись с именем идёт на +17 кеглем 9 (см. drawWorld), значит её верх —
      на +12.5. Мерка именно на НИЗ: вверх фигуре расти не мешает никто. */
-  ok(down <= 12.5, 'фигура кончается выше подписи с именем');
+  ok(down <= 12.5, 'фигура кончается выше подписи даже на нижнем качке');
   /* Вбок предел ставит buildNPCs: он выталкивает человека из двора с зазором
      в 12 шагов от края. Стань фигура шире — и она полезет в ту самую стену,
      из-под которой её выталкивали. */
   ok(B.side <= 12, 'фигура уже зазора, с которым людей выталкивают из дворов');
+}
+
+/* Обещание габарита стоит ровно столько, сколько стоит совпадение мерки с
+   тем, что рисует ИГРА. Поэтому меряем ещё раз — не рисовалку напрямую, а
+   живой кадр деревни за полный круг покачивания. Первый раз заезд тени под
+   подпись не поймали именно потому, что этого шага не было. */
+head('И в живом кадре деревни тоже');
+{
+  W.reset(); W.setPanel(null);
+  const t = W.TOWNS[0], P = W.getP();
+  P.x = t.x; P.y = t.y; W.syncCam();
+  const folk = W.NPCS().filter(p => p.town === t);
+  ok(folk.length > 0, 'в деревне есть люди — есть что мерить');
+  let low = -Infinity, high = -Infinity;
+  for (let i = 0; i < 400; i++) {                      // 6.4 с — дольше круга качка
+    W.update(0.016);
+    for (const m of arcs(() => W.render())) {
+      const p = folk.find(q => Math.abs(q.x - m.x) < 1e-9);
+      if (!p) continue;
+      const ry = m.ry == null ? m.r : m.ry;
+      low = Math.max(low, (m.y + ry) - p.y);
+      high = Math.max(high, p.y - (m.y - ry));
+    }
+  }
+  note('в живом кадре фигура берёт вниз ' + low.toFixed(2) + ', вверх ' + high.toFixed(2) +
+       ' при обещанных ' + W.FOLK_BOX.down + ' / ' + W.FOLK_BOX.up);
+  ok(low <= W.FOLK_BOX.down + 1e-9, 'вниз кадр держится обещанного габарита');
+  ok(high <= W.FOLK_BOX.up + 1e-9, 'и вверх тоже');
+  ok(low <= 12.5, 'и ни в один кадр фигура не заезжает под подпись с именем');
+}
+
+head('Тень лежит на земле и качку не поддаётся');
+{
+  const shadowOf = bob => arcs(() => W.drawFolk(0, 0, 'trader', bob))
+    .find(m => m.k === 'fill' && m.c === 'rgba(0,0,0,.35)');
+  const s0 = shadowOf(0), sUp = shadowOf(-W.FOLK_BOB), sDown = shadowOf(W.FOLK_BOB);
+  ok(!!s0 && !!sUp && !!sDown, 'тень нашлась на всех трёх качках');
+  if (s0 && sUp && sDown) {
+    ok(s0.y === sUp.y && s0.y === sDown.y,
+       'тень стоит на месте: земля под ногами вверх и вниз не ходит');
+    // а тело — обязано ходить, иначе покачивания нет вовсе
+    const bodyY = bob => arcs(() => W.drawFolk(0, 0, 'trader', bob))
+      .find(m => m.k === 'fill' && m.c === W.NPC_KINDS.trader.c).y;
+    ok(Math.abs(bodyY(W.FOLK_BOB) - bodyY(-W.FOLK_BOB) - 2 * W.FOLK_BOB) < 1e-9,
+       'а тело качается на всю заявленную величину');
+  }
 }
 
 head('Семь ремёсел различимы по цвету');
@@ -1276,7 +1331,8 @@ head('Люди в деревне нарисованы фигурой, а не с
   const heads = arcs(() => W.render())
     .filter(m => m.c === W.FOLK_SKIN && Math.abs(m.r - W.FOLK_HEAD.r) < 0.01);
   const lost = folk.filter(p => !heads.some(m =>
-    Math.abs(m.x - p.x) < 0.01 && Math.abs(m.y - (p.y + W.FOLK_HEAD.y)) <= 1.6));
+    Math.abs(m.x - p.x) < 0.01 &&
+    Math.abs(m.y - (p.y + W.FOLK_HEAD.y)) <= W.FOLK_BOB + 0.1));
   note('в « ' + t.n + ' » людей: ' + folk.length + ', голов на их местах: ' +
        (folk.length - lost.length));
   ok(folk.length > 0, 'в деревне вообще есть люди — есть что мерить');
