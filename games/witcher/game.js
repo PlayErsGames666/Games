@@ -2264,7 +2264,7 @@ function spawnFoe(type, x, y, uniq, free) {
     t: type, x, y, hp: S.hp * mul, max: S.hp * mul, r: S.r * (uniq ? 1.25 : 1),
     name: uniq ? uniq.name : null,
     cd: rnd(1), stun: 0, burn: 0, slow: 0, kx: 0, ky: 0, hitT: 0, dead: false, bob: rnd(6.3),
-    slide: 0, sdir: 1, checkT: 0.5, lx: x, ly: y,      // для обхода того, во что уткнулся
+    slide: 0, sdir: 1, stuck: 0, checkT: 0.5, lx: x, ly: y,   // для обхода того, во что уткнулся
     /* Повадка и внимание. mad — «уже злится» (заметила и идёт бить или её
        тронули), flee — «удирает». Контрактную тварь выпускают уже злой: её
        позвали по твою душу, ей незачем присматриваться.
@@ -2295,6 +2295,36 @@ function noticeTick(f, S, d, dt) {
   if (S.mood === 'wild') f.mad = true;                 // злая — значит пошла бить
   return true;
 }
+/* =====================  ОТКЛЕЙКА ОТ ПРЕГРАД  =====================
+   Твари ходят к ведьмаку по прямой, а деревья и камни их держат. Уткнулась —
+   отворачивает вбок и обходит. Так было и раньше, но отворот был ОДИН И ТОТ
+   ЖЕ: 66 градусов на 0.8 секунды. Не хватило разу — не хватит и сотому, и
+   тварь принималась биться в ту же щель до конца похода.
+
+   В чаще под Выселками нашлось место (6207, 2543), где это и случалось:
+   бандит, вышедший там по «Кабаньей потраве», за сто пятьдесят секунд
+   наматывал 1930 шагов и не приближался к ведьмаку ни на шаг из своих 451.
+   Работа при этом закрыться уже не могла: очередь пуста, счёт не сходится,
+   и остаётся только идти прочёсывать чащу самому. Один прогон из ста
+   тридцати кончался этим.
+
+   Теперь отворот НАРАСТАЕТ. Не помогло за полсекунды — следующая попытка
+   шире и дольше, и так до без малого разворота назад. Пятиться и есть
+   верный выход из клина: тварь в него ВОШЛА, значит дорога назад свободна.
+   Сторону выбираем один раз на всю попытку, а не каждые полсекунды заново:
+   мечась то влево, то вправо, из щели не выйдешь. */
+const STUCK_MAX = 5;                                   // дальше отворот не растёт
+const STUCK_TURN = 1.15, STUCK_STEP = 0.35;            // 66° и по 20° сверху за попытку
+const STUCK_HOLD = 0.8, STUCK_HOLD_STEP = 0.25;        // и дольше держим отворот
+// на сколько отвернуть прямо сейчас: 1.15 в первый раз, 2.9 (166°) на пятый
+function slideTurn(f) { return STUCK_TURN + (f.stuck || 0) * STUCK_STEP; }
+// шагнули и не сдвинулись — пробуем шире и дольше прежнего
+function stuckHarder(f) {
+  if (f.slide <= 0) f.sdir = Math.random() < 0.5 ? 1 : -1;   // сторона одна на всю попытку
+  f.stuck = Math.min((f.stuck || 0) + 1, STUCK_MAX);
+  f.slide = STUCK_HOLD + f.stuck * STUCK_HOLD_STEP;
+}
+
 /* Шаг твари, которой до тебя нет дела: бродит по своим делам. Направление
    меняется раз в несколько секунд, ход — треть от полного. */
 function wander(f, sp, dt) {
@@ -2355,12 +2385,14 @@ function stepFoe(f, dt) {
     const reach = S.reach * (L().open ? 1.3 : 1);
     let a = Math.atan2(P.y - f.y, P.x - f.x);
     // лучник тоже умеет упереться в дерево спиной — пусть обходит, как все
-    if (f.slide > 0) { f.slide -= dt; a += f.sdir * 1.15; }
+    if (f.slide > 0) { f.slide -= dt; a += f.sdir * slideTurn(f); }
     f.checkT -= dt;
     if (f.checkT <= 0) {
-      if (f.slide <= 0 && Math.hypot(f.x - f.lx, f.y - f.ly) < 4 && d > reach) {
-        f.slide = 0.8; f.sdir = Math.random() < 0.5 ? 1 : -1;
-      }
+      /* «Стоит на месте» считаем ТОЛЬКО когда он и должен идти (d > reach):
+         лучник на своей дистанции стоит нарочно, и принять это за клин
+         значило бы гонять его вокруг ведьмака без всякой нужды. */
+      if (d > reach && Math.hypot(f.x - f.lx, f.y - f.ly) < 4) stuckHarder(f);
+      else f.stuck = 0;
       f.checkT = 0.5; f.lx = f.x; f.ly = f.y;
     }
     if (d > want + 20) { f.x += Math.cos(a) * sp * dt; f.y += Math.sin(a) * sp * dt; }
@@ -2372,18 +2404,18 @@ function stepFoe(f, dt) {
     }
   } else {
     if (d > S.reach) {
-      /* Твари ходят по прямой, а деревья и камни их держат — и пара камней,
-         вставших воротами, зажимала зверя намертво: кабан упирался в них и
-         стоял так, сколько ни жди, а контракт не закрывался, пока его не
-         найдёшь и не добьёшь. Уткнулся — пробуем обойти боком. */
+      // уткнулся — обходит боком, и с каждой неудачей отворачивает шире
       let a = Math.atan2(P.y - f.y, P.x - f.x);
-      if (f.slide > 0) { f.slide -= dt; a += f.sdir * 1.15; }
+      if (f.slide > 0) { f.slide -= dt; a += f.sdir * slideTurn(f); }
       f.x += Math.cos(a) * sp * dt; f.y += Math.sin(a) * sp * dt;
       f.checkT -= dt;
       if (f.checkT <= 0) {
-        if (f.slide <= 0 && Math.hypot(f.x - f.lx, f.y - f.ly) < 6) {
-          f.slide = 0.8; f.sdir = Math.random() < 0.5 ? 1 : -1;
-        }
+        /* Считаем ВСЯКИЙ раз, а не только пока не отворачиваем. Прежнее
+           условие «f.slide <= 0 &&» и не давало попыткам расти: отворот
+           держится 0.8 с, проверка идёт каждые 0.5 — заставшая отворот
+           проверка молчала, а следующая начинала с тех же 66 градусов. */
+        if (Math.hypot(f.x - f.lx, f.y - f.ly) < 6) stuckHarder(f);
+        else f.stuck = 0;
         f.checkT = 0.5; f.lx = f.x; f.ly = f.y;
       }
     } else {
@@ -5747,6 +5779,7 @@ if (typeof globalThis !== 'undefined') globalThis.__W = {
   getStory: () => storyIdx, setStory: v => { storyIdx = v; },
   POWER, powerNear, takePower, getPower: () => powerUsed, interact,
   wildTick, wander, noticeTick, clampFoe, FAUNA_HIDE, WILD_CAP, WILD_NEAR, WILD_FORGET, mapLegend,
+  STUCK_MAX, STUCK_TURN, STUCK_STEP, slideTurn,
   wrapText, clipText, spotEaten, PATH_W,
   getDown: () => downT, getDeaths: () => deaths, rise,
   BAGS, buyBag, capacity,
