@@ -137,16 +137,23 @@ function makeCtx() {
       if (k === 'arc') return (x, y, r, a0, a1, ccw) => {
         nanArgs(k, [x, y, r, a0, a1]);
         if (ccw !== undefined && typeof ccw !== 'boolean') nanArgs(k, [ccw]);
-        pathBuf.push({ x, y, r, a0, a1, ccw: !!ccw, sx: scrX(x), sy: scrY(y), rs: r * ttop().sx });
+        pathBuf.push({ x, y, r, rx: r, ry: r, a0, a1, ccw: !!ccw,
+                       sx: scrX(x), sy: scrY(y), rs: r * ttop().sx });
       };
       /* Овал кладём в тот же путь, что и дугу, с радиусом по БОЛЬШЕЙ оси:
          тень пешки и её наплечники нарисованы овалами, и мерке размера они
          нужны наравне с кругами. Больший радиус — снова запас в безопасную
-         сторону. */
+         сторону.
+
+         Обе полуоси кладём рядом, rx и ry. Одного r хватает, пока меряют
+         «не дальше такого-то радиуса», но не хватает, когда меряют высоту:
+         плоская тень с широкими боками отдавала бы свою ШИРИНУ за высоту и
+         врала бы вдвое. У круга rx и ry равны r — мерке всё равно, какую
+         пару она взяла. */
       if (k === 'ellipse') return (x, y, rx, ry, tilt, a0, a1, ccw) => {
         nanArgs(k, [x, y, rx, ry, tilt, a0, a1]);
         const r = Math.max(rx, ry);
-        pathBuf.push({ x, y, r, a0, a1, ccw: !!ccw, oval: true,
+        pathBuf.push({ x, y, r, rx, ry, a0, a1, ccw: !!ccw, oval: true,
                        sx: scrX(x), sy: scrY(y), rs: r * ttop().sx });
       };
       if (k === 'clip') return () => { ttop().clipped = true; };
