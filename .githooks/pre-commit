@@ -1,0 +1,16 @@
+#!/bin/sh
+# Штамп версии в ссылках. Правило годами жило одной строкой в README и потому
+# забывалось: правки в game.js самой игры не двигали его ни разу. Теперь
+# проверяет машина — см. tools/version.js.
+#
+# Крючок включается так (один раз на копию репозитория):
+#     git config core.hooksPath .githooks
+# Выключить на один коммит, если очень надо: git commit --no-verify
+
+if ! command -v node >/dev/null 2>&1; then
+  echo "  ⚠ node не найден — штамп версии не проверен. Проверь руками:"
+  echo "      node tools/version.js check"
+  exit 0
+fi
+
+exec node tools/version.js check
