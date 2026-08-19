@@ -56,7 +56,7 @@
 
   .table {
     width: 380px; max-width: 100%;
-    background: radial-gradient(120% 90% at 50% 0%, #1f6b46, #14472f);
+    background: radial-gradient(120% 90% at 50% 0%, #295845, #1a3d2b);
     border-radius: 14px;
     padding: 18px 16px;
     box-shadow: 0 8px 24px rgba(0,0,0,.4), inset 0 0 0 3px rgba(255,255,255,.05);
