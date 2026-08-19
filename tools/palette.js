@@ -130,9 +130,16 @@ function paintFiles() {
       for (const f of fs.readdirSync(t)) if (f.endsWith('.js')) out.push(path.join(t, f));
     }
   }
-  for (const f of ['menu.css', 'menu.js', path.join('shared', 'base.css')]) {
+  for (const f of ['menu.css', 'menu.js']) {
     const p = path.join(ROOT, f);
     if (fs.existsSync(p)) out.push(p);
+  }
+  /* ВСЁ shared/, а не один base.css. Общий слой красит панель комнаты и
+     кнопку полного экрана во всех играх сразу, и цвет, заведённый там, самый
+     заметный из возможных — а мерка его не видела вовсе. */
+  const sh = path.join(ROOT, 'shared');
+  if (fs.existsSync(sh)) {
+    for (const f of fs.readdirSync(sh)) if (/\.(js|css)$/.test(f)) out.push(path.join(sh, f));
   }
   return out;
 }

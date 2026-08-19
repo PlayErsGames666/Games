@@ -37,6 +37,10 @@
 }
 .netbar input.code::placeholder { letter-spacing: 1px; opacity: .5; }
 .netbar .net-status { font-size: 13px; opacity: .85; }
+/* Сервер выключен: строка рядом с выбором комнаты меняет цвет, а кнопки
+   гаснут своим обычным :disabled. Красим тревожным из общей палитры —
+   это не украшение, а «сюда сейчас нельзя». */
+.netbar .net-status.off { color: #d8645a; opacity: 1; }
 
 /* в полном экране панель комнаты не нужна — она про подготовку, не про игру */
 :fullscreen .netbar { display: none !important; }

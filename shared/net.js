@@ -42,6 +42,45 @@
     }
   };
 
+  /* =====================  ЖИВ ЛИ БРОКЕР  =====================
+     Комнаты держит наш сигналинг peer.fast16.net. Когда он выключен, кнопки
+     «Создать комнату» и «Войти» выглядят рабочими — и человек жмёт, ждёт,
+     получает «Сеть недоступна» и не понимает, у него ли что-то сломалось.
+     Сказать честно и заранее дешевле: спрашиваем брокер одним запросом.
+
+     Спрашиваем в no-cors: читать ответ нам НЕЧЕГО, нужен сам факт, что на
+     том конце кто-то есть. При no-cors ответ непрозрачный, но обещание
+     ВЫПОЛНЯЕТСЯ, если сервер ответил хоть чем-нибудь, и ОТКЛОНЯЕТСЯ, если
+     имя не разрешилось, соединение отбито или сертификат не тот, — а это
+     ровно та разница, которая нам и нужна.
+
+     Адрес собираем из PEER_OPTS, а не пишем второй раз: разъехались бы при
+     первой же смене брокера, и проверка стала бы врать.
+
+     Ждём четыре секунды. Дольше — человек успевает нажать сам и получить
+     ту же правду обычным путём; меньше — на медленной сети мы соврём, что
+     сервера нет, когда он есть. */
+  const PROBE_MS = 4000;
+  let probing = null;
+  function brokerUrl() {
+    const o = PEER_OPTS;
+    return (o.secure ? 'https://' : 'http://') + o.host + ':' + o.port + (o.path || '/');
+  }
+  function probe(again) {
+    if (probing && !again) return probing;
+    probing = new Promise(resolve => {
+      // браузер уже знает, что сети нет — не тревожим сеть впустую
+      if (navigator.onLine === false) { resolve(false); return; }
+      if (typeof fetch !== 'function' || typeof AbortController !== 'function') { resolve(true); return; }
+      const ac = new AbortController();
+      const t = setTimeout(() => ac.abort(), PROBE_MS);
+      fetch(brokerUrl(), { mode: 'no-cors', cache: 'no-store', signal: ac.signal })
+        .then(() => { clearTimeout(t); resolve(true); })
+        .catch(() => { clearTimeout(t); resolve(false); });
+    });
+    return probing;
+  }
+
   // без похожих букв: 0/O и 1/I по телефону не продиктуешь
   const ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   function randCode(n) {
@@ -274,10 +313,41 @@
     });
     iCode.addEventListener('click', () => { iCode.focus(); iCode.select(); });
 
-    const api = { say: say, asHost: asHost, asGuest: asGuest, asIdle: asIdle, el: sEl };
+    /* СЕРВЕР ВЫКЛЮЧЕН — говорим об этом РЯДОМ С ВЫБОРОМ КОМНАТЫ, а не после
+       неудачной попытки: кнопки тут же и гаснут, чтобы не звать туда, куда
+       всё равно не пустят.
+
+       Гасим ТОЛЬКО пока ничего не выбрано. Если человек уже создал комнату
+       или вошёл в чужую, трогать его кнопки нельзя: игра идёт, а проверка
+       опоздала. Отсюда и chosen. */
+    let chosen = false, off = false;
+    const wasHost = asHost, wasGuest = asGuest, wasIdle = asIdle;
+    asHost = code => { chosen = true; wasHost(code); };
+    asGuest = () => { chosen = true; wasGuest(); };
+    asIdle = () => { chosen = false; wasIdle(); applyOff(); };
+    function applyOff() {
+      if (chosen) return;
+      box.classList.toggle('net-off', off);
+      sEl.classList.toggle('off', off);
+      bHost.disabled = off; bJoin.disabled = off; iJoin.disabled = off;
+      const offText = opt.off || '🔌 Сервер сети выключен — онлайна сейчас нет';
+      /* Возвращаем спокойную строку ТОЛЬКО если сами же её и меняли. Иначе
+         затрём чужое сообщение: неудачный вход сперва пишет «Комнаты нет»,
+         а следом зовёт asIdle — и человек не успел бы прочесть, почему. */
+      if (off) say(offText);
+      else if (sEl.textContent === offText) say(opt.idle || 'оффлайн (одиночная игра)');
+    }
+    probe().then(alive => { off = !alive; applyOff(); });
+    /* Сеть вернулась — спрашиваем заново. Человек мог включить wi-fi, не
+       перезагружая страницу, и оставлять его с «сервер выключен» нечестно. */
+    global.addEventListener('online', () => { probe(true).then(alive => { off = !alive; applyOff(); }); });
+
+    const api = { say: say, asHost: c => asHost(c), asGuest: () => asGuest(),
+                  asIdle: () => asIdle(), el: sEl };
     if (net && net.attachUI) net.attachUI(api);
     return api;
   }
 
-  global.NET = { create: create, lobby: lobby, randCode: randCode, errMsg: errMsg, PEER_OPTS: PEER_OPTS };
+  global.NET = { create: create, lobby: lobby, randCode: randCode, errMsg: errMsg,
+                 PEER_OPTS: PEER_OPTS, probe: probe, brokerUrl: brokerUrl };
 })(window);
