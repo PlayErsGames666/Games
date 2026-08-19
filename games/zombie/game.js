@@ -219,6 +219,59 @@ function makeParking(x0,y0,w,h){
   }
 }
 
+/* =====================  КУДА ИГРОК ВООБЩЕ ДОЙДЁТ  =====================
+   Разлив от места высадки ПО ТЕМ ЖЕ правилам, по каким ходит игрок:
+
+     · по свободной клетке — просто идёт;
+     · дверь проходима всегда: незапертую открывает, запертую отжимает ломом
+       или выламывает ударом (шумно, но можно) — см. interact и attack;
+     · забор и окно перелезает, но ТОЛЬКО если за ними есть свободное место,
+       ровно как проверяет climb: «За препятствием нет места».
+
+   Зачем это на генерации. Победа тут одна: найти ключи и бензин, дойти до
+   машины. Шкаф, ключи и машина — НЕПРОХОДИМЫЕ клетки, к ним надо встать
+   вплотную. А шкафы ставятся пачками вдоль внутренних стен, и шкаф может
+   оказаться замурован соседями со всех четырёх сторон; машину же кладут «где
+   вышло», если восемь тычков не нашли дороги. Ни то, ни другое ничем не
+   проверялось, и квартал раздавался игроку невыигрываемым: на четырёх сотнях
+   карт ключи или бензин оказывались за стеной в 1.25% случаев, машина — ещё
+   в 0.75%. Заметить это в игре нельзя вовсе — ходишь и ходишь, пока не
+   кончится терпение.
+
+   Ломать стены и шкафы игрок не умеет: удар бьёт зомби, двери и окна, и
+   только их. Значит замурованное замуровано навсегда. */
+function reachFrom(sx, sy){
+  const seen = new Uint8Array(MAPW*MAPH);
+  if(sx<0||sy<0||sx>=MAPW||sy>=MAPH) return seen;
+  const st = [sy*MAPW+sx]; seen[st[0]] = 1;
+  const D = [[1,0],[-1,0],[0,1],[0,-1]];
+  while(st.length){
+    const i = st.pop(), x = i%MAPW, y = (i/MAPW)|0;
+    for(const [dx,dy] of D){
+      const nx = x+dx, ny = y+dy;
+      if(nx<0||ny<0||nx>=MAPW||ny>=MAPH) continue;
+      const j = ny*MAPW+nx, v = tiles[j];
+      if(!solid(v) || v===DOOR){ if(!seen[j]){ seen[j]=1; st.push(j); } continue; }
+      if(v===WIN || v===FENCE){                        // перелезаем — если за ним пусто
+        const cx = nx+dx, cy = ny+dy;
+        if(cx<0||cy<0||cx>=MAPW||cy>=MAPH) continue;
+        const k = cy*MAPW+cx;
+        if(solid(tiles[k])) continue;
+        if(!seen[k]){ seen[k]=1; st.push(k); }
+      }
+    }
+  }
+  return seen;
+}
+/* Можно ли ВСТАТЬ ВПЛОТНУЮ к этой клетке. Именно так и обыскивают шкаф и
+   заводят машину: сама клетка непроходима, годится любая соседняя. */
+function canStandBy(seen, x, y){
+  return [[1,0],[-1,0],[0,1],[0,-1]].some(function(d){
+    const nx = x+d[0], ny = y+d[1];
+    return nx>=0 && ny>=0 && nx<MAPW && ny<MAPH && seen[ny*MAPW+nx] === 1;
+  });
+}
+
 function genMap(){
   tiles = new Uint8Array(MAPW*MAPH).fill(GRASS);
   locked = new Set();
@@ -266,8 +319,25 @@ function genMap(){
   // шкафы -> контейнеры
   containers = new Map();
   for(let y=0;y<MAPH;y++) for(let x=0;x<MAPW;x++)
-    if(tiles[idx(x,y)]===SHELF) containers.set(idx(x,y), { x, y, searched:false, special:null });
-  return containers.size >= 16;
+    if(tiles[idx(x,y)]===SHELF) containers.set(idx(x,y), { x, y, searched:false, special:null, reach:false });
+
+  /* ГОДНОСТЬ КАРТЫ меряем достижимым, а не нарисованным. Шкафов на квартал
+     выходит десятка три, но замурованные среди них есть на каждой четвёртой
+     карте, и прежний счёт «шестнадцать шкафов» их считал наравне с прочими —
+     то есть обещал вдвое больше добычи, чем на карте лежит.
+
+     Машину проверяем тем же разливом. Она ставится «где вышло», если восемь
+     тычков не нашли дороги, и изредка оказывается заперта в чужом дворе:
+     три карты из четырёхсот. Не годится — генерируем заново, попыток шесть
+     (см. reset), и до шести дело не доходило ни разу. */
+  if(!spawnPos) return false;
+  const seen = reachFrom(spawnPos.x|0, spawnPos.y|0);
+  let live = 0;
+  for(const c of containers.values()){
+    c.reach = canStandBy(seen, c.x, c.y);
+    if(c.reach) live++;
+  }
+  return canStandBy(seen, exitPos.x, exitPos.y) && live >= 16;
 }
 
 /* =====================  ИНВЕНТАРЬ  ===================== */
@@ -923,9 +993,14 @@ function reset(){
     while(tries<200 && (solid(tAt(x,y)) || dist(x,y,player.x,player.y)<14));
     if(tries<200) zombies.push(makeZombie(x,y));
   }
-  // ключи и канистра — в разных дальних шкафах
-  const list = [...containers.values()].filter(c=>dist(c.x,c.y,player.x,player.y)>16);
-  const pool = list.length>=2 ? list : [...containers.values()];
+  /* Ключи и канистра — в разных дальних шкафах, и обязательно в тех, до
+     которых можно ДОЙТИ. Раньше годился любой, включая замурованный между
+     стеной и соседними шкафами, — и такой квартал нельзя было выиграть с
+     первого кадра. Достижимых genMap оставляет не меньше шестнадцати, так
+     что выбирать всегда есть из чего. */
+  const live = [...containers.values()].filter(c=>c.reach);
+  const list = live.filter(c=>dist(c.x,c.y,player.x,player.y)>16);
+  const pool = list.length>=2 ? list : live;
   const a = pool[rnd(pool.length)];
   const rest = pool.filter(c=>c!==a);
   const b = rest.length ? rest[rnd(rest.length)] : null;
